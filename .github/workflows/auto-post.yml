@@ -4,7 +4,8 @@ on:
   schedule:
     - cron: "0 8,18 * * *"  # Twice daily UTC
   workflow_dispatch:
-
+permissions:
+  contents: write
 jobs:
   post:
     runs-on: ubuntu-latest
