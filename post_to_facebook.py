@@ -1,167 +1,136 @@
-import os
-import json
-import requests
-import re
+# ✅ post_to_facebook.py
+
+import os, random, json
 from pathlib import Path
+from datetime import datetime
+import requests
+import fitz  # PyMuPDF
+import docx
 
-# === CONFIG ===
-STATE_FILE = Path("post_state.json")
-POST_TYPES = [
-    "grammar_tip", "vocabulary_word", "common_phrase",
-    "common_mistake", "quiz", "short_story"
-]
+FB_PAGE_ID = os.getenv("FB_PAGE_ID")
+FB_PAGE_TOKEN = os.getenv("FB_PAGE_TOKEN")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-TYPE_HEADERS = {
-    "grammar_tip": "📘 قاعدة اليوم:",
-    "vocabulary_word": "🧠 كلمة اليوم:",
-    "common_phrase": "🗣️ عبارة اليوم:",
-    "common_mistake": "⚠️ خطأ شائع:",
-    "quiz": "❓ سؤال اليوم:",
-    "short_story": "📖 قصة قصيرة:"
-}
+CHARACTER_CONFIG_FILE = "characters/character_config.json"
+POST_TYPES_FILE = "post_types_config.json"
+POST_STATE_FILE = "post_state.json"
+POST_LOG_FILE = "post_log.json"
 
-TYPE_HASHTAGS = {
-    "grammar_tip": "#EnglishGrammar #LearnEnglish #قواعد_اللغة_الإنجليزية",
-    "vocabulary_word": "#EnglishVocabulary #WordOfTheDay #كلمات_إنجليزية",
-    "common_phrase": "#EnglishPhrases #عبارات_إنجليزية #LearnEnglish",
-    "common_mistake": "#EnglishMistakes #LearnFromMistakes #تعلم_الإنجليزية",
-    "quiz": "#EnglishQuiz #اختبار_إنجليزي #EnglishChallenge",
-    "short_story": "#EnglishStory #قصص_إنجليزية #ReadingPractice"
-}
+def load_json(path):
+    with open(path, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
-# === TRACK POST TYPE ===
-def load_last_type_index():
-    if STATE_FILE.exists():
-        try:
-            with open(STATE_FILE, "r") as f:
-                return json.load(f).get("last_index", -1)
-        except:
-            return -1
-    return -1
+def save_json(path, data):
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
-def save_type_index(index):
-    with open(STATE_FILE, "w") as f:
-        json.dump({"last_index": index}, f)
+def extract_text_from_file(file_path):
+    if file_path.endswith(".pdf"):
+        doc = fitz.open(file_path)
+        return "\n".join(page.get_text() for page in doc)
+    elif file_path.endswith(".docx"):
+        doc = docx.Document(file_path)
+        return "\n".join(p.text for p in doc.paragraphs)
+    elif file_path.endswith(".txt"):
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    return ""
 
-def get_next_post_type():
-    last_index = load_last_type_index()
-    next_index = (last_index + 1) % len(POST_TYPES)
-    save_type_index(next_index)
-    return POST_TYPES[next_index]
+def get_random_image_from(folder):
+    images = list(Path(folder).glob("*.jpg")) + list(Path(folder).glob("*.png"))
+    return str(random.choice(images)) if images else None
 
-# === PROMPT BUILDER (ENGLISH PROMPT / ARABIC MSA OUTPUT) ===
-def build_prompt(post_type):
-    common_suffix = " Respond only in Modern Standard Arabic (الفصحى). Do not use dialect or spoken Arabic. Do not explain. Just return the final post."
+def build_prompt(text, post_type_prompt, style):
+    return (
+        f"اكتب المنشور بصيغة المعلم بدون ذكر الذكاء الاصطناعي وبدون جمل تمهيدية. "
+        f"استخدم العربية الفصحى فقط.\n\n"
+        f"النص:\n{text[:3000]}\n\n"
+        f"نوع المنشور: {post_type_prompt}. {style}"
+    )
 
-    prompts = {
-        "grammar_tip": "Act like an Arabic English teacher. Write a short Facebook post explaining one English grammar rule with an English example and Arabic translation." + common_suffix,
-        "vocabulary_word": "You are an Arabic English teacher. Write a Facebook post showing a useful English word, its Arabic meaning, an example sentence in English, and its Arabic translation. Do NOT explain what you're doing." + common_suffix,
-        "common_phrase": "Write a Facebook post sharing one common English phrase, its Arabic meaning, an English sentence using it, and Arabic translation." + common_suffix,
-        "common_mistake": "Write a Facebook post that highlights a common mistake Arabic speakers make in English. Show the wrong and correct sentence, and explain the mistake. Just return the Arabic post." + common_suffix,
-        "quiz": "Write a multiple-choice quiz about English with 4 options (A-D). The whole quiz must be in Arabic. Do not give the answer. Format it clearly like a teacher wrote it." + common_suffix,
-        "short_story": "Write a short dialogue between two people in English. Under each line, write its Arabic translation in Modern Standard Arabic. No intro or explanation." + common_suffix
-    }
-
-    return prompts.get(post_type, "Write a helpful educational post. " + common_suffix)
-
-# === FORMAT CLEANUP ===
-def fix_spacing_and_formatting(text, post_type):
-    lines = text.splitlines()
-    english_lines = []
-    arabic_lines = []
-    other_lines = []
-
-    for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            continue
-        if re.match(r'^[A-Da-d]\)', stripped):
-            other_lines.append(stripped)
-        elif re.search(r'[A-Za-z]', stripped) and not re.search(r'[\u0600-\u06FF]', stripped):
-            english_lines.append(stripped)
-        elif re.search(r'[\u0600-\u06FF]', stripped):
-            arabic_lines.append(stripped)
-        else:
-            other_lines.append(stripped)
-
-    result_lines = []
-
-    if post_type == "short_story":
-        result_lines += english_lines + ["", "---", ""] + arabic_lines
-    elif post_type == "quiz":
-        result_lines += english_lines + other_lines
-    else:
-        result_lines += lines
-
-    return "\n".join(result_lines)
-
-# === GENERATE POST CONTENT USING GEMINI API ===
-def generate_post_content(post_type):
-    prompt = build_prompt(post_type)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={os.getenv('GEMINI_API_KEY')}"
+def generate_gemini_content(prompt):
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
     headers = {"Content-Type": "application/json"}
-    body = {"contents": [{"parts": [{"text": prompt}]}]}
-
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    r = requests.post(url, headers=headers, json=payload)
     try:
-        response = requests.post(url, headers=headers, json=body)
-        data = response.json()
-
-        if "error" in data:
-            print("⚠️ Gemini API error:", data["error"]["message"])
-            return None
-
-        candidates = data.get("candidates", [])
-        if not candidates or not candidates[0]["content"]["parts"]:
-            print("🚫 Gemini returned empty or invalid content.")
-            return None
-
-        text = candidates[0]["content"]["parts"][0]["text"]
-
-        # Remove unwanted AI phrases
-        for bad_phrase in [
-            "بالتأكيد", "بالطبع", "حسنًا", "إليك", "ها هو", "ها هي", 
-            "Sure", "Of course", "Okay", "Here is", "Here’s", "Let me"
-        ]:
-            text = text.replace(bad_phrase, "")
-
-        # Clean markdown and format
-        text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
-        text = re.sub(r'\*(.*?)\*', r'\1', text)
-        text = re.sub(r'_([^_]+)_', r'\1', text)
-        text = re.sub(r'^\s*[\*\-]\s*', '', text, flags=re.MULTILINE)
-
-        clean_text = fix_spacing_and_formatting(text.strip(), post_type)
-
-        # Skip post if too short or invalid
-        if len(clean_text.strip().splitlines()) < 3:
-            print("⚠️ Skipping: response too short or empty.")
-            return None
-
-        hashtags = TYPE_HASHTAGS.get(post_type, "")
-        return f"{TYPE_HEADERS[post_type]}\n\n{clean_text}\n\n{hashtags}"
-
-    except Exception as e:
-        print("⚠️ Exception:", str(e))
+        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+    except:
         return None
 
-# === POST TO FACEBOOK ===
-def post_text_to_facebook(page_id, token, message):
-    url = f"https://graph.facebook.com/{page_id}/feed"
-    payload = {"message": message, "access_token": token}
-    r = requests.post(url, data=payload)
-    print(f"[{page_id}] → {r.status_code}: {r.text[:200]}")
-
-# === MAIN ===
-if __name__ == "__main__":
-    post_type = get_next_post_type()
-    print(f"📢 Generating post type: {post_type}")
-    message = generate_post_content(post_type)
-
-    if message:
-        post_text_to_facebook(
-            os.getenv("FB_PAGE_ID"),
-            os.getenv("FB_PAGE_TOKEN"),
-            message
-        )
+def post_to_facebook(message, image_path=None):
+    if image_path:
+        files = {'source': open(image_path, 'rb')}
+        data = {'caption': message, 'access_token': FB_PAGE_TOKEN}
+        url = f'https://graph.facebook.com/{FB_PAGE_ID}/photos'
     else:
-        print("🚫 Skipping post due to content generation failure.")
+        files = None
+        data = {'message': message, 'access_token': FB_PAGE_TOKEN}
+        url = f'https://graph.facebook.com/{FB_PAGE_ID}/feed'
+    return requests.post(url, data=data, files=files).json()
+
+def clean_filename(name):
+    return name.replace(".pdf", "").replace(".docx", "").replace(".txt", "").replace("_", " ")
+
+def log_post(entry):
+    log = []
+    if Path(POST_LOG_FILE).exists():
+        log = load_json(POST_LOG_FILE)
+    log.append(entry)
+    save_json(POST_LOG_FILE, log)
+
+def load_state():
+    return load_json(POST_STATE_FILE) if Path(POST_STATE_FILE).exists() else {"day_index": 0}
+
+def save_state(state):
+    save_json(POST_STATE_FILE, state)
+
+def create_post(post_index=0):
+    state = load_state()
+    characters = load_json(CHARACTER_CONFIG_FILE)
+    post_types = load_json(POST_TYPES_FILE)
+
+    teacher_keys = list(characters.keys())
+    teacher_index = state["day_index"] % len(teacher_keys)
+    teacher_key = teacher_keys[teacher_index]
+    teacher = characters[teacher_key]
+
+    book_folder = Path(teacher["book_folder"])
+    book_files = list(book_folder.glob("*.*"))
+    if not book_files:
+        print("❌ لا توجد ملفات تعليمية.")
+        return
+
+    file = book_files[0]
+    text = extract_text_from_file(str(file))
+    post_type = random.choice(list(post_types.keys()))
+    prompt = build_prompt(text, post_types[post_type], teacher["style"])
+    content = generate_gemini_content(prompt)
+
+    if not content:
+        print("⚠️ فشل التوليد.")
+        return
+
+    title = f"📘 {clean_filename(file.name)}:\n"
+    image = get_random_image_from(teacher["folder"])
+    message = f"{title}\n{content.strip()}"
+    post_to_facebook(message, image)
+
+    log_post({
+        "date": datetime.now().isoformat(),
+        "teacher": teacher_key,
+        "file": file.name,
+        "type": post_type,
+        "summary": content[:60].replace('\n', ' ')
+    })
+
+    if post_index == 2:
+        state["day_index"] += 1
+        save_state(state)
+
+    print(f"✅ Posted by {teacher_key} ({post_type})")
+
+if __name__ == '__main__':
+    import sys
+    index = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+    create_post(index)
