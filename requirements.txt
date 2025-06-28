@@ -1,2 +1,5 @@
-google-generativeai
+
 requests
+google-generativeai
+python-docx
+PyPDF2
