@@ -3,205 +3,166 @@ import json
 import random
 import datetime
 import requests
-import mimetypes
-
 import google.generativeai as genai
 from docx import Document
 from PyPDF2 import PdfReader
 
 # ENV VARS
-FB_PAGE_TOKEN = os.environ.get("FB_PAGE_TOKEN")
-FB_PAGE_ID = os.environ.get("FB_PAGE_ID")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-POST_TYPE_OVERRIDE = os.environ.get("POST_TYPE_OVERRIDE", "auto")  # auto, teacher, or random
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+FB_PAGE_TOKEN = os.getenv("FB_PAGE_TOKEN")
+FB_PAGE_ID = os.getenv("FB_PAGE_ID")
+POST_TYPE_OVERRIDE = os.getenv("POST_TYPE_OVERRIDE", "auto")
 
-# Gemini setup
+# INIT GEMINI
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("models/gemini-2.0-flash")
+model = genai.GenerativeModel("gemini-1.0-pro")
 
-# File paths
-CHARACTER_CONFIG_PATH = "characters/character_config.json"
-POST_STATE_PATH = "post_state.json"
-POST_LOG_PATH = "post_log.json"
+# FILES
+CONFIG_FILE = "characters/character_config.json"
+STATE_FILE = "post_state.json"
+LOG_FILE = "post_log.json"
 
-# Types of posts
-POST_TYPES = ["شرح", "تلخيص", "أسئلة", "حل", "تدريب", "أمثلة", "معلومة"]
-
-# Utility Functions
-def folder_has_valid_files(folder, valid_extensions):
-    if not os.path.exists(folder):
-        return False
-    return any(
-        any(file.lower().endswith(ext) for ext in valid_extensions)
-        for file in os.listdir(folder)
-    )
-
-def read_file_content(filepath):
-    if filepath.endswith(".txt"):
-        with open(filepath, "r", encoding="utf-8") as f:
-            return f.read()
-    elif filepath.endswith(".docx"):
-        doc = Document(filepath)
-        return "\n".join(p.text for p in doc.paragraphs)
-    elif filepath.endswith(".pdf"):
-        reader = PdfReader(filepath)
-        return "\n".join(page.extract_text() or "" for page in reader.pages)
-    return ""
-
-def load_json(path, default):
-    if not os.path.exists(path):
-        return default
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+# UTILS
+def load_json(path, fallback):
+    return json.load(open(path)) if os.path.exists(path) else fallback
 
 def save_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
+    with open(path, "w") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def choose_next_character(characters, post_state):
-    index = post_state.get("character_index", 0)
-    character = list(characters.keys())[index % len(characters)]
-    post_state["character_index"] = index + 1
-    return character
+def folder_has_valid_files(folder, extensions):
+    return any(file.lower().endswith(tuple(extensions)) for file in os.listdir(folder))
 
-def pick_random_file(folder, extensions):
-    files = [f for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in extensions)]
-    return os.path.join(folder, random.choice(files)) if files else None
+def read_random_file(folder):
+    files = [f for f in os.listdir(folder) if f.endswith((".txt", ".pdf", ".docx"))]
+    if not files:
+        return None, None
+    file_path = os.path.join(folder, random.choice(files))
+    content = ""
+    try:
+        if file_path.endswith(".txt"):
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        elif file_path.endswith(".docx"):
+            doc = Document(file_path)
+            content = "\n".join([p.text for p in doc.paragraphs])
+        elif file_path.endswith(".pdf"):
+            reader = PdfReader(file_path)
+            content = "\n".join(page.extract_text() or "" for page in reader.pages)
+    except Exception as e:
+        return None, None
+    return os.path.basename(file_path), content.strip()
 
-def clean_gemini_response(text):
-    lines = text.strip().splitlines()
-    return "\n".join(line.strip("* ").strip() for line in lines if line.strip())
+def select_teacher():
+    state = load_json(STATE_FILE, {"last_teacher": -1})
+    teachers = list(load_json(CONFIG_FILE, {}).keys())
+    index = (state["last_teacher"] + 1) % len(teachers)
+    state["last_teacher"] = index
+    save_json(STATE_FILE, state)
+    return teachers[index]
 
-def generate_post_content(text, style, post_type):
+def generate_teacher_post(name, image_folder, book_folder, style, material, book_name):
     prompt = (
-        f"You are an Arabic English teacher. Use the following material:\n\n"
-        f"{text}\n\n"
-        f"Write a Facebook post in Arabic to do a '{post_type}' of this content. Use this style:\n\n{style}\n\n"
-        f"Do NOT introduce yourself or mention AI. Just return the final post content."
+        f"You are a female Arabic teacher. Here is your personality: {style}. "
+        f"Use the following learning material from the book '{book_name}' to create a helpful post "
+        f"for Arabic-speaking English learners. Make it informative, well-formatted, and clearly human-written. "
+        f"Respond only with the final post text in Arabic (no intro or system text). "
+        f"Content:\n\n{material[:3000]}"
     )
     try:
         response = model.generate_content(prompt)
-        return clean_gemini_response(response.text)
-    except Exception as e:
-        print(f"⚠️ AI generation failed: {e}")
+        return response.text.strip()
+    except Exception:
+        return None
+
+def generate_random_post():
+    prompt = (
+        "Create a helpful short English learning post for Arabic speakers. Include vocabulary or a quiz. "
+        "Respond in Arabic only. Format cleanly, no markdown or bold symbols like '**'. Avoid AI phrases."
+    )
+    try:
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception:
         return None
 
 def post_to_facebook(message, image_path=None):
-    url = f"https://graph.facebook.com/{FB_PAGE_ID}/photos" if image_path else f"https://graph.facebook.com/{FB_PAGE_ID}/feed"
-    payload = {"caption" if image_path else "message": message, "access_token": FB_PAGE_TOKEN}
-    files = None
-
-    if image_path:
-        mime = mimetypes.guess_type(image_path)[0]
-        files = {"source": (os.path.basename(image_path), open(image_path, "rb"), mime)}
-
-    response = requests.post(url, data=payload, files=files)
-    if response.status_code != 200:
-        print(f"❌ Facebook post failed: {response.text}")
-    else:
-        print("✅ Post published successfully.")
-
-def post_random_fallback():
-    try:
-        print("📌 Posting fallback random post...")
-        fallback_prompt = (
-            "Generate a single Facebook post in Arabic for Arabic-speaking English learners. "
-            "Randomly choose ONE of the following: English word with example and Arabic explanation, "
-            "short grammar tip, or English multiple-choice question. "
-            "Use formal Arabic (فصحى), do NOT say 'here is', 'sure', or use **bold**. "
-            "Keep the tone human and natural. Do not include the answer if it's a quiz."
-        )
-        response = model.generate_content(fallback_prompt)
-        message = clean_gemini_response(response.text)
-        post_to_facebook(message)
-        return True
-    except Exception as e:
-        print(f"❌ Fallback post failed: {e}")
-        return False
-
-# Main Logic
-def main():
-    post_state = load_json(POST_STATE_PATH, {})
-    characters = load_json(CHARACTER_CONFIG_PATH, {})
-    post_log = load_json(POST_LOG_PATH, {})
-
-    current_hour = datetime.datetime.utcnow().hour + 2  # Cairo Time (UTC+2)
-    today_str = datetime.date.today().isoformat()
-
-    if POST_TYPE_OVERRIDE == "random":
-        post_type = "🌀 عشوائي"
-    elif POST_TYPE_OVERRIDE == "teacher":
-        post_type = "📘 من الكتاب"
-    elif current_hour < 12:
-        post_type = "📘 من الكتاب"
-    elif current_hour < 18:
-        post_type = "🌀 عشوائي"
-    else:
-        post_type = "📘 من الكتاب"
-
-    # RANDOM POST SLOT
-    if post_type == "🌀 عشوائي":
-        if not post_random_fallback():
-            print("🛑 Could not generate midday fallback.")
-        return
-
-    # TEACHER POST SLOT
-    character_name = post_state.get("current_character")
-    if not character_name or today_str != post_state.get("last_used_date"):
-        character_name = choose_next_character(characters, post_state)
-        post_state["current_character"] = character_name
-        post_state["last_used_date"] = today_str
-
-    char_info = characters.get(character_name)
-    if not char_info:
-        print("⚠️ No character config found.")
-        return
-
-    book_folder = char_info["book_folder"]
-    image_folder = char_info["folder"]
-    display_name = char_info.get("name", character_name)
-
-    has_books = folder_has_valid_files(book_folder, [".txt", ".pdf", ".docx"])
-    has_images = folder_has_valid_files(image_folder, [".jpg", ".png", ".jpeg"])
-
-    if not has_books or not has_images:
-        print(f"⚠️ Missing files for {display_name}.")
-        if POST_TYPE_OVERRIDE == "teacher":
-            print("🛑 Manual override forbids fallback. Skipping.")
-            return
-        print("📌 Fallback to random post...")
-        if not post_random_fallback():
-            print("🛑 Fallback also failed.")
-        return
-
-    file_path = pick_random_file(book_folder, [".txt", ".pdf", ".docx"])
-    text = read_file_content(file_path)
-    style = char_info.get("style", "")
-    task_type = random.choice(POST_TYPES)
-
-    message = generate_post_content(text, style, task_type)
-    if not message:
-        print("⚠️ Generation failed.")
-        if POST_TYPE_OVERRIDE == "teacher":
-            print("🛑 Manual override forbids fallback. Skipping.")
-            return
-        if not post_random_fallback():
-            print("🛑 Fallback also failed.")
-        return
-
-    image_path = pick_random_file(image_folder, [".jpg", ".png", ".jpeg"])
-    final_message = f"👩‍🏫 {display_name}:\n\n{message}"
-    post_to_facebook(final_message, image_path)
-
-    log_entry = {
-        "date": today_str,
-        "character": display_name,
-        "type": task_type,
-        "file": os.path.basename(file_path)
+    url = f"https://graph.facebook.com/{FB_PAGE_ID}/photos"
+    data = {
+        "caption": message,
+        "access_token": FB_PAGE_TOKEN
     }
-    post_log.setdefault(today_str, []).append(log_entry)
-    save_json(POST_LOG_PATH, post_log)
-    save_json(POST_STATE_PATH, post_state)
+    files = {"source": open(image_path, "rb")} if image_path else None
+    response = requests.post(url, data=data, files=files)
+    if response.status_code == 200:
+        print("✅ Post published successfully.")
+        return True
+    print("❌ Post failed:", response.text)
+    return False
+
+def main():
+    config = load_json(CONFIG_FILE, {})
+    post_log = load_json(LOG_FILE, {})
+
+    today = datetime.date.today()
+    today_str = today.isoformat()
+    current_hour = datetime.datetime.now().hour
+
+    # Determine post type
+    if POST_TYPE_OVERRIDE == "random" or current_hour == 14:
+        print("📌 Generating RANDOM midday post...")
+        post = generate_random_post()
+        if post:
+            post_to_facebook(post)
+        return
+
+    teacher_id = select_teacher()
+    teacher = config.get(teacher_id)
+    if not teacher:
+        print("🚫 No teacher config found.")
+        return
+
+    book_folder = teacher["book_folder"]
+    image_folder = teacher["folder"]
+    style = teacher["style"]
+    teacher_name = teacher["name"]
+
+    # Check for book
+    if not folder_has_valid_files(book_folder, [".pdf", ".docx", ".txt"]):
+        print(f"📂 No valid book for {teacher_name}, skipping...")
+        return
+
+    # Read material
+    book_name, material = read_random_file(book_folder)
+    if not material:
+        print("⚠️ Could not read book content.")
+        return
+
+    # Generate post
+    print(f"✏️ Generating post from {teacher_name} based on '{book_name}'...")
+    post = generate_teacher_post(teacher_name, image_folder, book_folder, style, material, book_name)
+    if not post:
+        print("⚠️ AI could not generate teacher post.")
+        return
+
+    # Pick random image
+    images = [f for f in os.listdir(image_folder) if f.lower().endswith((".jpg", ".png"))]
+    image_path = os.path.join(image_folder, random.choice(images)) if images else None
+
+    # Add heading
+    message = f"📚 من كتاب: {book_name}\n\n{post}"
+
+    # Post to Facebook
+    success = post_to_facebook(message, image_path)
+
+    if success:
+        post_log.setdefault(today_str, []).append({
+            "teacher": teacher_name,
+            "book": book_name,
+            "type": "teacher",
+            "hour": current_hour
+        })
+        save_json(LOG_FILE, post_log)
 
 if __name__ == "__main__":
     main()
