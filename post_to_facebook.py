@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+import re
 from pathlib import Path
 
 # == Constants ==
@@ -58,11 +59,7 @@ def generate_post_content(post_type):
 
     headers = {"Content-Type": "application/json"}
     body = {
-        "contents": [
-            {
-                "parts": [{"text": prompt}]
-            }
-        ]
+        "contents": [{"parts": [{"text": prompt}]}]
     }
 
     try:
@@ -70,22 +67,31 @@ def generate_post_content(post_type):
         data = response.json()
 
         if "error" in data:
-            raise Exception(data["error"]["message"])
+            print("⚠️ Gemini API error:", data["error"]["message"])
+            return None
 
         text = data["candidates"][0]["content"]["parts"][0]["text"]
 
-        # 🧹 Clean AI-style intros
+        # Remove AI filler phrases
         for bad_phrase in [
-            "بالتأكيد،", "بالطبع،", "إليك ", "ها هو ", "ها هي ", 
+            "بالتأكيد،", "بالطبع،", "إليك ", "ها هو ", "ها هي ",
             "Sure! ", "Of course, ", "Here is ", "Here's ", "Let me show you"
         ]:
             text = text.replace(bad_phrase, "")
 
-        return f"{TYPE_HEADERS[post_type]}\n\n{text.strip()}"
-    except Exception as e:
-        return f"{TYPE_HEADERS[post_type]}\n\n⚠️ تعذر توليد المحتوى تلقائيًا: {str(e)}"
+        # Remove markdown formatting
+        text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)  # **bold**
+        text = re.sub(r'\*(.*?)\*', r'\1', text)      # *italic*
+        text = re.sub(r'_([^_]+)_', r'\1', text)      # _italic_
+        text = re.sub(r'^\s*[\*\-]\s*', '', text, flags=re.MULTILINE)  # bullets
 
-# == Facebook Post ==
+        return f"{TYPE_HEADERS[post_type]}\n\n{text.strip()}"
+
+    except Exception as e:
+        print("⚠️ Exception:", str(e))
+        return None
+
+# == Facebook Posting ==
 def post_text_to_facebook(page_id, token, message):
     url = f"https://graph.facebook.com/{page_id}/feed"
     payload = {
@@ -95,13 +101,17 @@ def post_text_to_facebook(page_id, token, message):
     r = requests.post(url, data=payload)
     print(f"[{page_id}] → {r.status_code}: {r.text[:200]}")
 
-# == Run ==
+# == Main Runner ==
 if __name__ == "__main__":
     post_type = get_next_post_type()
     print(f"📢 Generating post type: {post_type}")
     message = generate_post_content(post_type)
-    post_text_to_facebook(
-        os.getenv("FB_PAGE_ID"),
-        os.getenv("FB_PAGE_TOKEN"),
-        message
-    )
+
+    if message:
+        post_text_to_facebook(
+            os.getenv("FB_PAGE_ID"),
+            os.getenv("FB_PAGE_TOKEN"),
+            message
+        )
+    else:
+        print("🚫 Skipping post due to content generation failure.")
