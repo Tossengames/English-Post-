@@ -3,7 +3,17 @@ name: 📤 Daily Facebook Post
 on:
   schedule:
     - cron: "0 8,14,20 * * *"  # Cairo time: 8 AM, 2 PM, 8 PM
-  workflow_dispatch:  # Manual trigger from GitHub
+  workflow_dispatch:
+    inputs:
+      post_type:
+        description: "Choose post type"
+        required: true
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - random
+          - teacher
 
 jobs:
   post:
@@ -13,7 +23,7 @@ jobs:
       FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
       FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      POST_TYPE_OVERRIDE: auto  # Options: auto, random, teacher
+      POST_TYPE_OVERRIDE: ${{ github.event.inputs.post_type }}
 
     steps:
       - name: 📥 Checkout Repository
