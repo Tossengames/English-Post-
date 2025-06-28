@@ -4,16 +4,20 @@ import requests
 from pathlib import Path
 import google.generativeai as genai
 
-# ✅ Configure Gemini (MakerSuite)
+# Gemini 1.0 setup
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("models/gemini-pro")  # Gemini 1.0
+model = genai.GenerativeModel("models/gemini-pro")
 
-# ✅ Facebook config from GitHub Secrets
-FB_PAGE_TOKENS = os.getenv("FB_PAGE_TOKEN").split(",")
-FB_PAGE_IDS = os.getenv("FB_PAGE_ID").split(",")
+# Facebook credentials (single page)
+FB_PAGE_ID = os.getenv("FB_PAGE_ID")
+FB_PAGE_TOKEN = os.getenv("FB_PAGE_TOKEN")
 
-# ✅ Track which post type was used last
+# Pixabay
+PIXABAY_KEY = os.getenv("PIXABAY_KEY")
+
+# File to track last post type
 STATE_FILE = Path("post_state.json")
+
 POST_TYPES = [
     "grammar_tip", "vocabulary_word", "common_phrase",
     "common_mistake", "quiz", "short_story"
@@ -34,7 +38,7 @@ def load_last_type_index():
             with open(STATE_FILE, "r") as f:
                 data = json.load(f)
                 return data.get("last_index", -1)
-        except json.JSONDecodeError:
+        except:
             return -1
     return -1
 
@@ -69,7 +73,7 @@ def generate_post_content(post_type):
 
 def get_pixabay_image(keyword):
     try:
-        url = f"https://pixabay.com/api/?key={os.getenv('PIXABAY_KEY')}&q={keyword}&image_type=photo&per_page=3"
+        url = f"https://pixabay.com/api/?key={PIXABAY_KEY}&q={keyword}&image_type=photo&per_page=3"
         r = requests.get(url)
         data = r.json()
         return data["hits"][0]["largeImageURL"] if data.get("hits") else None
@@ -77,7 +81,6 @@ def get_pixabay_image(keyword):
         return None
 
 def extract_keyword(text):
-    # Pulls a likely image keyword from the generated message
     words = [word.strip(".,:;!?") for word in text.split() if word.isalpha() and word[0].isupper()]
     return words[0] if words else "language"
 
@@ -98,5 +101,4 @@ if __name__ == "__main__":
     keyword = extract_keyword(message)
     image_url = get_pixabay_image(keyword) or get_pixabay_image("education")
 
-    for page_id, token in zip(FB_PAGE_IDS, FB_PAGE_TOKENS):
-        post_to_facebook(page_id, token, message, image_url)
+    post_to_facebook(FB_PAGE_ID, FB_PAGE_TOKEN, message, image_url)
