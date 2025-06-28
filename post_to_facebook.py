@@ -20,6 +20,15 @@ TYPE_HEADERS = {
     "short_story": "📖 قصة قصيرة:"
 }
 
+TYPE_HASHTAGS = {
+    "grammar_tip": "#EnglishGrammar #LearnEnglish #قواعد_اللغة_الإنجليزية",
+    "vocabulary_word": "#EnglishVocabulary #WordOfTheDay #كلمات_إنجليزية",
+    "common_phrase": "#EnglishPhrases #عبارات_إنجليزية #LearnEnglish",
+    "common_mistake": "#EnglishMistakes #LearnFromMistakes #تعلم_الإنجليزية",
+    "quiz": "#EnglishQuiz #اختبار_إنجليزي #EnglishChallenge",
+    "short_story": "#EnglishStory #قصص_إنجليزية #ReadingPractice"
+}
+
 # == Post Type Tracking ==
 def load_last_type_index():
     if STATE_FILE.exists():
@@ -72,20 +81,23 @@ def generate_post_content(post_type):
 
         text = data["candidates"][0]["content"]["parts"][0]["text"]
 
-        # Remove AI filler phrases
+        # Clean AI filler phrases
         for bad_phrase in [
             "بالتأكيد،", "بالطبع،", "إليك ", "ها هو ", "ها هي ",
             "Sure! ", "Of course, ", "Here is ", "Here's ", "Let me show you"
         ]:
             text = text.replace(bad_phrase, "")
 
-        # Remove markdown formatting
-        text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)  # **bold**
-        text = re.sub(r'\*(.*?)\*', r'\1', text)      # *italic*
-        text = re.sub(r'_([^_]+)_', r'\1', text)      # _italic_
-        text = re.sub(r'^\s*[\*\-]\s*', '', text, flags=re.MULTILINE)  # bullets
+        # Remove Markdown formatting
+        text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+        text = re.sub(r'\*(.*?)\*', r'\1', text)
+        text = re.sub(r'_([^_]+)_', r'\1', text)
+        text = re.sub(r'^\s*[\*\-]\s*', '', text, flags=re.MULTILINE)
 
-        return f"{TYPE_HEADERS[post_type]}\n\n{text.strip()}"
+        # Add hashtags
+        hashtags = TYPE_HASHTAGS.get(post_type, "")
+        final_text = f"{TYPE_HEADERS[post_type]}\n\n{text.strip()}\n\n{hashtags}"
+        return final_text
 
     except Exception as e:
         print("⚠️ Exception:", str(e))
