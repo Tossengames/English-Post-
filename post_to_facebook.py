@@ -4,7 +4,7 @@ import requests
 import re
 from pathlib import Path
 
-# == Constants ==
+# === CONFIG ===
 STATE_FILE = Path("post_state.json")
 POST_TYPES = [
     "grammar_tip", "vocabulary_word", "common_phrase",
@@ -29,6 +29,7 @@ TYPE_HASHTAGS = {
     "short_story": "#EnglishStory #قصص_إنجليزية #ReadingPractice"
 }
 
+# === TRACK POST TYPE ===
 def load_last_type_index():
     if STATE_FILE.exists():
         try:
@@ -48,18 +49,22 @@ def get_next_post_type():
     save_type_index(next_index)
     return POST_TYPES[next_index]
 
-# ✅ Stronger prompts that avoid obvious AI tone
+# === PROMPT BUILDER (ENGLISH PROMPT / ARABIC MSA OUTPUT) ===
 def build_prompt(post_type):
-    prompts = {
-        "grammar_tip": "Act like an Arabic English teacher. Write a short Facebook post explaining one grammar rule with an English example and Arabic translation. Don’t introduce or explain the post. Just return the final Arabic post directly.",
-        "vocabulary_word": "You are an Arabic English teacher. Write a Facebook post showing a useful English word with its Arabic meaning, one example English sentence, and its Arabic translation. Do NOT mention you're giving a word or explain anything. Write directly in Arabic like a natural post.",
-        "common_phrase": "Pretend you’re writing a natural Facebook post (in Arabic) for students. Share one English phrase with its Arabic meaning, a sentence using it, and Arabic translation. Don’t explain anything. Just return the final content in Arabic.",
-        "common_mistake": "Write a natural short post in Arabic pointing out a common mistake Arabic speakers make in English. Show the wrong sentence, the correct one, and explain the mistake. No intros. Just return the final Arabic post as-is.",
-        "quiz": "Write an English quiz for Facebook learners. Make it fun. Show a multiple-choice question (A-D) in Arabic. Do not provide the correct answer. Just return the Arabic quiz post, no explanations.",
-        "short_story": "Write a short dialogue between two people in English. Below each line, provide its Arabic translation. Format it clearly and naturally. Do not introduce it or say what you’re doing. Just return the content."
-    }
-    return prompts.get(post_type, "Write a helpful English-learning tip and return the Arabic post directly.")
+    common_suffix = " Respond only in Modern Standard Arabic (الفصحى). Do not use dialect or spoken Arabic. Do not explain. Just return the final post."
 
+    prompts = {
+        "grammar_tip": "Act like an Arabic English teacher. Write a short Facebook post explaining one English grammar rule with an English example and Arabic translation." + common_suffix,
+        "vocabulary_word": "You are an Arabic English teacher. Write a Facebook post showing a useful English word, its Arabic meaning, an example sentence in English, and its Arabic translation. Do NOT explain what you're doing." + common_suffix,
+        "common_phrase": "Write a Facebook post sharing one common English phrase, its Arabic meaning, an English sentence using it, and Arabic translation." + common_suffix,
+        "common_mistake": "Write a Facebook post that highlights a common mistake Arabic speakers make in English. Show the wrong and correct sentence, and explain the mistake. Just return the Arabic post." + common_suffix,
+        "quiz": "Write a multiple-choice quiz about English with 4 options (A-D). The whole quiz must be in Arabic. Do not give the answer. Format it clearly like a teacher wrote it." + common_suffix,
+        "short_story": "Write a short dialogue between two people in English. Under each line, write its Arabic translation in Modern Standard Arabic. No intro or explanation." + common_suffix
+    }
+
+    return prompts.get(post_type, "Write a helpful educational post. " + common_suffix)
+
+# === FORMAT CLEANUP ===
 def fix_spacing_and_formatting(text, post_type):
     lines = text.splitlines()
     english_lines = []
@@ -90,6 +95,7 @@ def fix_spacing_and_formatting(text, post_type):
 
     return "\n".join(result_lines)
 
+# === GENERATE POST CONTENT USING GEMINI API ===
 def generate_post_content(post_type):
     prompt = build_prompt(post_type)
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={os.getenv('GEMINI_API_KEY')}"
@@ -106,10 +112,10 @@ def generate_post_content(post_type):
 
         text = data["candidates"][0]["content"]["parts"][0]["text"]
 
-        # Remove AI tone
+        # Clean AI/assistant phrases
         for bad_phrase in [
-            "بالتأكيد", "بالطبع", "حسنًا", "إليك", "ها هو", "ها هي",
-            "Sure", "Of course", "Okay", "Here is", "Let me"
+            "بالتأكيد", "بالطبع", "حسنًا", "إليك", "ها هو", "ها هي", 
+            "Sure", "Of course", "Okay", "Here is", "Here’s", "Let me"
         ]:
             text = text.replace(bad_phrase, "")
 
@@ -127,12 +133,14 @@ def generate_post_content(post_type):
         print("⚠️ Exception:", str(e))
         return None
 
+# === POST TO FACEBOOK ===
 def post_text_to_facebook(page_id, token, message):
     url = f"https://graph.facebook.com/{page_id}/feed"
     payload = {"message": message, "access_token": token}
     r = requests.post(url, data=payload)
     print(f"[{page_id}] → {r.status_code}: {r.text[:200]}")
 
+# === MAIN ===
 if __name__ == "__main__":
     post_type = get_next_post_type()
     print(f"📢 Generating post type: {post_type}")
