@@ -1,30 +1,24 @@
 import os
-import requests
-import random
-import google.generativeai as genai
 import json
+import requests
 from pathlib import Path
+import google.generativeai as genai
 
-# ENV VARS
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY")
+# ✅ Configure Gemini (MakerSuite)
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel("models/gemini-pro")  # Gemini 1.0
+
+# ✅ Facebook config from GitHub Secrets
 FB_PAGE_TOKENS = os.getenv("FB_PAGE_TOKENS").split(",")
 FB_PAGE_IDS = os.getenv("FB_PAGE_IDS").split(",")
 
-# File to track last used post type
+# ✅ Track which post type was used last
 STATE_FILE = Path("post_state.json")
-
-# Post types
 POST_TYPES = [
-    "grammar_tip",
-    "vocabulary_word",
-    "common_phrase",
-    "common_mistake",
-    "quiz",
-    "short_story"
+    "grammar_tip", "vocabulary_word", "common_phrase",
+    "common_mistake", "quiz", "short_story"
 ]
 
-# Arabic headers per type
 TYPE_HEADERS = {
     "grammar_tip": "📘 قاعدة اليوم:",
     "vocabulary_word": "🧠 كلمة اليوم:",
@@ -34,15 +28,14 @@ TYPE_HEADERS = {
     "short_story": "📖 قصة قصيرة:"
 }
 
-# Configure Gemini
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-pro")
-
 def load_last_type_index():
     if STATE_FILE.exists():
-        with open(STATE_FILE, "r") as f:
-            data = json.load(f)
-            return data.get("last_index", -1)
+        try:
+            with open(STATE_FILE, "r") as f:
+                data = json.load(f)
+                return data.get("last_index", -1)
+        except json.JSONDecodeError:
+            return -1
     return -1
 
 def save_type_index(index):
@@ -56,44 +49,37 @@ def get_next_post_type():
     return POST_TYPES[next_index]
 
 def build_prompt(post_type):
-    if post_type == "grammar_tip":
-        return (
-            "اكتب قاعدة نحوية مفيدة، واشرحها باللغة العربية مع مثال واحد باللغة الإنجليزية."
-        )
-    elif post_type == "vocabulary_word":
-        return (
-            "اختر كلمة إنجليزية واحدة مفيدة، ثم أعطِ معناها بالعربية، واستخدمها في جملة إنجليزية كمثال."
-        )
-    elif post_type == "common_phrase":
-        return (
-            "اختر عبارة إنجليزية شائعة (idiom أو expression)، ووضح معناها بالعربية، وأضف مثالًا إنجليزيًا."
-        )
-    elif post_type == "common_mistake":
-        return (
-            "اشرح خطأ شائعًا يرتكبه المتعلمون في اللغة الإنجليزية، مع المثال الخاطئ والمثال الصحيح، وشرح السبب."
-        )
-    elif post_type == "quiz":
-        return (
-            "أنشئ سؤال اختيار من متعدد بسيط باللغة الإنجليزية لمتعلمي اللغة، وضع 4 اختيارات، وأشر للإجابة الصحيحة لاحقًا، لكن لا تذكر الإجابة في المنشور."
-        )
-    elif post_type == "short_story":
-        return (
-            "اكتب حوارًا قصيرًا (2-3 جمل) أو قصة قصيرة جدًا بين شخصين باللغة الإنجليزية، ثم ترجمها للعربية."
-        )
+    prompts = {
+        "grammar_tip": "اكتب قاعدة نحوية مفيدة للمتعلمين العرب، واشرحها باللغة العربية مع مثال باللغة الإنجليزية.",
+        "vocabulary_word": "اختر كلمة إنجليزية مفيدة، ثم أعطِ معناها بالعربية، واستخدمها في جملة إنجليزية.",
+        "common_phrase": "اختر عبارة إنجليزية شائعة، ووضح معناها بالعربية، وأضف مثالًا إنجليزيًا.",
+        "common_mistake": "اشرح خطأ شائعًا يرتكبه العرب في اللغة الإنجليزية، مع المثال الخاطئ والصحيح والشرح.",
+        "quiz": "أنشئ سؤالًا بسيطًا باللغة الإنجليزية مع 4 اختيارات. لا تذكر الإجابة الصحيحة في النص.",
+        "short_story": "اكتب حوارًا قصيرًا أو قصة قصيرة جدًا باللغة الإنجليزية مع ترجمتها للعربية."
+    }
+    return prompts.get(post_type, "اكتب شيئًا مفيدًا لتعلم اللغة الإنجليزية.")
 
 def generate_post_content(post_type):
     prompt = build_prompt(post_type)
-    response = model.generate_content(prompt)
-    content = response.text.strip()
-    return f"{TYPE_HEADERS[post_type]}\n\n{content}"
+    try:
+        response = model.generate_content(prompt)
+        return f"{TYPE_HEADERS[post_type]}\n\n{response.text.strip()}"
+    except Exception as e:
+        return f"{TYPE_HEADERS[post_type]}\n\n⚠️ تعذر توليد المحتوى تلقائيًا. {str(e)}"
 
 def get_pixabay_image(keyword):
-    url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY}&q={keyword}&image_type=photo&per_page=3"
-    r = requests.get(url)
-    data = r.json()
-    if data.get("hits"):
-        return data["hits"][0]["largeImageURL"]
-    return None
+    try:
+        url = f"https://pixabay.com/api/?key={os.getenv('PIXABAY_API_KEY')}&q={keyword}&image_type=photo&per_page=3"
+        r = requests.get(url)
+        data = r.json()
+        return data["hits"][0]["largeImageURL"] if data.get("hits") else None
+    except:
+        return None
+
+def extract_keyword(text):
+    # Pulls a likely image keyword from the generated message
+    words = [word.strip(".,:;!?") for word in text.split() if word.isalpha() and word[0].isupper()]
+    return words[0] if words else "language"
 
 def post_to_facebook(page_id, token, message, image_url):
     url = f"https://graph.facebook.com/{page_id}/photos"
@@ -103,23 +89,14 @@ def post_to_facebook(page_id, token, message, image_url):
         "access_token": token
     }
     r = requests.post(url, data=payload)
-    print(f"[{page_id}] Status: {r.status_code} - {r.text[:200]}")
+    print(f"[{page_id}] → {r.status_code}: {r.text[:200]}")
 
-def extract_keyword(text):
-    # Try to extract a word from English part
-    words = [word.strip(".,:;!?") for word in text.split() if word.isalpha() and word[0].isupper()]
-    return words[0] if words else "English"
-
-# Main
 if __name__ == "__main__":
     post_type = get_next_post_type()
-    print(f"➡️ Generating post type: {post_type}")
+    print(f"📢 Generating post type: {post_type}")
     message = generate_post_content(post_type)
     keyword = extract_keyword(message)
-    image_url = get_pixabay_image(keyword)
-
-    if not image_url:
-        image_url = get_pixabay_image("language")
+    image_url = get_pixabay_image(keyword) or get_pixabay_image("education")
 
     for page_id, token in zip(FB_PAGE_IDS, FB_PAGE_TOKENS):
         post_to_facebook(page_id, token, message, image_url)
