@@ -9,8 +9,8 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("models/gemini-pro")  # Gemini 1.0
 
 # ✅ Facebook config from GitHub Secrets
-FB_PAGE_TOKENS = os.getenv("FB_PAGE_TOKENS").split(",")
-FB_PAGE_IDS = os.getenv("FB_PAGE_IDS").split(",")
+FB_PAGE_TOKENS = os.getenv("FB_PAGE_TOKEN").split(",")
+FB_PAGE_IDS = os.getenv("FB_PAGE_ID").split(",")
 
 # ✅ Track which post type was used last
 STATE_FILE = Path("post_state.json")
@@ -69,7 +69,7 @@ def generate_post_content(post_type):
 
 def get_pixabay_image(keyword):
     try:
-        url = f"https://pixabay.com/api/?key={os.getenv('PIXABAY_API_KEY')}&q={keyword}&image_type=photo&per_page=3"
+        url = f"https://pixabay.com/api/?key={os.getenv('PIXABAY_KEY')}&q={keyword}&image_type=photo&per_page=3"
         r = requests.get(url)
         data = r.json()
         return data["hits"][0]["largeImageURL"] if data.get("hits") else None
