@@ -1,0 +1,17 @@
+{
+  "Teacher1": {
+    "folder": "characters/Teacher1",
+    "book_folder": "learning_materials/Teacher1",
+    "style": "استخدم أسلوبًا خفيفًا مع رموز تعبيرية مثل 🤓 و 😄 و 💬. وأنهِ المنشور بتشجيع مثل: 'أحسنتم!'"
+  },
+  "Teacher2": {
+    "folder": "characters/Teacher2",
+    "book_folder": "learning_materials/Teacher2",
+    "style": "كن رسميًا وواضحًا ومباشرًا. لا تستخدم الرموز التعبيرية."
+  },
+  "Teacher3": {
+    "folder": "characters/Teacher3",
+    "book_folder": "learning_materials/Teacher3",
+    "style": "حفّز المتعلّمين بخاتمة مثل: 'تعلّم لغة هو بناء مستقبل.'"
+  }
+}
