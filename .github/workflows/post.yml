@@ -1,48 +1,45 @@
-name: Auto Post to Facebook
+name: Auto Facebook Post
 
 on:
-  schedule:
-    - cron: '0 6 * * *'   # 9 AM ME Time
-    - cron: '0 11 * * *'  # 2 PM ME Time
-    - cron: '0 15 * * *'  # 6 PM ME Time
   workflow_dispatch:
+    inputs:
+      post_type:
+        description: "Which type of post to publish?"
+        required: false
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - teacher
+          - random
+
+  schedule:
+    - cron: '0 8 * * *'   # 10:00 AM Cairo (UTC+2)
+    - cron: '0 11 * * *'  # 1:00 PM Cairo (UTC+2)
+    - cron: '0 15 * * *'  # 5:00 PM Cairo (UTC+2)
 
 jobs:
   post:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
+    env:
+      FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+      FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      POST_TYPE_OVERRIDE: ${{ github.event.inputs.post_type || 'auto' }}
 
-      - name: Set up Python
+    steps:
+      - name: ⏬ Checkout repo
+        uses: actions/checkout@v3
+
+      - name: 🐍 Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: 3.11
 
-      - name: Install dependencies
+      - name: 📦 Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests python-docx PyMuPDF
+          pip install google-generativeai python-docx PyPDF2 requests
 
-      - name: Post (Morning)
-        if: github.event.schedule == '0 6 * * *'
-        run: python post_to_facebook.py 0
-        env:
-          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
-      - name: Post (Midday)
-        if: github.event.schedule == '0 11 * * *'
-        run: python post_to_facebook.py 1
-        env:
-          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
-      - name: Post (Evening & rotate teacher)
-        if: github.event.schedule == '0 15 * * *'
-        run: python post_to_facebook.py 2
-        env:
-          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: 🚀 Run Post Script
+        run: python post_to_facebook.py
