@@ -110,22 +110,33 @@ def generate_post_content(post_type):
             print("⚠️ Gemini API error:", data["error"]["message"])
             return None
 
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        candidates = data.get("candidates", [])
+        if not candidates or not candidates[0]["content"]["parts"]:
+            print("🚫 Gemini returned empty or invalid content.")
+            return None
 
-        # Clean AI/assistant phrases
+        text = candidates[0]["content"]["parts"][0]["text"]
+
+        # Remove unwanted AI phrases
         for bad_phrase in [
             "بالتأكيد", "بالطبع", "حسنًا", "إليك", "ها هو", "ها هي", 
             "Sure", "Of course", "Okay", "Here is", "Here’s", "Let me"
         ]:
             text = text.replace(bad_phrase, "")
 
-        # Clean formatting
+        # Clean markdown and format
         text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
         text = re.sub(r'\*(.*?)\*', r'\1', text)
         text = re.sub(r'_([^_]+)_', r'\1', text)
         text = re.sub(r'^\s*[\*\-]\s*', '', text, flags=re.MULTILINE)
 
         clean_text = fix_spacing_and_formatting(text.strip(), post_type)
+
+        # Skip post if too short or invalid
+        if len(clean_text.strip().splitlines()) < 3:
+            print("⚠️ Skipping: response too short or empty.")
+            return None
+
         hashtags = TYPE_HASHTAGS.get(post_type, "")
         return f"{TYPE_HEADERS[post_type]}\n\n{clean_text}\n\n{hashtags}"
 
