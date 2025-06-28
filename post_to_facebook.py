@@ -49,17 +49,17 @@ def get_next_post_type():
     save_type_index(next_index)
     return POST_TYPES[next_index]
 
-# == Prompt Builder ==
+# == English prompts with Arabic response ==
 def build_prompt(post_type):
     prompts = {
-        "grammar_tip": "اكتب منشورًا جاهزًا للنشر على فيسبوك لمتعلمي اللغة الإنجليزية العرب، بدون مقدمات عامة. اشرح قاعدة نحوية بسيطة مع مثال إنجليزي وترجمه.",
-        "vocabulary_word": "اكتب منشورًا جاهزًا للنشر على فيسبوك، بدون مقدمات عامة. اختر كلمة إنجليزية مفيدة، اكتب معناها بالعربية، وضعها في جملة إنجليزية مع الترجمة.",
-        "common_phrase": "اكتب منشورًا عن عبارة إنجليزية شائعة. اذكر العبارة، معناها بالعربية، وجملة إنجليزية تحتويها مع الترجمة. بدون مقدمات.",
-        "common_mistake": "اشرح خطأ شائعًا يرتكبه العرب في اللغة الإنجليزية. اذكر المثال الخاطئ، الصحيح، والشرح، بدون مقدمات.",
-        "quiz": "أنشئ سؤالًا بسيطًا باللغة الإنجليزية مع 4 اختيارات A, B, C, D. لا تستخدم جمل تمهيدية ولا تذكر الإجابة الصحيحة. التنسيق يجب أن يكون:\n\nالسؤال\n\nA) ...\nB) ...\nC) ...\nD) ...",
-        "short_story": "اكتب قصة قصيرة أو حوارًا بسيطًا بين شخصين باللغة الإنجليزية، مع الترجمة العربية لكل سطر. بدون مقدمات."
+        "grammar_tip": "Write a clear English grammar rule with a simple example and translate everything into Arabic. Don't explain it's a grammar rule. Just write it like a natural post.",
+        "vocabulary_word": "Give one useful English word with its Arabic meaning, use it in a sentence, and translate the sentence to Arabic. Answer only in Arabic.",
+        "common_phrase": "Give a common English phrase with its Arabic meaning, then use it in a sentence and provide Arabic translation. Just answer in Arabic.",
+        "common_mistake": "Explain a common mistake Arabic speakers make in English. Show wrong and correct usage. Explain briefly, only in Arabic.",
+        "quiz": "Write a fun English language quiz with a question and four options (A-D). Don't provide the answer. Write the full quiz in Arabic.",
+        "short_story": "Write a short dialogue between two people in English, then translate it line by line into Arabic. Just return the dialogue, no introduction. Keep the tone natural."
     }
-    return prompts.get(post_type, "اكتب شيئًا مفيدًا لتعلم اللغة الإنجليزية، بدون مقدمات.")
+    return prompts.get(post_type, "Write a helpful English-learning tip, but respond only in Arabic.")
 
 # == Spacing & Formatting ==
 def fix_spacing_and_formatting(text, post_type):
@@ -112,8 +112,8 @@ def generate_post_content(post_type):
 
         # Remove AI filler phrases
         for bad_phrase in [
-            "بالتأكيد،", "بالطبع،", "إليك ", "ها هو ", "ها هي ",
-            "Sure! ", "Of course, ", "Here is ", "Here's ", "Let me show you"
+            "بالتأكيد", "بالطبع", "إليك", "ها هو", "ها هي",
+            "Sure", "Of course", "Here is", "Here's", "Let me show you"
         ]:
             text = text.replace(bad_phrase, "")
 
