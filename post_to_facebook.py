@@ -77,7 +77,7 @@ def generate_post_content(text, style, post_type):
         f"You are an Arabic English teacher. Use the following material:\n\n"
         f"{text}\n\n"
         f"Write a Facebook post in Arabic to do a '{post_type}' of this content. Use this style:\n\n{style}\n\n"
-        f"Do NOT introduce yourself or mention AI. Just return final post content."
+        f"Do NOT introduce yourself or mention AI. Just return the final post content."
     )
     try:
         response = model.generate_content(prompt)
@@ -104,10 +104,15 @@ def post_to_facebook(message, image_path=None):
 def post_random_fallback():
     try:
         print("📌 Posting fallback random post...")
-        fallback = model.generate_content(
-            "Give an English tip, quiz, or word with Arabic explanation. Don’t introduce yourself. Just return the post."
+        fallback_prompt = (
+            "Generate a single Facebook post in Arabic for Arabic-speaking English learners. "
+            "Randomly choose ONE of the following: English word with example and Arabic explanation, "
+            "short grammar tip, or English multiple-choice question. "
+            "Use formal Arabic (فصحى), do NOT say 'here is', 'sure', or use **bold**. "
+            "Keep the tone human and natural. Do not include the answer if it's a quiz."
         )
-        message = clean_gemini_response(fallback.text)
+        response = model.generate_content(fallback_prompt)
+        message = clean_gemini_response(response.text)
         post_to_facebook(message)
         return True
     except Exception as e:
@@ -123,7 +128,6 @@ def main():
     current_hour = datetime.datetime.utcnow().hour + 2  # Cairo Time (UTC+2)
     today_str = datetime.date.today().isoformat()
 
-    # Determine post type
     if POST_TYPE_OVERRIDE == "random":
         post_type = "🌀 عشوائي"
     elif POST_TYPE_OVERRIDE == "teacher":
@@ -155,12 +159,13 @@ def main():
 
     book_folder = char_info["book_folder"]
     image_folder = char_info["folder"]
+    display_name = char_info.get("name", character_name)
 
     has_books = folder_has_valid_files(book_folder, [".txt", ".pdf", ".docx"])
     has_images = folder_has_valid_files(image_folder, [".jpg", ".png", ".jpeg"])
 
     if not has_books or not has_images:
-        print(f"⚠️ Missing files for {character_name}.")
+        print(f"⚠️ Missing files for {display_name}.")
         if POST_TYPE_OVERRIDE == "teacher":
             print("🛑 Manual override forbids fallback. Skipping.")
             return
@@ -185,13 +190,12 @@ def main():
         return
 
     image_path = pick_random_file(image_folder, [".jpg", ".png", ".jpeg"])
-    final_message = f"👩‍🏫 {character_name}:\n\n{message}"
+    final_message = f"👩‍🏫 {display_name}:\n\n{message}"
     post_to_facebook(final_message, image_path)
 
-    # Save logs
     log_entry = {
         "date": today_str,
-        "character": character_name,
+        "character": display_name,
         "type": task_type,
         "file": os.path.basename(file_path)
     }
