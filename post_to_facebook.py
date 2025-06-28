@@ -61,29 +61,37 @@ def build_prompt(post_type):
     }
     return prompts.get(post_type, "اكتب شيئًا مفيدًا لتعلم اللغة الإنجليزية، بدون مقدمات.")
 
-# == Spacing Fixer ==
-def fix_spacing_and_formatting(text):
+# == Spacing & Formatting ==
+def fix_spacing_and_formatting(text, post_type):
     lines = text.splitlines()
-    fixed = []
+    english_lines = []
+    arabic_lines = []
+    other_lines = []
 
     for line in lines:
-        # Add spacing around lines that mix Arabic and English
-        if any('\u0600' <= c <= '\u06FF' for c in line) and any(c.isalpha() for c in line):
-            fixed.append("")
-            fixed.append(line.strip())
-            fixed.append("")
-        # Force quiz options (A/B/C/D) onto new lines
-        elif re.match(r'^[A-D]\)', line.strip()) or re.match(r'^[A-D]\.', line.strip()):
-            fixed.append(line.strip())
-        # Handle inline options mistakenly returned on one line
-        elif re.search(r'\bA\)[^\n]+B\)[^\n]+C\)[^\n]+D\)', line):
-            # split by A), B), etc.
-            for part in re.findall(r'[A-D]\)[^A-D]+', line):
-                fixed.append(part.strip())
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if re.match(r'^[A-Da-d]\)', stripped):
+            # Quiz option like A) ...
+            other_lines.append(stripped)
+        elif re.search(r'[A-Za-z]', stripped) and not re.search(r'[\u0600-\u06FF]', stripped):
+            english_lines.append(stripped)
+        elif re.search(r'[\u0600-\u06FF]', stripped):
+            arabic_lines.append(stripped)
         else:
-            fixed.append(line.strip())
+            other_lines.append(stripped)
 
-    return "\n".join([line for line in fixed if line.strip()])
+    result_lines = []
+
+    if post_type == "short_story":
+        result_lines += english_lines + ["", "---", ""] + arabic_lines
+    elif post_type == "quiz":
+        result_lines += english_lines + other_lines
+    else:
+        result_lines += lines
+
+    return "\n".join(result_lines)
 
 # == Gemini 2.0 Flash Call ==
 def generate_post_content(post_type):
@@ -115,8 +123,7 @@ def generate_post_content(post_type):
         text = re.sub(r'_([^_]+)_', r'\1', text)
         text = re.sub(r'^\s*[\*\-]\s*', '', text, flags=re.MULTILINE)
 
-        # Format and space lines
-        clean_text = fix_spacing_and_formatting(text.strip())
+        clean_text = fix_spacing_and_formatting(text.strip(), post_type)
         hashtags = TYPE_HASHTAGS.get(post_type, "")
         return f"{TYPE_HEADERS[post_type]}\n\n{clean_text}\n\n{hashtags}"
 
