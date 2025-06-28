@@ -2,22 +2,9 @@ import os
 import json
 import requests
 from pathlib import Path
-import google.generativeai as genai
 
-# Gemini 1.0 setup
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("models/gemini-pro")
-
-# Facebook credentials (single page)
-FB_PAGE_ID = os.getenv("FB_PAGE_ID")
-FB_PAGE_TOKEN = os.getenv("FB_PAGE_TOKEN")
-
-# Pixabay
-PIXABAY_KEY = os.getenv("PIXABAY_KEY")
-
-# File to track last post type
+# == Constants ==
 STATE_FILE = Path("post_state.json")
-
 POST_TYPES = [
     "grammar_tip", "vocabulary_word", "common_phrase",
     "common_mistake", "quiz", "short_story"
@@ -36,8 +23,7 @@ def load_last_type_index():
     if STATE_FILE.exists():
         try:
             with open(STATE_FILE, "r") as f:
-                data = json.load(f)
-                return data.get("last_index", -1)
+                return json.load(f).get("last_index", -1)
         except:
             return -1
     return -1
@@ -65,30 +51,31 @@ def build_prompt(post_type):
 
 def generate_post_content(post_type):
     prompt = build_prompt(post_type)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={os.getenv('GEMINI_API_KEY')}"
+    
+    headers = {"Content-Type": "application/json"}
+    body = {
+        "contents": [
+            {
+                "parts": [{"text": prompt}]
+            }
+        ]
+    }
+
     try:
-        response = model.generate_content(prompt)
-        return f"{TYPE_HEADERS[post_type]}\n\n{response.text.strip()}"
+        response = requests.post(url, headers=headers, json=body)
+        data = response.json()
+        if "error" in data:
+            raise Exception(data["error"]["message"])
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        return f"{TYPE_HEADERS[post_type]}\n\n{text.strip()}"
     except Exception as e:
-        return f"{TYPE_HEADERS[post_type]}\n\n⚠️ تعذر توليد المحتوى تلقائيًا. {str(e)}"
+        return f"{TYPE_HEADERS[post_type]}\n\n⚠️ تعذر توليد المحتوى تلقائيًا: {str(e)}"
 
-def get_pixabay_image(keyword):
-    try:
-        url = f"https://pixabay.com/api/?key={PIXABAY_KEY}&q={keyword}&image_type=photo&per_page=3"
-        r = requests.get(url)
-        data = r.json()
-        return data["hits"][0]["largeImageURL"] if data.get("hits") else None
-    except:
-        return None
-
-def extract_keyword(text):
-    words = [word.strip(".,:;!?") for word in text.split() if word.isalpha() and word[0].isupper()]
-    return words[0] if words else "language"
-
-def post_to_facebook(page_id, token, message, image_url):
-    url = f"https://graph.facebook.com/{page_id}/photos"
+def post_text_to_facebook(page_id, token, message):
+    url = f"https://graph.facebook.com/{page_id}/feed"
     payload = {
-        "url": image_url,
-        "caption": message,
+        "message": message,
         "access_token": token
     }
     r = requests.post(url, data=payload)
@@ -98,7 +85,8 @@ if __name__ == "__main__":
     post_type = get_next_post_type()
     print(f"📢 Generating post type: {post_type}")
     message = generate_post_content(post_type)
-    keyword = extract_keyword(message)
-    image_url = get_pixabay_image(keyword) or get_pixabay_image("education")
-
-    post_to_facebook(FB_PAGE_ID, FB_PAGE_TOKEN, message, image_url)
+    post_text_to_facebook(
+        os.getenv("FB_PAGE_ID"),
+        os.getenv("FB_PAGE_TOKEN"),
+        message
+    )
