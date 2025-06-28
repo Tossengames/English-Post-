@@ -1,4 +1,4 @@
-name: Auto Post to Facebook (Text Only)
+name: Auto Post to Facebook (Text Only, Gemini 2.0 Flash)
 
 on:
   schedule:
@@ -23,7 +23,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install requests
+        pip install -r requirements.txt
 
     - name: Run posting script
       env:
