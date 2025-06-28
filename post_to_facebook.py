@@ -52,24 +52,45 @@ def get_next_post_type():
 # == Prompt Builder ==
 def build_prompt(post_type):
     prompts = {
-        "grammar_tip": "اكتب منشورًا جاهزًا للنشر على فيسبوك لمتعلمي اللغة الإنجليزية العرب، بدون مقدمات عامة مثل 'بالتأكيد' أو 'إليك'. اشرح قاعدة نحوية بسيطة مع مثال إنجليزي وترجمه.",
-        "vocabulary_word": "اكتب منشورًا جاهزًا للنشر على فيسبوك، بدون مقدمات عامة مثل 'بالتأكيد' أو 'إليك'. اختر كلمة إنجليزية مفيدة، اكتب معناها بالعربية، وضعها في جملة إنجليزية مع الترجمة.",
-        "common_phrase": "اكتب منشورًا عن عبارة إنجليزية شائعة. اذكر العبارة، معناها بالعربية، وجملة إنجليزية تحتويها مع الترجمة. بدون مقدمات عامة.",
-        "common_mistake": "اشرح خطأ شائعًا يرتكبه العرب في اللغة الإنجليزية. اذكر المثال الخاطئ، الصحيح، والشرح، بدون استخدام مقدمات مثل 'بالطبع' أو 'إليك'.",
-        "quiz": "أنشئ سؤالًا بسيطًا باللغة الإنجليزية مع 4 اختيارات (A, B, C, D) لفيسبوك. لا تذكر الإجابة الصحيحة في المنشور. لا تبدأ بجمل تمهيدية.",
-        "short_story": "اكتب قصة قصيرة أو حوارًا بسيطًا بين شخصين باللغة الإنجليزية، مع الترجمة العربية لكل سطر. بدون مقدمات عامة."
+        "grammar_tip": "اكتب منشورًا جاهزًا للنشر على فيسبوك لمتعلمي اللغة الإنجليزية العرب، بدون مقدمات عامة. اشرح قاعدة نحوية بسيطة مع مثال إنجليزي وترجمه.",
+        "vocabulary_word": "اكتب منشورًا جاهزًا للنشر على فيسبوك، بدون مقدمات عامة. اختر كلمة إنجليزية مفيدة، اكتب معناها بالعربية، وضعها في جملة إنجليزية مع الترجمة.",
+        "common_phrase": "اكتب منشورًا عن عبارة إنجليزية شائعة. اذكر العبارة، معناها بالعربية، وجملة إنجليزية تحتويها مع الترجمة. بدون مقدمات.",
+        "common_mistake": "اشرح خطأ شائعًا يرتكبه العرب في اللغة الإنجليزية. اذكر المثال الخاطئ، الصحيح، والشرح، بدون مقدمات.",
+        "quiz": "أنشئ سؤالًا بسيطًا باللغة الإنجليزية مع 4 اختيارات A, B, C, D. لا تستخدم جمل تمهيدية ولا تذكر الإجابة الصحيحة. التنسيق يجب أن يكون:\n\nالسؤال\n\nA) ...\nB) ...\nC) ...\nD) ...",
+        "short_story": "اكتب قصة قصيرة أو حوارًا بسيطًا بين شخصين باللغة الإنجليزية، مع الترجمة العربية لكل سطر. بدون مقدمات."
     }
-    return prompts.get(post_type, "اكتب شيئًا مفيدًا لتعلم اللغة الإنجليزية، بدون مقدمات عامة.")
+    return prompts.get(post_type, "اكتب شيئًا مفيدًا لتعلم اللغة الإنجليزية، بدون مقدمات.")
+
+# == Spacing Fixer ==
+def fix_spacing_and_formatting(text):
+    lines = text.splitlines()
+    fixed = []
+
+    for line in lines:
+        # Add spacing around lines that mix Arabic and English
+        if any('\u0600' <= c <= '\u06FF' for c in line) and any(c.isalpha() for c in line):
+            fixed.append("")
+            fixed.append(line.strip())
+            fixed.append("")
+        # Force quiz options (A/B/C/D) onto new lines
+        elif re.match(r'^[A-D]\)', line.strip()) or re.match(r'^[A-D]\.', line.strip()):
+            fixed.append(line.strip())
+        # Handle inline options mistakenly returned on one line
+        elif re.search(r'\bA\)[^\n]+B\)[^\n]+C\)[^\n]+D\)', line):
+            # split by A), B), etc.
+            for part in re.findall(r'[A-D]\)[^A-D]+', line):
+                fixed.append(part.strip())
+        else:
+            fixed.append(line.strip())
+
+    return "\n".join([line for line in fixed if line.strip()])
 
 # == Gemini 2.0 Flash Call ==
 def generate_post_content(post_type):
     prompt = build_prompt(post_type)
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={os.getenv('GEMINI_API_KEY')}"
-
     headers = {"Content-Type": "application/json"}
-    body = {
-        "contents": [{"parts": [{"text": prompt}]}]
-    }
+    body = {"contents": [{"parts": [{"text": prompt}]}]}
 
     try:
         response = requests.post(url, headers=headers, json=body)
@@ -81,23 +102,23 @@ def generate_post_content(post_type):
 
         text = data["candidates"][0]["content"]["parts"][0]["text"]
 
-        # Clean AI filler phrases
+        # Remove AI filler phrases
         for bad_phrase in [
             "بالتأكيد،", "بالطبع،", "إليك ", "ها هو ", "ها هي ",
             "Sure! ", "Of course, ", "Here is ", "Here's ", "Let me show you"
         ]:
             text = text.replace(bad_phrase, "")
 
-        # Remove Markdown formatting
+        # Remove markdown formatting
         text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
         text = re.sub(r'\*(.*?)\*', r'\1', text)
         text = re.sub(r'_([^_]+)_', r'\1', text)
         text = re.sub(r'^\s*[\*\-]\s*', '', text, flags=re.MULTILINE)
 
-        # Add hashtags
+        # Format and space lines
+        clean_text = fix_spacing_and_formatting(text.strip())
         hashtags = TYPE_HASHTAGS.get(post_type, "")
-        final_text = f"{TYPE_HEADERS[post_type]}\n\n{text.strip()}\n\n{hashtags}"
-        return final_text
+        return f"{TYPE_HEADERS[post_type]}\n\n{clean_text}\n\n{hashtags}"
 
     except Exception as e:
         print("⚠️ Exception:", str(e))
@@ -106,10 +127,7 @@ def generate_post_content(post_type):
 # == Facebook Posting ==
 def post_text_to_facebook(page_id, token, message):
     url = f"https://graph.facebook.com/{page_id}/feed"
-    payload = {
-        "message": message,
-        "access_token": token
-    }
+    payload = {"message": message, "access_token": token}
     r = requests.post(url, data=payload)
     print(f"[{page_id}] → {r.status_code}: {r.text[:200]}")
 
