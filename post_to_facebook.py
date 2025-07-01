@@ -1,169 +1,156 @@
 import os
 import json
-import random
 import datetime
+import random
 import requests
-import google.generativeai as genai
-from docx import Document
-from PyPDF2 import PdfReader
+from google.generativeai import configure, GenerativeModel
+from facebook import GraphAPI
 
-# ENV VARIABLES
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# ENV VARS
 FB_PAGE_TOKEN = os.getenv("FB_PAGE_TOKEN")
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
-POST_TYPE_OVERRIDE = os.getenv("POST_TYPE_OVERRIDE", "auto")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# INIT MODEL
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-1.0-pro")
+# Configure Gemini
+configure(api_key=GEMINI_API_KEY)
+model = GenerativeModel("models/gemini-1.0-pro")
 
-# CONFIG FILES
-CONFIG_FILE = "characters/character_config.json"
 STATE_FILE = "post_state.json"
-LOG_FILE = "post_log.json"
+RANDOM_TOPICS = ["word_of_the_day", "grammar_tip", "quiz", "short_story"]
 
-# HELPERS
-def load_json(path, fallback):
-    return json.load(open(path)) if os.path.exists(path) else fallback
+def load_state():
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
 
-def save_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+def save_state(state):
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False, indent=2)
 
-def folder_has_valid_files(folder, extensions):
-    return any(file.lower().endswith(tuple(extensions)) for file in os.listdir(folder))
+def select_image(images_folder):
+    if not os.path.exists(images_folder):
+        return None
+    images = [f for f in os.listdir(images_folder) if f.lower().endswith((".png", ".jpg", ".jpeg"))]
+    if not images:
+        return None
+    return os.path.join(images_folder, random.choice(images))
 
-def read_random_file(folder):
-    files = [f for f in os.listdir(folder) if f.endswith((".txt", ".pdf", ".docx"))]
-    if not files:
-        return None, None
-    file_path = os.path.join(folder, random.choice(files))
-    content = ""
-    try:
-        if file_path.endswith(".txt"):
-            with open(file_path, "r", encoding="utf-8") as f:
-                content = f.read()
-        elif file_path.endswith(".docx"):
-            doc = Document(file_path)
-            content = "\n".join([p.text for p in doc.paragraphs])
-        elif file_path.endswith(".pdf"):
-            reader = PdfReader(file_path)
-            content = "\n".join(page.extract_text() or "" for page in reader.pages)
-    except Exception as e:
-        return None, None
-    return os.path.basename(file_path), content.strip()
+def generate_lesson_post(teacher_name, topic, style):
+    prompt = f"""أنتِ معلمة لغة إنجليزية تدعى {teacher_name}. درسك اليوم عن: {topic}.
+اكتبي شرحاً واضحاً ومبسطاً للطلاب باللغة العربية الفصحى، متضمنًا أمثلة إنجليزية.
+اجعلي الأسلوب {style}.
+ابدئي المحتوى فورًا بدون مقدمات أو عبارات آلية."""
 
-def select_teacher():
-    state = load_json(STATE_FILE, {})
-    teachers = list(load_json(CONFIG_FILE, {}).keys())
-    last_index = state.get("last_teacher", -1)
-    index = (last_index + 1) % len(teachers)
-    state["last_teacher"] = index
-    save_json(STATE_FILE, state)
-    return teachers[index]
-
-def generate_teacher_post(name, image_folder, book_folder, style, material, book_name):
-    prompt = (
-        f"You are an Arabic female English teacher. Your personality: {style}.\n"
-        f"Using the book titled '{book_name}', generate a helpful, natural-sounding educational post "
-        f"to help Arabic-speaking English learners.\n"
-        f"Use Modern Standard Arabic only, no dialects unless specified, and remove any AI phrases.\n"
-        f"Do not use ** formatting. Only return the final formatted Arabic post.\n\n"
-        f"Text to learn from:\n{material[:3000]}"
-    )
     try:
         response = model.generate_content(prompt)
-        return response.text.strip()
-    except Exception:
+        content = response.text.strip().replace("**", "")
+        return f"📘 الدرس من {teacher_name} اليوم عن: {topic}\n\n{content}"
+    except Exception as e:
+        print(f"⚠️ AI failed to generate post: {e}")
         return None
 
-def generate_random_post():
-    prompt = (
-        "Create a helpful short English learning post for Arabic speakers. "
-        "It should include vocabulary, grammar tips, or a quiz. "
-        "Avoid any AI phrases like 'Sure' or 'Here is'. Do not use ** formatting. "
-        "Respond only in Modern Standard Arabic."
-    )
+def generate_exam(teacher_name, recent_topics, style):
+    topics_text = "، ".join(recent_topics)
+    prompt = f"""أنتِ معلمة لغة إنجليزية تدعى {teacher_name}.
+خلال الأسبوع شرحت المواضيع التالية: {topics_text}.
+اكتبي اختبارًا بسيطًا من 5 أسئلة متنوعة (اختيار من متعدد، صح أو خطأ، أكمل الفراغ).
+اكتبيه بالفصحى، وابدئي مباشرة بالأسئلة."""
+
     try:
         response = model.generate_content(prompt)
-        return response.text.strip()
-    except Exception:
+        return f"📝 اختبار الأسبوع من {teacher_name}\n\n{response.text.strip()}"
+    except Exception as e:
+        print(f"⚠️ AI failed to generate exam: {e}")
+        return None
+
+def generate_random_post(post_type):
+    prompts = {
+        "word_of_the_day": "اكتب كلمة إنجليزية مع معناها بالعربية، واستخدمها في جملة، وترجم الجملة أيضاً.",
+        "grammar_tip": "اشرح قاعدة نحوية إنجليزية بسيطة مع مثال وجملة وشرح بالعربية.",
+        "quiz": "اكتب سؤال اختيار من متعدد بسيط في اللغة الإنجليزية، مع 4 اختيارات، ووضح الجواب الصحيح وترجم كل شيء للعربية.",
+        "short_story": "اكتب محادثة قصيرة بين شخصين باللغة الإنجليزية، مع الترجمة الكاملة إلى العربية."
+    }
+
+    prompt = f"""{prompts[post_type]}
+اكتب بصيغة مبسطة وبدون مقدمات آلية. لا تستخدم "**"، فقط النص العادي."""
+
+    try:
+        response = model.generate_content(prompt)
+        content = response.text.strip().replace("**", "")
+        titles = {
+            "word_of_the_day": "🧠 كلمة اليوم:",
+            "grammar_tip": "📘 قاعدة اليوم:",
+            "quiz": "❓ سؤال اليوم:",
+            "short_story": "📖 قصة قصيرة:"
+        }
+        return f"{titles[post_type]}\n\n{content}"
+    except Exception as e:
+        print(f"⚠️ Random post generation failed: {e}")
         return None
 
 def post_to_facebook(message, image_path=None):
-    url = f"https://graph.facebook.com/{FB_PAGE_ID}/photos"
-    data = {
-        "caption": message,
-        "access_token": FB_PAGE_TOKEN
-    }
-    files = {"source": open(image_path, "rb")} if image_path else None
-    response = requests.post(url, data=data, files=files)
-    if response.status_code == 200:
+    try:
+        graph = GraphAPI(access_token=FB_PAGE_TOKEN)
+        if image_path:
+            with open(image_path, "rb") as img:
+                graph.put_photo(image=img, album_path=f"{FB_PAGE_ID}/photos", message=message)
+        else:
+            graph.put_object(parent_object=FB_PAGE_ID, connection_name="feed", message=message)
         print("✅ Post published successfully.")
         return True
-    print("❌ Post failed:", response.text)
-    return False
+    except Exception as e:
+        print(f"❌ Facebook post failed: {e}")
+        return False
 
 def main():
-    config = load_json(CONFIG_FILE, {})
-    post_log = load_json(LOG_FILE, {})
+    state = load_state()
+    today = datetime.datetime.now()
+    weekday = today.weekday()
 
-    today = datetime.date.today()
-    today_str = today.isoformat()
-    current_hour = datetime.datetime.now().hour
+    teacher_ids = list(state.keys())
+    teacher_id = teacher_ids[weekday % len(teacher_ids)]
+    teacher = state[teacher_id]
 
-    # Decide post type
-    if POST_TYPE_OVERRIDE == "random" or current_hour == 14:
-        print("🔁 Generating random midday post...")
-        post = generate_random_post()
-        if post:
-            post_to_facebook(post)
-        return
+    queue = teacher.get("lesson_queue", [])
+    index = teacher.get("current_index", 0)
+    history = teacher.setdefault("history", [])
+    name = teacher.get("name", teacher_id)
+    style = teacher.get("style", "رسمية")
+    folder = teacher.get("folder", f"characters/{teacher_id}")
+    image = select_image(folder)
 
-    # TEACHER POST FLOW
-    teacher_id = select_teacher()
-    teacher = config.get(teacher_id)
-    if not teacher:
-        print("🚫 No teacher config found.")
-        return
+    # TEACHER POST (Morning)
+    if index < len(queue):
+        topic = queue[index]
+        if index % 5 == 0 and index > 0:
+            exam = generate_exam(name, queue[index-5:index], style)
+            if exam:
+                post_to_facebook(exam, image)
+        lesson = generate_lesson_post(name, topic, style)
+        if lesson:
+            post_to_facebook(lesson, image)
+            teacher["current_index"] += 1
+            history.append(topic)
 
-    teacher_name = teacher["name"]
-    image_folder = teacher["folder"]
-    book_folder = teacher["book_folder"]
-    style = teacher["style"]
+    # RANDOM POST (Midday)
+    random_type = random.choice(RANDOM_TOPICS)
+    random_post = generate_random_post(random_type)
+    if random_post:
+        post_to_facebook(random_post)
 
-    if not folder_has_valid_files(book_folder, [".pdf", ".docx", ".txt"]):
-        print("📂 No valid learning files found.")
-        return
+    # TEACHER POST 2 (Evening)
+    index2 = teacher.get("current_index", 0)
+    if index2 < len(queue):
+        topic2 = queue[index2]
+        lesson2 = generate_lesson_post(name, topic2, style)
+        if lesson2:
+            image2 = select_image(folder)
+            post_to_facebook(lesson2, image2)
+            teacher["current_index"] += 1
+            history.append(topic2)
 
-    book_name, material = read_random_file(book_folder)
-    if not material:
-        print("⚠️ Couldn't read learning material.")
-        return
-
-    print(f"📘 Generating post for: {teacher_name} using book: {book_name}")
-    post = generate_teacher_post(teacher_name, image_folder, book_folder, style, material, book_name)
-    if not post:
-        print("⚠️ AI failed to generate post.")
-        return
-
-    # Select image
-    image_files = [f for f in os.listdir(image_folder) if f.lower().endswith((".jpg", ".png"))]
-    image_path = os.path.join(image_folder, random.choice(image_files)) if image_files else None
-
-    # Final message
-    message = f"📖 من كتاب: {book_name}\n\n{post}"
-
-    success = post_to_facebook(message, image_path)
-
-    if success:
-        post_log.setdefault(today_str, []).append({
-            "teacher": teacher_name,
-            "book": book_name,
-            "type": "teacher",
-            "hour": current_hour
-        })
-        save_json(LOG_FILE, post_log)
+    save_state(state)
 
 if __name__ == "__main__":
     main()
