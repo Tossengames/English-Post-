@@ -1,43 +1,30 @@
-name: 📤 Daily Facebook Post
+name: Post to Facebook
 
 on:
+  workflow_dispatch:  # Manual trigger
   schedule:
-    - cron: "0 8,14,20 * * *"  # Cairo time: 8 AM, 2 PM, 8 PM
-  workflow_dispatch:
-    inputs:
-      post_type:
-        description: "Choose post type"
-        required: true
-        default: "auto"
-        type: choice
-        options:
-          - auto
-          - random
-          - teacher
+    - cron: '0 6,12,18 * * *'  # 3 times: 6am, 12pm, 6pm UTC (~9am, 3pm, 9pm Middle East)
 
 jobs:
   post:
     runs-on: ubuntu-latest
-
-    env:
-      FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-      FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      POST_TYPE_OVERRIDE: ${{ github.event.inputs.post_type }}
-
     steps:
-      - name: 📥 Checkout Repository
+      - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: 🐍 Set up Python
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.11
+          python-version: '3.11'
 
-      - name: 📦 Install dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install google-generativeai facebook-sdk
 
-      - name: 🚀 Run Post Script
+      - name: Run script
+        env:
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python post_to_facebook.py
