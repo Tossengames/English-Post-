@@ -1,3 +1,44 @@
 {
-  "day_index": 0
+  "Teacher1": {
+    "name": "ميس إيمان",
+    "style": "رسمية وواضحة",
+    "folder": "characters/Teacher1",
+    "lesson_queue": [
+      "Present Simple",
+      "To Be",
+      "Prepositions of Place",
+      "Modal Verbs",
+      "Reading: Travel Blog"
+    ],
+    "current_index": 0,
+    "history": []
+  },
+  "Teacher2": {
+    "name": "ميس ليلى",
+    "style": "لطيفة ومرحة وتستخدم رموز تعبيرية 😊",
+    "folder": "characters/Teacher2",
+    "lesson_queue": [
+      "Vocabulary: Food",
+      "Listening: At the Restaurant",
+      "Describing People",
+      "Family Members",
+      "Daily Activities"
+    ],
+    "current_index": 0,
+    "history": []
+  },
+  "Teacher3": {
+    "name": "ميس نادين",
+    "style": "هادئة وجادة وتستخدم لهجة سورية بسيطة",
+    "folder": "characters/Teacher3",
+    "lesson_queue": [
+      "Reading: Syrian Traditions",
+      "Adjectives and Opposites",
+      "Past Continuous",
+      "Speaking: My Hometown",
+      "Writing Practice: Describe Your Day"
+    ],
+    "current_index": 0,
+    "history": []
+  }
 }
