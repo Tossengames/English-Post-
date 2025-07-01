@@ -1,156 +1,161 @@
 import os
 import json
-import datetime
 import random
+import datetime
 import requests
-from google.generativeai import configure, GenerativeModel
-from facebook import GraphAPI
+from dotenv import load_dotenv
 
-# ENV VARS
+load_dotenv()
+
+# Environment variables
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 FB_PAGE_TOKEN = os.getenv("FB_PAGE_TOKEN")
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Configure Gemini
-configure(api_key=GEMINI_API_KEY)
-model = GenerativeModel("models/gemini-1.0-pro")
+# Paths
+TEACHERS_FILE = "teachers.json"
+POST_STATE_FILE = "post_state.json"
 
-STATE_FILE = "post_state.json"
-RANDOM_TOPICS = ["word_of_the_day", "grammar_tip", "quiz", "short_story"]
-
-def load_state():
-    if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r", encoding="utf-8") as f:
+def load_json(path):
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
 
-def save_state(state):
-    with open(STATE_FILE, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
+def save_json(path, data):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
-def select_image(images_folder):
-    if not os.path.exists(images_folder):
+def select_teacher(state, teachers):
+    last_teacher = state.get("last_teacher", -1)
+    ids = list(teachers.keys())
+    if not ids:
         return None
-    images = [f for f in os.listdir(images_folder) if f.lower().endswith((".png", ".jpg", ".jpeg"))]
-    if not images:
+    next_index = (last_teacher + 1) % len(ids)
+    state["last_teacher"] = next_index
+    return ids[next_index]
+
+def select_image(folder):
+    if not os.path.isdir(folder):
         return None
-    return os.path.join(images_folder, random.choice(images))
+    images = [f for f in os.listdir(folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    return os.path.join(folder, random.choice(images)) if images else None
 
-def generate_lesson_post(teacher_name, topic, style):
-    prompt = f"""أنتِ معلمة لغة إنجليزية تدعى {teacher_name}. درسك اليوم عن: {topic}.
-اكتبي شرحاً واضحاً ومبسطاً للطلاب باللغة العربية الفصحى، متضمنًا أمثلة إنجليزية.
-اجعلي الأسلوب {style}.
-ابدئي المحتوى فورًا بدون مقدمات أو عبارات آلية."""
+def generate_teacher_prompt(name, style, topic):
+    return f"""You are {name}, a female Arabic English teacher. Your tone is {style}.
+Generate an engaging educational post in Arabic for students on the topic: "{topic}".
+Avoid saying you're an AI or introducing the task. Just write the post directly and clearly.
+Include example sentences, explanation, translation, and a quick question if possible."""
 
-    try:
-        response = model.generate_content(prompt)
-        content = response.text.strip().replace("**", "")
-        return f"📘 الدرس من {teacher_name} اليوم عن: {topic}\n\n{content}"
-    except Exception as e:
-        print(f"⚠️ AI failed to generate post: {e}")
-        return None
+def generate_random_prompt():
+    return """Generate an educational English learning post in Arabic. It could be a word of the day, a grammar tip, a quiz, or a motivational tip.
+Write the post clearly and naturally. Avoid saying “Sure!” or “Here's your post.” Just write the post as if it were written by a human teacher.
+Use simple Modern Standard Arabic for Arabic parts, and format the content cleanly without asterisks or clutter."""
 
-def generate_exam(teacher_name, recent_topics, style):
-    topics_text = "، ".join(recent_topics)
-    prompt = f"""أنتِ معلمة لغة إنجليزية تدعى {teacher_name}.
-خلال الأسبوع شرحت المواضيع التالية: {topics_text}.
-اكتبي اختبارًا بسيطًا من 5 أسئلة متنوعة (اختيار من متعدد، صح أو خطأ، أكمل الفراغ).
-اكتبيه بالفصحى، وابدئي مباشرة بالأسئلة."""
-
-    try:
-        response = model.generate_content(prompt)
-        return f"📝 اختبار الأسبوع من {teacher_name}\n\n{response.text.strip()}"
-    except Exception as e:
-        print(f"⚠️ AI failed to generate exam: {e}")
-        return None
-
-def generate_random_post(post_type):
-    prompts = {
-        "word_of_the_day": "اكتب كلمة إنجليزية مع معناها بالعربية، واستخدمها في جملة، وترجم الجملة أيضاً.",
-        "grammar_tip": "اشرح قاعدة نحوية إنجليزية بسيطة مع مثال وجملة وشرح بالعربية.",
-        "quiz": "اكتب سؤال اختيار من متعدد بسيط في اللغة الإنجليزية، مع 4 اختيارات، ووضح الجواب الصحيح وترجم كل شيء للعربية.",
-        "short_story": "اكتب محادثة قصيرة بين شخصين باللغة الإنجليزية، مع الترجمة الكاملة إلى العربية."
+def call_gemini_api(prompt):
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-pro:generateContent?key={GEMINI_API_KEY}"
+    headers = {"Content-Type": "application/json"}
+    data = {
+        "contents": [
+            {
+                "parts": [{"text": prompt}]
+            }
+        ]
     }
-
-    prompt = f"""{prompts[post_type]}
-اكتب بصيغة مبسطة وبدون مقدمات آلية. لا تستخدم "**"، فقط النص العادي."""
-
-    try:
-        response = model.generate_content(prompt)
-        content = response.text.strip().replace("**", "")
-        titles = {
-            "word_of_the_day": "🧠 كلمة اليوم:",
-            "grammar_tip": "📘 قاعدة اليوم:",
-            "quiz": "❓ سؤال اليوم:",
-            "short_story": "📖 قصة قصيرة:"
-        }
-        return f"{titles[post_type]}\n\n{content}"
-    except Exception as e:
-        print(f"⚠️ Random post generation failed: {e}")
-        return None
+    response = requests.post(url, headers=headers, json=data)
+    if response.ok:
+        try:
+            return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+        except Exception:
+            return None
+    return None
 
 def post_to_facebook(message, image_path=None):
-    try:
-        graph = GraphAPI(access_token=FB_PAGE_TOKEN)
-        if image_path:
-            with open(image_path, "rb") as img:
-                graph.put_photo(image=img, album_path=f"{FB_PAGE_ID}/photos", message=message)
-        else:
-            graph.put_object(parent_object=FB_PAGE_ID, connection_name="feed", message=message)
-        print("✅ Post published successfully.")
-        return True
-    except Exception as e:
-        print(f"❌ Facebook post failed: {e}")
-        return False
+    url = f"https://graph.facebook.com/{FB_PAGE_ID}/photos"
+    data = {
+        "caption": message,
+        "access_token": FB_PAGE_TOKEN
+    }
+    if image_path:
+        with open(image_path, "rb") as img:
+            files = {"source": img}
+            response = requests.post(url, data=data, files=files)
+    else:
+        url = f"https://graph.facebook.com/{FB_PAGE_ID}/feed"
+        data = {"message": message, "access_token": FB_PAGE_TOKEN}
+        response = requests.post(url, data=data)
+    return response.ok
 
 def main():
-    state = load_state()
-    today = datetime.datetime.now()
-    weekday = today.weekday()
+    now = datetime.datetime.now()
+    hour = now.hour
+    today_str = now.strftime("%Y-%m-%d")
 
-    teacher_ids = list(state.keys())
-    teacher_id = teacher_ids[weekday % len(teacher_ids)]
-    teacher = state[teacher_id]
+    # Load or initialize state
+    state = load_json(POST_STATE_FILE)
+    post_log = state.get("log", {})
 
-    queue = teacher.get("lesson_queue", [])
-    index = teacher.get("current_index", 0)
-    history = teacher.setdefault("history", [])
-    name = teacher.get("name", teacher_id)
-    style = teacher.get("style", "رسمية")
-    folder = teacher.get("folder", f"characters/{teacher_id}")
-    image = select_image(folder)
+    # Check time slot
+    if hour < 10:
+        time_slot = "morning"
+    elif hour < 17:
+        time_slot = "midday"
+    else:
+        time_slot = "evening"
 
-    # TEACHER POST (Morning)
-    if index < len(queue):
-        topic = queue[index]
-        if index % 5 == 0 and index > 0:
-            exam = generate_exam(name, queue[index-5:index], style)
-            if exam:
-                post_to_facebook(exam, image)
-        lesson = generate_lesson_post(name, topic, style)
-        if lesson:
-            post_to_facebook(lesson, image)
-            teacher["current_index"] += 1
-            history.append(topic)
+    if today_str not in post_log:
+        post_log[today_str] = []
 
-    # RANDOM POST (Midday)
-    random_type = random.choice(RANDOM_TOPICS)
-    random_post = generate_random_post(random_type)
-    if random_post:
-        post_to_facebook(random_post)
+    if time_slot in post_log[today_str]:
+        print(f"✅ Already posted in {time_slot}. Skipping.")
+        return
 
-    # TEACHER POST 2 (Evening)
-    index2 = teacher.get("current_index", 0)
-    if index2 < len(queue):
-        topic2 = queue[index2]
-        lesson2 = generate_lesson_post(name, topic2, style)
-        if lesson2:
-            image2 = select_image(folder)
-            post_to_facebook(lesson2, image2)
-            teacher["current_index"] += 1
-            history.append(topic2)
+    teachers = load_json(TEACHERS_FILE)
+    post_success = False
 
-    save_state(state)
+    if time_slot in ["morning", "evening"]:
+        teacher_id = select_teacher(state, teachers)
+        teacher = teachers.get(teacher_id)
+        if teacher:
+            name = teacher["name"]
+            style = teacher["style"]
+            lesson_queue = teacher["lesson_queue"]
+            index = teacher.get("current_index", 0)
+
+            if index < len(lesson_queue):
+                topic = lesson_queue[index]
+                prompt = generate_teacher_prompt(name, style, topic)
+                result = call_gemini_api(prompt)
+
+                if result:
+                    teacher["current_index"] = index + 1
+                    teacher["history"].append({
+                        "date": today_str,
+                        "topic": topic
+                    })
+                    image_path = select_image(teacher["folder"])
+                    message = f"📘 الدرس اليوم من {name}:\n\n{result}"
+                    post_success = post_to_facebook(message, image_path)
+                else:
+                    print("⚠️ AI failed to generate teacher post.")
+            else:
+                print(f"⚠️ No more lessons for {name}")
+        else:
+            print("⚠️ Teacher not found.")
+    elif time_slot == "midday":
+        prompt = generate_random_prompt()
+        result = call_gemini_api(prompt)
+        if result:
+            post_success = post_to_facebook(result)
+
+    if post_success:
+        post_log[today_str].append(time_slot)
+        state["log"] = post_log
+        save_json(POST_STATE_FILE, state)
+        save_json(TEACHERS_FILE, teachers)
+        print("✅ Post published successfully.")
+    else:
+        print("❌ Failed to post.")
 
 if __name__ == "__main__":
     main()
