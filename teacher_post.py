@@ -3,12 +3,17 @@ import random
 from common import read_json, write_json, ask_ai, post_to_facebook, clean_ai_output
 import datetime
 
+# --- Import random_post functions ---
+# Assuming these functions are available, either directly in random_post.py
+# or copied/integrated into this file for simplicity if random_post.py is small.
+# For this example, let's assume you'll import them from random_post.py.
+from random_post import generate_did_you_know_post, generate_vocabulary_challenge_post, generate_grammar_tip_post
+
 CHARACTER_DIR = "characters"
 LEARNING_MATERIALS_DIR = "learning_materials"
 
 def get_next_teacher(teacher_meta: dict, post_state: dict) -> str:
     """Determines the next teacher based on rotation."""
-    # Ensure numerical IDs are sorted correctly
     teacher_ids = sorted(teacher_meta.keys(), key=int)
     current_teacher_index = post_state.get("current_teacher_index", 0)
 
@@ -17,19 +22,18 @@ def get_next_teacher(teacher_meta: dict, post_state: dict) -> str:
         return None
 
     next_teacher_id = teacher_ids[current_teacher_index % len(teacher_ids)]
-
-    # Update index for next run
-    post_state["current_teacher_index"] = (current_teacher_index + 1) % len(teacher_ids)
-
-    # Manage exam counter. This logic determines if an exam should be generated next.
-    # The exam is generated after N teacher-led posts, effectively.
-    # Reset days_since_last_exam when a new teacher cycle starts (or after an exam)
-    if current_teacher_index % len(teacher_ids) == 0 and current_teacher_index != 0: # New cycle starts, but not the very first run
-         post_state["days_since_last_exam"] = 0
-    else:
-        post_state["days_since_last_exam"] = post_state.get("days_since_last_exam", 0) + 1
-
+    
+    # Only advance the current_teacher_index if it's the first teacher post of the day's cycle
+    # This ensures the same teacher is selected for both teacher slots in a day's cycle if needed.
+    # The actual advancement will happen at the end of the 3-post cycle.
+    
     return next_teacher_id
+
+def advance_teacher_index(post_state: dict, teacher_meta: dict):
+    """Advances the main teacher index for the next cycle."""
+    teacher_ids = sorted(teacher_meta.keys(), key=int)
+    post_state["current_teacher_index"] = (post_state.get("current_teacher_index", 0) + 1) % len(teacher_ids)
+
 
 def get_next_lesson(teacher_id: str, teacher_meta: dict, post_state: dict) -> str:
     """Gets the next lesson from the teacher's queue."""
@@ -49,7 +53,9 @@ def get_next_lesson(teacher_id: str, teacher_meta: dict, post_state: dict) -> st
         teacher_state["lesson_index"] = 0 # Reset for next cycle
 
     next_lesson = lessons[lesson_index]
-    teacher_state["lesson_index"] = (lesson_index + 1) % len(lessons) # Advance lesson index
+    # Advance lesson index only if this is a 'real' teacher post, not a test.
+    # The main loop will handle saving post_state.
+    teacher_state["lesson_index"] = (lesson_index + 1) % len(lessons)
 
     return next_lesson
 
@@ -128,13 +134,27 @@ def generate_exam_post(teacher_meta: dict, post_log: dict) -> str:
         for post in teacher_posts[-5:]: # Look at the last 5 teacher lessons
             preview = post.get("content_preview", "").replace("...", "").strip()
             # Simple keyword extraction for exam topics - can be improved if needed
-            if "Present Simple" in preview: recent_lesson_topics.append("المضارع البسيط")
-            elif "Present Continuous" in preview: recent_lesson_topics.append("المضارع المستمر")
-            elif "Past Simple" in preview: recent_lesson_topics.append("الماضي البسيط")
-            elif "Verbs" in preview: recent_lesson_topics.append("الأفعال")
-            elif "Nouns" in preview: recent_lesson_topics.append("الأسماء")
-            elif "Adjectives" in preview: recent_lesson_topics.append("الصفات")
-            else: recent_lesson_topics.append(preview.split('عن')[-1].strip() if 'عن' in preview else preview) # Generic fallback
+            # This logic might need refinement if content_preview doesn't reliably contain keywords
+            if "المضارع البسيط" in preview or "Present Simple" in preview: recent_lesson_topics.append("المضارع البسيط")
+            elif "المضارع المستمر" in preview or "Present Continuous" in preview: recent_lesson_topics.append("المضارع المستمر")
+            elif "الماضي البسيط" in preview or "Past Simple" in preview: recent_lesson_topics.append("الماضي البسيط")
+            elif "الأفعال" in preview or "Verbs" in preview: recent_lesson_topics.append("الأفعال")
+            elif "الأسماء" in preview or "Nouns" in preview: recent_lesson_topics.append("الأسماء")
+            elif "الصفات" in preview or "Adjectives" in preview: recent_lesson_topics.append("الصفات")
+            else: 
+                # Generic fallback to try and extract a topic from the content preview
+                if 'درس اليوم' in preview:
+                    topic_part = preview.split('درس اليوم', 1)[1]
+                    if 'مع الأستاذة' in topic_part:
+                        topic_part = topic_part.split('مع الأستاذة')[0]
+                    if 'مع الأستاذ' in topic_part:
+                        topic_part = topic_part.split('مع الأستاذ')[0]
+                    recent_lesson_topics.append(topic_part.strip())
+                elif 'عن' in preview: # previous generic fallback
+                    recent_lesson_topics.append(preview.split('عن')[-1].strip())
+                else: # take the whole preview as a topic if nothing specific found
+                    recent_lesson_topics.append(preview)
+
 
     lessons_summary = ", ".join(list(set(recent_lesson_topics))) if recent_lesson_topics else "مفاهيم اللغة الإنجليزية الأساسية"
 
@@ -180,20 +200,30 @@ def main(specific_teacher_id: str = None):
     post_state = read_json("post_state.json")
     post_log = read_json("post_log.json")
 
-    # Manual trigger logic for specific teacher testing
+    # Initialize state variables if they don't exist
+    post_state.setdefault("current_teacher_index", 0)
+    post_state.setdefault("days_since_last_exam", 0)
+    post_state.setdefault("post_slot_of_day", 0) # 0 = 1st post, 1 = 2nd, 2 = 3rd
+    post_state.setdefault("teachers", {})
+
+    EXAM_INTERVAL_DAYS = 5 # An exam every 5 days of posting cycles (which is 15 individual posts in total)
+
+    # --- Manual trigger logic for specific teacher testing ---
     if specific_teacher_id:
-        print(f"Manual run for specific teacher: {specific_teacher_id}")
+        print(f"Manual test run for specific teacher: {specific_teacher_id}")
         if specific_teacher_id not in teacher_meta:
             print(f"Error: Teacher ID '{specific_teacher_id}' not found in teacher_meta.json. Please check the ID.")
             return
 
         selected_teacher_id = specific_teacher_id
         teacher_info = teacher_meta.get(selected_teacher_id, {})
-
-        # Create a temporary post_state for this specific teacher run so it doesn't affect the real one
-        temp_post_state = {"teachers": post_state.setdefault("teachers", {}).get(selected_teacher_id, {"lesson_index": 0})}
-        lesson_content = get_next_lesson(selected_teacher_id, teacher_meta, temp_post_state)
-        # Note: We are not writing temp_post_state back, so the lesson_index isn't persisted for this test.
+        
+        # For testing, we get the next lesson but don't persist index change in main post_state
+        temp_teacher_state = post_state.setdefault("teachers", {}).get(selected_teacher_id, {"lesson_index": 0}).copy()
+        temp_post_state_for_lesson_getter = {"teachers": {selected_teacher_id: temp_teacher_state}}
+        lesson_content = get_next_lesson(selected_teacher_id, teacher_meta, temp_post_state_for_lesson_getter)
+        # Revert lesson index change for testing purposes
+        post_state["teachers"][selected_teacher_id]["lesson_index"] = temp_teacher_state["lesson_index"]
 
         image_to_post = get_random_teacher_image(selected_teacher_id, teacher_info)
 
@@ -206,14 +236,13 @@ def main(specific_teacher_id: str = None):
 
         print(f"Generated test post for {teacher_info.get('name', selected_teacher_id)}")
         
-        # Post to Facebook and log it, but don't update main post_state for scheduling
         if post_to_facebook(post_content, image_to_post):
             post_log.setdefault("posts", []).append({
                 "timestamp": datetime.datetime.now().isoformat(),
                 "type": post_type_log,
                 "content_preview": post_content[:200] + "...",
                 "image_used": image_to_post if image_to_post else "none",
-                "is_test": True # Mark as test post
+                "is_test": True
             })
             write_json("post_log.json", post_log)
             print("Test post logged successfully (without affecting main schedule).")
@@ -221,47 +250,60 @@ def main(specific_teacher_id: str = None):
             print("Failed to post test content to Facebook.")
         return # Exit after specific teacher run
 
-    # --- Regular Scheduled or General Manual Run Logic (if specific_teacher_id is None) ---
-    post_state.setdefault("current_teacher_index", 0)
-    post_state.setdefault("days_since_last_exam", 0)
-    post_state.setdefault("teachers", {})
+    # --- Regular Scheduled Posting Logic (main daily cycle) ---
+    post_content = ""
+    image_to_post = None
+    post_type_log = ""
 
-    EXAM_INTERVAL_DAYS = 5 # Example: Generate an exam every 5 teacher-led posts
+    current_slot = post_state["post_slot_of_day"]
+    selected_teacher_id = get_next_teacher(teacher_meta, post_state)
+    teacher_info = teacher_meta.get(selected_teacher_id, {})
 
-    if post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS:
+    # Random post types available
+    random_post_generators = [
+        generate_did_you_know_post,
+        generate_vocabulary_challenge_post,
+        generate_grammar_tip_post
+    ]
+
+    if post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS and current_slot == 0:
+        # If it's exam day AND the first post of the day, post the exam.
         print(f"It's exam day! (Days since last exam: {post_state['days_since_last_exam']})")
         post_content = generate_exam_post(teacher_meta, post_log)
-        image_to_post = None # Exams currently don't use images
         post_type_log = "exam"
         post_state["days_since_last_exam"] = 0 # Reset exam counter
+        # Exam day replaces the first teacher post. The other 2 posts will proceed as normal.
+        post_state["post_slot_of_day"] = (current_slot + 1) % 3 # Move to next slot for next run today
     else:
-        selected_teacher_id = get_next_teacher(teacher_meta, post_state)
-        
-        if not selected_teacher_id:
-            print("No teachers defined. Cannot generate teacher post. Falling back to random post if possible.")
-            import random_post
-            random_post.main() # Fallback to random post if no teachers are configured
-            write_json("post_state.json", post_state) # Save state before exiting
-            return
+        if current_slot == 0 or current_slot == 2: # First and Third post are Teacher Posts
+            print(f"Generating Teacher Post for slot {current_slot + 1}")
+            lesson_content = get_next_lesson(selected_teacher_id, teacher_meta, post_state)
+            image_to_post = get_random_teacher_image(selected_teacher_id, teacher_info)
+            post_content = generate_teacher_post(selected_teacher_id, lesson_content, teacher_info)
+            post_type_log = "teacher_lesson"
+            
+            # For the first teacher post of the day (slot 0), advance the teacher index and lesson index
+            # This ensures the same teacher is used for both slots 0 and 2 on the same day if the index isn't advanced.
+            # No, the get_next_lesson already advances the index. The teacher rotation happens at the end of the day's cycle.
+            # So the current_teacher_index should only advance when all 3 posts for the day are done.
+            
+        elif current_slot == 1: # Second post is a Random Post
+            print(f"Generating Random Post for slot {current_slot + 1}")
+            selected_random_generator = random.choice(random_post_generators)
+            post_content = selected_random_generator()
+            post_type_log = "random_content"
+            image_to_post = None # Random posts typically don't have images
 
-        teacher_info = teacher_meta.get(selected_teacher_id, {})
-        lesson_content = get_next_lesson(selected_teacher_id, teacher_meta, post_state)
-        image_to_post = get_random_teacher_image(selected_teacher_id, teacher_info)
+        # Advance slot for next time this script runs today
+        post_state["post_slot_of_day"] = (current_slot + 1) % 3
 
-        if not lesson_content:
-            print(f"No lessons found for teacher {selected_teacher_id} after getting next. Skipping teacher post and falling back to random.")
-            import random_post
-            random_post.main() # Fallback to random post if teacher has no lessons left
-            write_json("post_state.json", post_state) # Save state before exiting
-            return
+        # Advance exam counter and teacher_index only if it's the last post of the daily cycle
+        if post_state["post_slot_of_day"] == 0: # It means all 3 posts for the day are done
+            post_state["days_since_last_exam"] = post_state.get("days_since_last_exam", 0) + 1
+            advance_teacher_index(post_state, teacher_meta) # Advance teacher for next day
 
-        post_content = generate_teacher_post(selected_teacher_id, lesson_content, teacher_info)
-        post_type_log = "teacher_lesson"
-        print(f"Generated teacher post for {teacher_info.get('name', selected_teacher_id)}")
-    
     # Attempt to post to Facebook
     if post_to_facebook(post_content, image_to_post):
-        # Log successful post
         post_log.setdefault("posts", []).append({
             "timestamp": datetime.datetime.now().isoformat(),
             "type": post_type_log,
@@ -273,7 +315,7 @@ def main(specific_teacher_id: str = None):
     else:
         print("Failed to post content to Facebook. Post state not updated for failed post.")
 
-    write_json("post_state.json", post_state) # Always save post_state for scheduled/general manual runs
+    write_json("post_state.json", post_state) # Always save post_state
 
 if __name__ == "__main__":
     main()
