@@ -1,161 +1,88 @@
-import os
-import json
-import random
 import datetime
-import requests
-from dotenv import load_dotenv
+import sys
+import os
+import random_post
+import teacher_post
+from common import read_json, write_json
 
-load_dotenv()
+# Define your desired posting times in 24-hour format (UTC)
+# GitHub Actions runs on UTC, so convert your local times to UTC.
+# Example for Egypt EEST (UTC+3):
+# Morning (Teacher Lesson) at 9:00 AM EEST -> 6:00 AM UTC
+# Midday (Random Post) at 1:00 PM EEST -> 10:00 AM UTC
+# Evening (Teacher Lesson) at 6:00 PM EEST -> 3:00 PM UTC
+POSTING_TIMES_UTC = {
+    "morning": "06:00",  # Example: 6 AM UTC
+    "midday": "10:00",   # Example: 10 AM UTC
+    "evening": "15:00"   # Example: 3 PM UTC
+}
 
-# Environment variables
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-FB_PAGE_TOKEN = os.getenv("FB_PAGE_TOKEN")
-FB_PAGE_ID = os.getenv("FB_PAGE_ID")
-
-# Paths
-TEACHERS_FILE = "teachers.json"
-POST_STATE_FILE = "post_state.json"
-
-def load_json(path):
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
-
-def save_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-def select_teacher(state, teachers):
-    last_teacher = state.get("last_teacher", -1)
-    ids = list(teachers.keys())
-    if not ids:
-        return None
-    next_index = (last_teacher + 1) % len(ids)
-    state["last_teacher"] = next_index
-    return ids[next_index]
-
-def select_image(folder):
-    if not os.path.isdir(folder):
-        return None
-    images = [f for f in os.listdir(folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-    return os.path.join(folder, random.choice(images)) if images else None
-
-def generate_teacher_prompt(name, style, topic):
-    return f"""You are {name}, a female Arabic English teacher. Your tone is {style}.
-Generate an engaging educational post in Arabic for students on the topic: "{topic}".
-Avoid saying you're an AI or introducing the task. Just write the post directly and clearly.
-Include example sentences, explanation, translation, and a quick question if possible."""
-
-def generate_random_prompt():
-    return """Generate an educational English learning post in Arabic. It could be a word of the day, a grammar tip, a quiz, or a motivational tip.
-Write the post clearly and naturally. Avoid saying “Sure!” or “Here's your post.” Just write the post as if it were written by a human teacher.
-Use simple Modern Standard Arabic for Arabic parts, and format the content cleanly without asterisks or clutter."""
-
-def call_gemini_api(prompt):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-pro:generateContent?key={GEMINI_API_KEY}"
-    headers = {"Content-Type": "application/json"}
-    data = {
-        "contents": [
-            {
-                "parts": [{"text": prompt}]
-            }
-        ]
-    }
-    response = requests.post(url, headers=headers, json=data)
-    if response.ok:
-        try:
-            return response.json()["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception:
-            return None
+def get_post_type_for_current_time(current_utc_hour_minute: str) -> str:
+    """Determines if it's time for a specific post type."""
+    if current_utc_hour_minute == POSTING_TIMES_UTC["morning"]:
+        return "teacher"
+    elif current_utc_hour_minute == POSTING_TIMES_UTC["midday"]:
+        return "random"
+    elif current_utc_hour_minute == POSTING_TIMES_UTC["evening"]:
+        return "teacher"
     return None
 
-def post_to_facebook(message, image_path=None):
-    url = f"https://graph.facebook.com/{FB_PAGE_ID}/photos"
-    data = {
-        "caption": message,
-        "access_token": FB_PAGE_TOKEN
-    }
-    if image_path:
-        with open(image_path, "rb") as img:
-            files = {"source": img}
-            response = requests.post(url, data=data, files=files)
-    else:
-        url = f"https://graph.facebook.com/{FB_PAGE_ID}/feed"
-        data = {"message": message, "access_token": FB_PAGE_TOKEN}
-        response = requests.post(url, data=data)
-    return response.ok
-
 def main():
-    now = datetime.datetime.now()
-    hour = now.hour
-    today_str = now.strftime("%Y-%m-%d")
+    # Get current UTC time
+    now_utc = datetime.datetime.utcnow()
+    current_utc_hour_minute = now_utc.strftime("%H:%M")
+    current_hour = now_utc.hour
 
-    # Load or initialize state
-    state = load_json(POST_STATE_FILE)
-    post_log = state.get("log", {})
+    print(f"Current UTC time: {current_utc_hour_minute}")
 
-    # Check time slot
-    if hour < 10:
-        time_slot = "morning"
-    elif hour < 17:
-        time_slot = "midday"
-    else:
-        time_slot = "evening"
-
-    if today_str not in post_log:
-        post_log[today_str] = []
-
-    if time_slot in post_log[today_str]:
-        print(f"✅ Already posted in {time_slot}. Skipping.")
-        return
-
-    teachers = load_json(TEACHERS_FILE)
-    post_success = False
-
-    if time_slot in ["morning", "evening"]:
-        teacher_id = select_teacher(state, teachers)
-        teacher = teachers.get(teacher_id)
-        if teacher:
-            name = teacher["name"]
-            style = teacher["style"]
-            lesson_queue = teacher["lesson_queue"]
-            index = teacher.get("current_index", 0)
-
-            if index < len(lesson_queue):
-                topic = lesson_queue[index]
-                prompt = generate_teacher_prompt(name, style, topic)
-                result = call_gemini_api(prompt)
-
-                if result:
-                    teacher["current_index"] = index + 1
-                    teacher["history"].append({
-                        "date": today_str,
-                        "topic": topic
-                    })
-                    image_path = select_image(teacher["folder"])
-                    message = f"📘 الدرس اليوم من {name}:\n\n{result}"
-                    post_success = post_to_facebook(message, image_path)
-                else:
-                    print("⚠️ AI failed to generate teacher post.")
-            else:
-                print(f"⚠️ No more lessons for {name}")
+    # Manual trigger logic for GitHub Actions workflow_dispatch
+    manual_post_type = os.getenv("MANUAL_POST_TYPE")
+    if manual_post_type:
+        print(f"Manual trigger detected for post type: {manual_post_type}")
+        if manual_post_type == "random":
+            random_post.main()
+        elif manual_post_type == "teacher":
+            teacher_post.main()
         else:
-            print("⚠️ Teacher not found.")
-    elif time_slot == "midday":
-        prompt = generate_random_prompt()
-        result = call_gemini_api(prompt)
-        if result:
-            post_success = post_to_facebook(result)
+            print(f"Unknown manual post type: {manual_post_type}")
+        sys.exit(0) # Exit after manual post
 
-    if post_success:
-        post_log[today_str].append(time_slot)
-        state["log"] = post_log
-        save_json(POST_STATE_FILE, state)
-        save_json(TEACHERS_FILE, teachers)
-        print("✅ Post published successfully.")
+    # Automatic schedule logic
+    post_type = get_post_type_for_current_time(current_utc_hour_minute)
+
+    # To avoid multiple runs for the same scheduled hour due to minor delays,
+    # you might want to add a check in `post_state.json` to see if a post
+    # has already been made for this specific time slot today.
+    # For simplicity, this example just checks the hour.
+    
+    post_state = read_json("post_state.json")
+    today_date = now_utc.strftime("%Y-%m-%d")
+    
+    # Initialize post_state if it's a new day
+    if post_state.get("last_run_date") != today_date:
+        post_state["last_run_date"] = today_date
+        post_state["posts_today"] = []
+        write_json("post_state.json", post_state)
+
+    # Check if a post for this hour has already been made today
+    made_posts_today = post_state.get("posts_today", [])
+    if f"{current_hour}" in made_posts_today:
+        print(f"A post has already been made for hour {current_hour} UTC today. Skipping.")
+        sys.exit(0)
+
+    if post_type == "teacher":
+        print("It's time for a teacher lesson post!")
+        teacher_post.main()
+        post_state["posts_today"].append(f"{current_hour}")
+        write_json("post_state.json", post_state)
+    elif post_type == "random":
+        print("It's time for a random post!")
+        random_post.main()
+        post_state["posts_today"].append(f"{current_hour}")
+        write_json("post_state.json", post_state)
     else:
-        print("❌ Failed to post.")
+        print(f"No specific post scheduled for {current_utc_hour_minute} UTC. Skipping.")
 
 if __name__ == "__main__":
     main()
+
