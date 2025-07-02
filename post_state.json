@@ -1,7 +1,16 @@
 {
   "current_teacher_index": 0,
   "days_since_last_exam": 0,
-  "teachers": {},
-  "last_run_date": "2025-07-01",
-  "posts_today": []
+  "post_slot_of_day": 1,
+  "teacher_progress": {
+    "1": {  
+      "lesson_index": 0
+    },
+    "2": {  
+      "lesson_index": 0
+    },
+    "3": { 
+      "lesson_index": 0
+    }
+  }
 }
