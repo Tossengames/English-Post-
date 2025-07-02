@@ -4,9 +4,7 @@ from common import read_json, write_json, ask_ai, post_to_facebook, clean_ai_out
 import datetime
 
 # --- Import random_post functions ---
-# Assuming these functions are available, either directly in random_post.py
-# or copied/integrated into this file for simplicity if random_post.py is small.
-# For this example, let's assume you'll import them from random_post.py.
+# These functions should be defined in your separate random_post.py file
 from random_post import generate_did_you_know_post, generate_vocabulary_challenge_post, generate_grammar_tip_post
 
 CHARACTER_DIR = "characters"
@@ -22,10 +20,6 @@ def get_next_teacher(teacher_meta: dict, post_state: dict) -> str:
         return None
 
     next_teacher_id = teacher_ids[current_teacher_index % len(teacher_ids)]
-    
-    # Only advance the current_teacher_index if it's the first teacher post of the day's cycle
-    # This ensures the same teacher is selected for both teacher slots in a day's cycle if needed.
-    # The actual advancement will happen at the end of the 3-post cycle.
     
     return next_teacher_id
 
@@ -53,8 +47,7 @@ def get_next_lesson(teacher_id: str, teacher_meta: dict, post_state: dict) -> st
         teacher_state["lesson_index"] = 0 # Reset for next cycle
 
     next_lesson = lessons[lesson_index]
-    # Advance lesson index only if this is a 'real' teacher post, not a test.
-    # The main loop will handle saving post_state.
+    # Advance lesson index for this teacher for the next post
     teacher_state["lesson_index"] = (lesson_index + 1) % len(lessons)
 
     return next_lesson
@@ -134,7 +127,6 @@ def generate_exam_post(teacher_meta: dict, post_log: dict) -> str:
         for post in teacher_posts[-5:]: # Look at the last 5 teacher lessons
             preview = post.get("content_preview", "").replace("...", "").strip()
             # Simple keyword extraction for exam topics - can be improved if needed
-            # This logic might need refinement if content_preview doesn't reliably contain keywords
             if "المضارع البسيط" in preview or "Present Simple" in preview: recent_lesson_topics.append("المضارع البسيط")
             elif "المضارع المستمر" in preview or "Present Continuous" in preview: recent_lesson_topics.append("المضارع المستمر")
             elif "الماضي البسيط" in preview or "Past Simple" in preview: recent_lesson_topics.append("الماضي البسيط")
@@ -259,48 +251,44 @@ def main(specific_teacher_id: str = None):
     selected_teacher_id = get_next_teacher(teacher_meta, post_state)
     teacher_info = teacher_meta.get(selected_teacher_id, {})
 
-    # Random post types available
+    # Random post types available (from random_post.py)
     random_post_generators = [
         generate_did_you_know_post,
         generate_vocabulary_challenge_post,
         generate_grammar_tip_post
     ]
 
+    # Check for exam only at the first slot of the day to replace the teacher post
     if post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS and current_slot == 0:
-        # If it's exam day AND the first post of the day, post the exam.
-        print(f"It's exam day! (Days since last exam: {post_state['days_since_last_exam']})")
+        print(f"It's exam day! Generating Exam Post for slot 1. (Days since last exam: {post_state['days_since_last_exam']})")
         post_content = generate_exam_post(teacher_meta, post_log)
         post_type_log = "exam"
-        post_state["days_since_last_exam"] = 0 # Reset exam counter
-        # Exam day replaces the first teacher post. The other 2 posts will proceed as normal.
-        post_state["post_slot_of_day"] = (current_slot + 1) % 3 # Move to next slot for next run today
-    else:
-        if current_slot == 0 or current_slot == 2: # First and Third post are Teacher Posts
-            print(f"Generating Teacher Post for slot {current_slot + 1}")
-            lesson_content = get_next_lesson(selected_teacher_id, teacher_meta, post_state)
-            image_to_post = get_random_teacher_image(selected_teacher_id, teacher_info)
-            post_content = generate_teacher_post(selected_teacher_id, lesson_content, teacher_info)
-            post_type_log = "teacher_lesson"
+        post_state["days_since_last_exam"] = 0 # Reset exam counter after posting
+        # The post_slot_of_day will be advanced normally below.
+    elif current_slot == 0 or current_slot == 2: # First and Third post are Teacher Posts
+        print(f"Generating Teacher Post for slot {current_slot + 1}")
+        lesson_content = get_next_lesson(selected_teacher_id, teacher_meta, post_state)
+        image_to_post = get_random_teacher_image(selected_teacher_id, teacher_info)
+        post_content = generate_teacher_post(selected_teacher_id, lesson_content, teacher_info)
+        post_type_log = "teacher_lesson"
             
-            # For the first teacher post of the day (slot 0), advance the teacher index and lesson index
-            # This ensures the same teacher is used for both slots 0 and 2 on the same day if the index isn't advanced.
-            # No, the get_next_lesson already advances the index. The teacher rotation happens at the end of the day's cycle.
-            # So the current_teacher_index should only advance when all 3 posts for the day are done.
-            
-        elif current_slot == 1: # Second post is a Random Post
-            print(f"Generating Random Post for slot {current_slot + 1}")
-            selected_random_generator = random.choice(random_post_generators)
-            post_content = selected_random_generator()
-            post_type_log = "random_content"
-            image_to_post = None # Random posts typically don't have images
+    elif current_slot == 1: # Second post is a Random Post
+        print(f"Generating Random Post for slot {current_slot + 1}")
+        selected_random_generator = random.choice(random_post_generators)
+        post_content = selected_random_generator()
+        post_type_log = "random_content"
+        image_to_post = None # Random posts typically don't have images
 
-        # Advance slot for next time this script runs today
-        post_state["post_slot_of_day"] = (current_slot + 1) % 3
+    # Advance slot for next time this script runs today
+    post_state["post_slot_of_day"] = (current_slot + 1) % 3
 
-        # Advance exam counter and teacher_index only if it's the last post of the daily cycle
-        if post_state["post_slot_of_day"] == 0: # It means all 3 posts for the day are done
+    # Advance exam counter and teacher_index only if it's the last post of the daily cycle
+    if post_state["post_slot_of_day"] == 0: # It means all 3 posts for the day are done (or exam day reset)
+        # If an exam was posted, days_since_last_exam was already reset.
+        # Otherwise, increment for a regular day.
+        if post_type_log != "exam": # Only increment if it wasn't an exam day
             post_state["days_since_last_exam"] = post_state.get("days_since_last_exam", 0) + 1
-            advance_teacher_index(post_state, teacher_meta) # Advance teacher for next day
+        advance_teacher_index(post_state, teacher_meta) # Advance teacher for next day's cycle
 
     # Attempt to post to Facebook
     if post_to_facebook(post_content, image_to_post):
@@ -315,7 +303,8 @@ def main(specific_teacher_id: str = None):
     else:
         print("Failed to post content to Facebook. Post state not updated for failed post.")
 
-    write_json("post_state.json", post_state) # Always save post_state
+    write_json("post_state.json", post_state) # Always save post_state at the end
 
 if __name__ == "__main__":
     main()
+
