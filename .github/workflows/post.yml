@@ -24,7 +24,6 @@ jobs:
   # --- Job for the regular scheduled posts or single teacher test posts ---
   post_single:
     # This job runs if run_full_day_cycle is false (default) or if specific_teacher_id is provided.
-    # The '==' operator for boolean inputs requires quoting 'true' or 'false'.
     if: github.event.inputs.run_full_day_cycle == 'false' || github.event.inputs.specific_teacher_id != ''
     runs-on: ubuntu-latest
     environment: production
@@ -69,12 +68,12 @@ jobs:
       - name: Install dependencies
         run: |
           pip install requests
-      
+
       # Reset post_slot_of_day to 0 to ensure the full 3-post cycle starts correctly
       # The python -c command is now on a single line to avoid syntax errors.
       - name: Reset post_slot_of_day for full cycle test
         run: python -c "import json; try: with open('post_state.json', 'r+') as f: data = json.load(f); data['post_slot_of_day'] = 0; f.seek(0); json.dump(data, f, indent=2); f.truncate(); except FileNotFoundError: print('post_state.json not found, creating with post_slot_of_day = 0'); with open('post_state.json', 'w') as f: json.dump({'post_slot_of_day': 0}, f, indent=2)"
-          
+
       - name: Run 1st Post (Teacher)
         env:
           FACEBOOK_APP_ID: ${{ secrets.FACEBOOK_APP_ID }}
