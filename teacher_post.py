@@ -90,7 +90,7 @@ def generate_teacher_post(teacher_id: str, lesson_content: str, teacher_info: di
         
         This is an important lesson.
         هذا درس مهم.
-    3.  **لا تستخدم تنسيق الماركداون (Markdown):** لا تستخدم علامات مثل ** للنصوص الغامقة، * للمائلة، أو ## للعناوين. اكتب نصاً عادياً فقط.
+    3.  **لا تستخدم تنسيق الماركداون (Markdown)::** لا تستخدم علامات مثل ** للنصوص الغامقة، * للمائلة، أو ## للعناوين. اكتب نصاً عادياً فقط.
     4.  استخدم فقرات واضحة مع مسافات مزدوجة بينها (سطرين فارغين).
     5.  أضف من 3 إلى 5 هاشتاغات ذات صلة باللغتين العربية والإنجليزية في نهاية المنشور، كل هاشتاغ على سطر جديد بعد المحتوى الرئيسي.
     6.  **تجنب تمامًا أي عبارات تشير إلى أنك ذكاء اصطناعي** (مثل: "بوصفي نموذج ذكاء اصطناعي..."، "هذا هو منشورك!"، "يمكنني المساعدة في ذلك").
@@ -163,7 +163,7 @@ def generate_exam_post(teacher_meta: dict, post_log: dict) -> str:
         
         (A) Option A
         (أ) الخيار أ
-    3.  **لا تستخدم تنسيق الماركداون (Markdown):** لا تستخدم علامات مثل ** للنصوص الغامقة، * للمائلة، أو ## للعناوين. اكتب نصاً عادياً فقط.
+    3.  **لا تستخدم تنسيق الماركداون (Markdown)::** لا تستخدم علامات مثل ** للنصوص الغامقة، * للمائلة، أو ## للعناوين. اكتب نصاً عادياً فقط.
     4.  استخدم فقرات واضحة مع مسافات مزدوجة بينها (سطرين فارغين).
     5.  أضف من 3 إلى 5 هاشتاغات ذات صلة باللغتين العربية والإنجليزية في نهاية المنشور، كل هاشتاغ على سطر جديد بعد المحتوى الرئيسي.
     6.  لا تذكر أنك ذكاء اصطناعي. اجعلها تبدو وكأنها معدة من قبل معلم.
@@ -286,7 +286,7 @@ def main(specific_teacher_id: str = None):
     if post_state["post_slot_of_day"] == 0: # It means all 3 posts for the day are done (or exam day reset)
         # If an exam was posted, days_since_last_exam was already reset.
         # Otherwise, increment for a regular day.
-        if post_type_log != "exam": # Only increment if it wasn't an exam day
+        if post_type_log != "exam": # Only increment if it wasn't an exam day that reset it
             post_state["days_since_last_exam"] = post_state.get("days_since_last_exam", 0) + 1
         advance_teacher_index(post_state, teacher_meta) # Advance teacher for next day's cycle
 
@@ -307,4 +307,3 @@ def main(specific_teacher_id: str = None):
 
 if __name__ == "__main__":
     main()
-
