@@ -1,26 +1,36 @@
 {
-  "Teacher1": {
-    "name": "ندى",
-    "personality": "جدية ومحفزة",
-    "posting_style": "serious",
+  "1": {
+    "name": "الأستاذة ندى",
+    "posting_style": "ودودة ومحبة، ذات لمسة مصرية.",
     "lesson_queue": [
-      "المضارع البسيط (Present Simple)",
-      "المضارع المستمر (Present Continuous)",
-      "المضارع التام (Present Perfect)",
-      "الماضي البسيط (Past Simple)",
-      "الماضي المستمر (Past Continuous)"
+      "Common English Greetings",
+      "Usage of 'a' and 'an'",
+      "Basic English Everyday Expressions",
+      "Present Simple Tense",
+      "Asking and Telling Time",
+      "Pronunciation of Common Words"
     ]
   },
-  "Teacher2": {
-    "name": " ليلى",
-    "personality": "ودودة ومرحة",
-    "posting_style": "friendly",
+  "2": {
+    "name": "الأستاذ أحمد",
+    "posting_style": "جدي ومحفز، مع التركيز على القواعد النحوية الصعبة.",
     "lesson_queue": [
-      "الأفعال المساعدة (Auxiliary Verbs)",
-      "المفرد والجمع (Singular and Plural Nouns)",
-      "الصفات والظروف (Adjectives and Adverbs)",
-      "حروف الجر (Prepositions of Place)",
-      "الضمائر (Pronouns)"
+      "Present Perfect Tense",
+      "Introduction to Passive Voice",
+      "Modal Verbs (can, could, will, would)",
+      "Difference between 'much', 'many', and 'a lot of'",
+      "Usage of 'If Clauses'"
+    ]
+  },
+  "3": {
+    "name": "الأستاذة ليلى",
+    "posting_style": "مرحة وإبداعية، تركز على المفردات والمحادثة.",
+    "lesson_queue": [
+      "Shopping Vocabulary",
+      "Starting a Small Talk",
+      "Common Phrasal Verbs",
+      "Describing Places and People",
+      "Expressions for Emotions"
     ]
   }
 }
