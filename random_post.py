@@ -1,6 +1,6 @@
 import os
 import random
-from common import read_json, write_json, ask_ai, post_to_facebook, get_current_day_of_week_arabic, clean_ai_output # Added clean_ai_output
+from common import read_json, write_json, ask_ai, post_to_facebook, get_current_day_of_week_arabic, clean_ai_output
 import datetime
 
 RANDOM_POST_TYPES_FILE = "random_types.json"
@@ -30,24 +30,23 @@ def generate_random_post(post_type: str) -> str:
     """Generates a random educational post using AI."""
     day_of_week = datetime.datetime.now().strftime("%A")
 
-    # **IMPORTANT: Updated Prompt for better formatting**
+    # --- UPDATED PROMPT FOR LANGUAGE PRIORITY AND CLARITY ---
     base_prompt = f"""
-    You are an English language educator for Arabic-speaking students.
-    Your task is to create a concise, helpful, and educational Facebook post.
+    أنت معلم لغة إنجليزية موجه للطلاب العرب. مهمتك هي إنشاء منشور فيسبوك موجز، مفيد، وتعليمي.
     
-    **CRITICAL FORMATTING RULES:**
-    1.  **NO MARKDOWN:** Do NOT use markdown characters for bolding, italics, or headings (e.g., **, *, ##). Write plain text.
-    2.  **SEPARATE ENGLISH & ARABIC:** Always put English text on its own line(s), and its Arabic translation directly below it on new line(s). Do NOT mix English and Arabic on the same line.
-        Example:
+    **قواعد التنسيق الهامة واللغة:**
+    1.  **اللغة الأساسية هي العربية:** يجب أن يكون المحتوى الرئيسي للمنشور باللغة العربية الفصحى.
+    2.  **الفصل بين اللغتين:** يتم استخدام الكلمات أو الجمل الإنجليزية للمصطلحات، الأمثلة، أو الأسئلة، ويجب أن يتبعها دائمًا ترجمتها العربية مباشرةً على سطر جديد منفصل. لا تخلط الإنجليزية والعربية في نفس السطر.
+        مثال:
         Word: Hello
         الكلمة: مرحباً
         
         Example sentence: Hello, how are you?
         مثال الجملة: مرحباً، كيف حالك؟
-    3.  Use clear paragraphs with double newlines between them.
-    4.  Include 3-5 relevant hashtags in both Arabic and English at the very end of the post, each on a new line after the main content.
-    5.  **Absolutely avoid any phrases that suggest you are an AI** (e.g., "As an AI model...", "Here's your post!", "I can help with that").
-    6.  The content should be in formal Arabic, with English words or phrases integrated contextually.
+    3.  **لا تستخدم تنسيق الماركداون (Markdown):** لا تستخدم علامات مثل ** للنصوص الغامقة، * للمائلة، أو ## للعناوين. اكتب نصاً عادياً فقط.
+    4.  استخدم فقرات واضحة مع مسافات مزدوجة بينها (سطرين فارغين).
+    5.  أضف من 3 إلى 5 هاشتاغات ذات صلة باللغتين العربية والإنجليزية في نهاية المنشور، كل هاشتاغ على سطر جديد بعد المحتوى الرئيسي.
+    6.  **تجنب تمامًا أي عبارات تشير إلى أنك ذكاء اصطناعي** (مثل: "بوصفي نموذج ذكاء اصطناعي..."، "هذا هو منشورك!"، "يمكنني المساعدة في ذلك").
     """
 
     if post_type == "Word of the Day":
@@ -71,7 +70,6 @@ def generate_random_post(post_type: str) -> str:
         Requirement: "Exercise". Provide a simple exercise for students (e.g., rearrange words to form a sentence, match words with meanings, correct mistakes). Provide the instructions/questions in English followed by Arabic, and include an answer key at the end (after some space).
         """
     else:
-        # Fallback for unknown types or general random content
         prompt = base_prompt + """
         Requirement: A general educational post about English learning tips or a short cultural fact related to the English language.
         """
@@ -83,10 +81,8 @@ def generate_random_post(post_type: str) -> str:
         print("AI failed to generate random post. Falling back to simple message.")
         return f"مرحباً بكم! نتمنى لكم يوماً تعليمياً سعيداً في {get_current_day_of_week_arabic()}!\n#تعلم_الإنجليزي\n#لغة_انجليزية"
 
-    # Apply cleanup after AI generation
     final_post_content = clean_ai_output(ai_generated_content)
 
-    # Ensure hashtags are present and on separate lines at the end
     if "#" not in final_post_content[-50:]:
         if not final_post_content.strip().endswith('\n\n'):
             final_post_content += '\n\n'
@@ -118,4 +114,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
