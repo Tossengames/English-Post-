@@ -1,7 +1,7 @@
 name: Daily Facebook Post
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Allows you to manually trigger the workflow from GitHub
     inputs:
       specific_teacher_id:
         description: 'Enter teacher ID (1, 2, 3) for a single test post (leaves other fields blank)'
@@ -16,36 +16,40 @@ on:
     # First post: 8:00 AM EEST (5:00 UTC)
     - cron: '0 5 * * *'
     # Second post: 1:00 PM EEST (10:00 UTC)
-    - cron: '0 15 * * *'
+    - cron: '0 10 * * *'
     # Third post: 6:00 PM EEST (15:00 UTC)
-    - cron: '0 20 * * *' # Changed to 20 UTC for 11 PM EEST, giving more spread. Adjust if needed.
+    - cron: '0 15 * * *'
 
 jobs:
   # --- Job for the regular scheduled posts or single teacher test posts ---
   post_single:
-    if: github.event.inputs.run_full_day_cycle == 'false' || github.event.inputs.run_full_day_cycle == '' # Only run if not full cycle
-    runs-on: ubuntu-latest
-    environment: production
+    # This job runs if run_full_day_cycle is false (default) AND no specific_teacher_id is provided,
+    # OR if a specific_teacher_id is provided (for testing a single teacher).
+    if: github.event.inputs.run_full_day_cycle == 'false' || github.event.inputs.run_full_day_cycle == '' 
+    runs-on: ubuntu-latest # The operating system to run the job on
+    environment: production # Specifies a production environment (optional, but good practice for secrets)
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Checks out your repository code
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v4 # Sets up Python on the runner
         with:
-          python-version: '3.x'
+          python-version: '3.x' # Use the latest Python 3 version
 
       - name: Install dependencies
         run: |
-          pip install requests
+          pip install requests # Installs the 'requests' library for Facebook API calls
 
       - name: Run Teacher Post Script
+        # These environment variables pass your Facebook API credentials securely to the script
         env:
           FACEBOOK_APP_ID: ${{ secrets.FACEBOOK_APP_ID }}
           FACEBOOK_APP_SECRET: ${{ secrets.FACEBOOK_APP_SECRET }}
           FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
           FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
+        # Pass specific_teacher_id as an argument if it's provided, otherwise it will be None
         run: python teacher_post.py ${{ github.event.inputs.specific_teacher_id }}
 
   # --- New Job for running the full 3-post daily cycle in one go ---
@@ -67,21 +71,10 @@ jobs:
         run: |
           pip install requests
       
-      # Clear post_slot_of_day to ensure it starts from 0 for the full cycle
+      # Corrected step: Reset post_slot_of_day for full cycle test
+      # This ensures the 3 consecutive posts start correctly from slot 0
       - name: Reset post_slot_of_day for full cycle test
-        run: |
-          python -c "import json; \
-          try: \
-              with open('post_state.json', 'r+') as f: \
-                  data = json.load(f); \
-                  data['post_slot_of_day'] = 0; \
-                  f.seek(0); \
-                  json.dump(data, f, indent=2); \
-                  f.truncate(); \
-          except FileNotFoundError: \
-              print('post_state.json not found, creating with post_slot_of_day = 0'); \
-              with open('post_state.json', 'w') as f: \
-                  json.dump({'post_slot_of_day': 0}, f, indent=2)"
+        run: python -c "import json; try: with open('post_state.json', 'r+') as f: data = json.load(f); data['post_slot_of_day'] = 0; f.seek(0); json.dump(data, f, indent=2); f.truncate(); except FileNotFoundError: print('post_state.json not found, creating with post_slot_of_day = 0'); with open('post_state.json', 'w') as f: json.dump({'post_slot_of_day': 0}, f, indent=2)"
           
       - name: Run 1st Post (Teacher)
         env:
