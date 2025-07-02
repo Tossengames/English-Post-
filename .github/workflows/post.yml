@@ -32,6 +32,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install requests
+          pip install google-generativeai # <-- ADD THIS LINE
 
       - name: Run Teacher Post Script
         env:
@@ -39,5 +40,4 @@ jobs:
           FACEBOOK_APP_SECRET: ${{ secrets.FACEBOOK_APP_SECRET }}
           FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
           FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
-        # The specific_teacher_id will be passed if entered, otherwise it will be None in teacher_post.py
         run: python teacher_post.py ${{ github.event.inputs.specific_teacher_id }}
