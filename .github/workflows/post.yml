@@ -1,54 +1,38 @@
-name: Automated Facebook Posting
+name: Daily Facebook Post
 
 on:
+  workflow_dispatch: # Allows you to manually trigger the workflow from GitHub
   schedule:
-    # Schedule for Morning (Teacher) post at 6:00 AM UTC (9:00 AM EEST)
-    - cron: '0 6 * * *'
-    # Schedule for Midday (Random) post at 10:00 AM UTC (1:00 PM EEST)
+    # First post: 8:00 AM EEST (5:00 UTC)
+    - cron: '0 5 * * *'
+    # Second post: 1:00 PM EEST (10:00 UTC)
     - cron: '0 10 * * *'
-    # Schedule for Evening (Teacher) post at 3:00 PM UTC (6:00 PM EEST)
+    # Third post: 6:00 PM EEST (15:00 UTC)
     - cron: '0 15 * * *'
-  
-  workflow_dispatch:
-    inputs:
-      post_type:
-        description: 'Choose post type'
-        required: true
-        type: choice
-        options:
-          - random
-          - teacher
-          - debug # For testing without actual posting (useful for development)
-      specific_teacher_id:
-        description: 'Optional: Specify teacher ID (e.g., "nada") for manual "teacher" post. Leave blank for rotation.'
-        required: false
-        type: string
 
 jobs:
-  run_daily_post:
-    runs-on: ubuntu-latest
+  post:
+    runs-on: ubuntu-latest # The operating system to run the job on
+    environment: production # Specifies a production environment (optional, but good practice for secrets)
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3 # Checks out your repository code
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.9' # Or your preferred Python version
+      - name: Set up Python
+        uses: actions/setup-python@v4 # Sets up Python on the runner
+        with:
+          python-version: '3.x' # Use the latest Python 3 version
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Install dependencies
+        run: |
+          pip install requests # Installs the 'requests' library for Facebook API calls
 
-    - name: Run Post Script (Scheduled or Manual)
-      env:
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-        FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-        MANUAL_POST_TYPE: ${{ github.event.inputs.post_type }}
-        # Pass the specific_teacher_id as an environment variable
-        SPECIFIC_TEACHER_ID: ${{ github.event.inputs.specific_teacher_id }}
-      run: python post_to_facebook.py
-
+      - name: Run Teacher Post Script
+        # These environment variables pass your Facebook API credentials securely to the script
+        env:
+          FACEBOOK_APP_ID: ${{ secrets.FACEBOOK_APP_ID }}
+          FACEBOOK_APP_SECRET: ${{ secrets.FACEBOOK_APP_SECRET }}
+          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+          FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
+        run: python teacher_post.py # Executes your main script
