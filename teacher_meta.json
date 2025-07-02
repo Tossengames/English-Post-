@@ -10,7 +10,7 @@
       "Asking and Telling Time",
       "Pronunciation of Common Words"
     ],
-    "image_folder_name": "teacher1"
+    "image_folder_name": "Teacher1"  // <-- UPDATED: Capital 'T'
   },
   "2": {
     "name": "الأستاذ أحمد",
@@ -22,7 +22,7 @@
       "Difference between 'much', 'many', and 'a lot of'",
       "Usage of 'If Clauses'"
     ],
-    "image_folder_name": "teacher2"
+    "image_folder_name": "Teacher2" // <-- UPDATED: Capital 'T'
   },
   "3": {
     "name": "الأستاذة ليلى",
@@ -34,6 +34,6 @@
       "Describing Places and People",
       "Expressions for Emotions"
     ],
-    "image_folder_name": "teacher3"
+    "image_folder_name": "Teacher3" // <-- UPDATED: Capital 'T'
   }
 }
