@@ -1,10 +1,10 @@
 name: Daily Facebook Post
 
 on:
-  workflow_dispatch: # This makes the "Run workflow" button appear
+  workflow_dispatch: # This enables the "Run workflow" button on GitHub Actions
     inputs:
       specific_teacher_id:
-        description: 'Enter teacher ID (1, 2, 3) for a single test post (leaves blank for normal sequence)'
+        description: 'Enter teacher ID (1, 2, 3) for a single test post (leave blank for normal daily sequence)'
         required: false
         type: string
   schedule:
@@ -16,23 +16,23 @@ on:
     - cron: '0 15 * * *'
 
 jobs:
-  post: # This job will run for both manual triggers and scheduled runs
-    runs-on: ubuntu-latest
-    environment: production
+  post: # This single job handles all manual and scheduled posts
+    runs-on: ubuntu-latest # The operating system for the job
+    environment: production # Specifies a production environment for secrets
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Checks out your repository code
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v4 # Sets up Python on the runner
         with:
-          python-version: '3.x'
+          python-version: '3.x' # Use the latest Python 3 version
 
       - name: Install dependencies
         run: |
-          pip install requests
-          pip install google-generativeai # <-- ADD THIS LINE
+          pip install requests # Installs the 'requests' library for Facebook API
+          pip install google-generativeai # <-- REQUIRED FOR YOUR AI FUNCTIONS
 
       - name: Run Teacher Post Script
         env:
@@ -40,4 +40,8 @@ jobs:
           FACEBOOK_APP_SECRET: ${{ secrets.FACEBOOK_APP_SECRET }}
           FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
           FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # <-- REQUIRED FOR GOOGLE AI API
+        # This command runs your Python script.
+        # It passes specific_teacher_id if you entered it, otherwise it passes None.
+        # Your teacher_post.py script handles the post_slot_of_day logic internally.
         run: python teacher_post.py ${{ github.event.inputs.specific_teacher_id }}
