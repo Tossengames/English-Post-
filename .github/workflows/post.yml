@@ -1,23 +1,27 @@
-name: Auto Facebook Posting
+name: Auto English Posts
 
 on:
+  schedule:
+    - cron: '30 7 * * *'   # Teacher post - 10:30 AM Cairo
+    - cron: '0 13 * * *'   # Random post - 3:00 PM Cairo
+    - cron: '0 17 * * *'   # Teacher again - 7:00 PM Cairo
   workflow_dispatch:
     inputs:
       post_type:
-        description: 'Choose type of post'
+        description: 'Choose post type'
         required: true
-        default: 'auto'
+        default: 'random'
         type: choice
         options:
-          - auto
           - teacher
           - random
 
 jobs:
-  post:
+  run:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -25,14 +29,16 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests python-dotenv python-docx
+        run: python -m pip install --upgrade pip
 
-      - name: Run posting script
+      - name: Run selected script
+        run: |
+          if [ "${{ github.event.inputs.post_type }}" = "teacher" ]; then
+            python teacher_post.py
+          else
+            python post_random.py
+          fi
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-        run: |
-          python post_to_facebook.py
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
