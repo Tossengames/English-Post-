@@ -24,6 +24,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Download existing state files (if any)
+        uses: actions/download-artifact@v3
+        with:
+          name: workflow-state # This is the name of the artifact
+          path: . # Download to the current directory
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -36,8 +42,16 @@ jobs:
 
       - name: Run Teacher Post Script
         env:
-          # These are your EXACT secret names, used directly as environment variable names for your script:
-          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }} # Using your specified secret name
-          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }} # Using your specified secret name
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # Assuming this name is correct
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python teacher_post.py ${{ github.event.inputs.specific_teacher_id }}
+
+      - name: Upload updated state files
+        uses: actions/upload-artifact@v3
+        with:
+          name: workflow-state # Must match the download name
+          path: |
+            post_state.json
+            post_log.json
+          retention-days: 1 # Keep artifacts for 1 day (adjust as needed)
