@@ -1,7 +1,7 @@
 {
   "current_teacher_index": 0,
   "days_since_last_exam": 0,
-  "post_slot_of_day": 1,
+  "post_slot_of_day": 0,
   "teacher_progress": {
     "1": {  
       "lesson_index": 0
