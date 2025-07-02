@@ -19,12 +19,14 @@ on:
           - random
           - teacher
           - debug # For testing without actual posting (useful for development)
+      specific_teacher_id:
+        description: 'Optional: Specify teacher ID (e.g., "nada") for manual "teacher" post. Leave blank for rotation.'
+        required: false
+        type: string
 
 jobs:
   run_daily_post:
     runs-on: ubuntu-latest
-    # Optional: Add concurrency group if you want to prevent multiple runs from the same schedule
-    # concurrency: automated-facebook-post-single-run
 
     steps:
     - name: Checkout code
@@ -33,7 +35,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9' # Or your preferred Python version (e.g., '3.10', '3.11')
+        python-version: '3.9' # Or your preferred Python version
 
     - name: Install dependencies
       run: |
@@ -42,10 +44,11 @@ jobs:
 
     - name: Run Post Script (Scheduled or Manual)
       env:
-        # These are your GitHub Secrets
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }} # Your Facebook Page Access Token
-        FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}       # Your Facebook Page ID
-        # This environment variable is set only for manual triggers
+        FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+        FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
         MANUAL_POST_TYPE: ${{ github.event.inputs.post_type }}
+        # Pass the specific_teacher_id as an environment variable
+        SPECIFIC_TEACHER_ID: ${{ github.event.inputs.specific_teacher_id }}
       run: python post_to_facebook.py
+
