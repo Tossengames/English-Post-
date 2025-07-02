@@ -1,4 +1,4 @@
-Run python post_to_facebook.py
+
 Current UTC time: 03:33
 Manual trigger detected for post type: teacher
 Generating post for الأستاذ أحمد with lesson: المضارع البسيط (Present Simple)...
