@@ -8,8 +8,11 @@ on:
         required: false
         type: string
   schedule:
+    # First post of the day: 8:00 AM EEST (5:00 UTC)
     - cron: '0 5 * * *'
+    # Second post of the day: 1:00 PM EEST (10:00 UTC)
     - cron: '0 10 * * *'
+    # Third post of the day: 6:00 PM EEST (15:00 UTC)
     - cron: '0 15 * * *'
 
 jobs:
@@ -33,8 +36,8 @@ jobs:
 
       - name: Run Teacher Post Script
         env:
-          # Using your specified secret names:
-          FACEBOOK_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-          FACEBOOK_ACCESS_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # These are your EXACT secret names, used directly as environment variable names for your script:
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }} # Using your specified secret name
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }} # Using your specified secret name
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # Assuming this name is correct
         run: python teacher_post.py ${{ github.event.inputs.specific_teacher_id }}
