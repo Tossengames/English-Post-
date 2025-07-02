@@ -38,27 +38,31 @@ def main():
 
     # Manual trigger logic for GitHub Actions workflow_dispatch
     manual_post_type = os.getenv("MANUAL_POST_TYPE")
+    specific_teacher_id = os.getenv("SPECIFIC_TEACHER_ID") # New: Read specific teacher ID
+
     if manual_post_type:
         print(f"Manual trigger detected for post type: {manual_post_type}")
+        if specific_teacher_id:
+            print(f"  Specific Teacher ID requested: {specific_teacher_id}")
+
         if manual_post_type == "random":
             print("Executing random_post.main()")
             random_post.main()
         elif manual_post_type == "teacher":
             print("Executing teacher_post.main()")
-            teacher_post.main()
-        elif manual_post_type == "debug": # A useful type for testing without actual posting
+            # Pass the specific_teacher_id if provided, otherwise it's None
+            teacher_post.main(specific_teacher_id=specific_teacher_id) 
+        elif manual_post_type == "debug":
             print("Debug mode: Simulating post generation without actual Facebook API call.")
-            # You could add logic here to generate content but explicitly NOT call post_to_facebook
-            # For now, it will still call post_to_facebook, which will log its 'simulation'
-            if random.random() > 0.5: # Simple way to pick one for debug
-                print("Debug: Simulating a teacher post generation.")
-                teacher_post.main()
+            if random.random() > 0.5:
+                print("Debug: Simulating a teacher post generation (will attempt FB post).")
+                teacher_post.main(specific_teacher_id=specific_teacher_id if specific_teacher_id else None)
             else:
-                print("Debug: Simulating a random post generation.")
+                print("Debug: Simulating a random post generation (will attempt FB post).")
                 random_post.main()
         else:
             print(f"Unknown manual post type: {manual_post_type}")
-        sys.exit(0) # Exit after manual post
+        sys.exit(0)
 
     # Automatic schedule logic
     post_type = get_post_type_for_current_time(current_utc_hour_minute)
@@ -67,33 +71,30 @@ def main():
     post_state = read_json("post_state.json")
     today_date = now_utc.strftime("%Y-%m-%d")
 
-    # Initialize or reset post_state for a new day
     if post_state.get("last_run_date") != today_date:
         print(f"New day detected ({today_date}). Resetting daily post tracker.")
         post_state["last_run_date"] = today_date
-        post_state["posts_today_hours"] = [] # Store hours for which a post was made
-        write_json("post_state.json", post_state) # Save immediately to prevent race conditions on very first run
+        post_state["posts_today_hours"] = []
+        write_json("post_state.json", post_state)
 
     made_posts_today_hours = post_state.get("posts_today_hours", [])
-    if f"{current_hour:02d}" in made_posts_today_hours: # Format hour with leading zero
+    if f"{current_hour:02d}" in made_posts_today_hours:
         print(f"A post has already been made for hour {current_hour:02d} UTC today. Skipping current scheduled run to prevent duplicates.")
         sys.exit(0)
 
     if post_type == "teacher":
         print("It's time for a teacher lesson post (scheduled)!")
-        teacher_post.main()
-        # Log the hour only if the main logic for teacher_post was attempted
+        # For scheduled runs, we never pass a specific teacher ID
+        teacher_post.main() 
         post_state["posts_today_hours"].append(f"{current_hour:02d}")
         write_json("post_state.json", post_state)
     elif post_type == "random":
         print("It's time for a random post (scheduled)!")
         random_post.main()
-        # Log the hour only if the main logic for random_post was attempted
         post_state["posts_today_hours"].append(f"{current_hour:02d}")
         write_json("post_state.json", post_state)
     else:
         print(f"No specific post scheduled for {current_utc_hour_minute} UTC. Skipping this run.")
-        # Do not update post_state["posts_today_hours"] if no post was attempted for this hour.
 
 if __name__ == "__main__":
     main()
