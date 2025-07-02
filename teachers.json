@@ -14,24 +14,24 @@
   },
   "Teacher2": {
     "name": "ميس ليلى",
-    "style": "لطيفة ومرحة وتستخدم رموز تعبيرية 😊",
+    "style": "لهجة لبنانية ولطيفة مع رموز 😊",
     "folder": "characters/Teacher2",
     "lesson_queue": [
       "Food Vocabulary",
       "Describing People",
-      "Family Members"
+      "Listening Practice"
     ],
     "current_index": 0,
     "history": []
   },
   "Teacher3": {
     "name": "ميس نادين",
-    "style": "هادئة وجادة وتستخدم لهجة سورية بسيطة",
+    "style": "جادة بلهجة سورية واضحة",
     "folder": "characters/Teacher3",
     "lesson_queue": [
-      "Reading Practice",
-      "Writing: My City",
-      "Adjectives"
+      "Reading Syrian Traditions",
+      "Adjectives",
+      "Past Continuous"
     ],
     "current_index": 0,
     "history": []
