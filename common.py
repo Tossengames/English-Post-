@@ -20,27 +20,27 @@ def ask_ai(prompt):
     }
 
     try:
-        response = requests.post(url, headers=headers, data=json.dumps(data))
-        result = response.json()
-        return result['candidates'][0]['content']['parts'][0]['text']
+        res = requests.post(url, headers=headers, data=json.dumps(data))
+        res.raise_for_status()
+        result = res.json()
+        return result["contents"][0]["parts"][0]["text"]
     except Exception as e:
-        print("❌ AI generation error:", e)
+        print(f"❌ AI generation error: {e}")
         return None
 
-def post_to_facebook(message, image_path=None):
-    url = f"https://graph.facebook.com/{FB_PAGE_ID}/photos" if image_path else f"https://graph.facebook.com/{FB_PAGE_ID}/feed"
-    data = {
-        "access_token": FB_PAGE_TOKEN,
-        "message": message
+def post_to_facebook(message, image_url=None):
+    url = f"https://graph.facebook.com/{FB_PAGE_ID}/photos" if image_url else f"https://graph.facebook.com/{FB_PAGE_ID}/feed"
+    payload = {
+        'message': message,
+        'access_token': FB_PAGE_TOKEN,
     }
 
-    if image_path:
-        files = {"source": open(image_path, "rb")}
-    else:
-        files = None
+    if image_url:
+        payload['url'] = image_url
 
     try:
-        response = requests.post(url, data=data, files=files)
+        res = requests.post(url, data=payload)
+        res.raise_for_status()
         print("✅ Post published successfully.")
     except Exception as e:
-        print("❌ Facebook post error:", e)
+        print(f"❌ Facebook post error: {e}")
