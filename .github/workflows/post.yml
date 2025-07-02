@@ -1,30 +1,22 @@
 name: Daily Facebook Post
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # This makes the "Run workflow" button appear
     inputs:
       specific_teacher_id:
-        description: 'Enter teacher ID (1, 2, 3) for a single test post (leaves other fields blank)'
+        description: 'Enter teacher ID (1, 2, 3) for a single test post (leaves blank for normal sequence)'
         required: false
         type: string
-      run_full_day_cycle:
-        description: 'Set to true to run all 3 daily posts (Teacher -> Random -> Teacher) consecutively for testing'
-        required: false
-        type: boolean
-        default: false
   schedule:
-    # First post: 8:00 AM EEST (5:00 UTC)
+    # First post of the day: 8:00 AM EEST (5:00 UTC)
     - cron: '0 5 * * *'
-    # Second post: 1:00 PM EEST (10:00 UTC)
+    # Second post of the day: 1:00 PM EEST (10:00 UTC)
     - cron: '0 10 * * *'
-    # Third post: 6:00 PM EEST (15:00 UTC)
+    # Third post of the day: 6:00 PM EEST (15:00 UTC)
     - cron: '0 15 * * *'
 
 jobs:
-  # --- Job for the regular scheduled posts or single teacher test posts ---
-  post_single:
-    # This job runs if run_full_day_cycle is false (default) OR if specific_teacher_id is provided.
-    if: github.event.inputs.run_full_day_cycle == 'false' || github.event.inputs.specific_teacher_id != ''
+  post: # This job will run for both manual triggers and scheduled runs
     runs-on: ubuntu-latest
     environment: production
 
@@ -47,53 +39,5 @@ jobs:
           FACEBOOK_APP_SECRET: ${{ secrets.FACEBOOK_APP_SECRET }}
           FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
           FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
+        # The specific_teacher_id will be passed if entered, otherwise it will be None in teacher_post.py
         run: python teacher_post.py ${{ github.event.inputs.specific_teacher_id }}
-
-  # --- New Job for running the full 3-post daily cycle in one go ---
-  post_full_day_cycle:
-    # This job runs only if run_full_day_cycle is explicitly set to true.
-    if: github.event.inputs.run_full_day_cycle == 'true'
-    runs-on: ubuntu-latest
-    environment: production
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-
-      - name: Install dependencies
-        run: |
-          pip install requests
-      
-      # Reset post_slot_of_day to 0 to ensure the full 3-post cycle starts correctly
-      # The python -c command is on a single line to avoid syntax errors.
-      - name: Reset post_slot_of_day for full cycle test
-        run: python -c "import json; try: with open('post_state.json', 'r+') as f: data = json.load(f); data['post_slot_of_day'] = 0; f.seek(0); json.dump(data, f, indent=2); f.truncate(); except FileNotFoundError: print('post_state.json not found, creating with post_slot_of_day = 0'); with open('post_state.json', 'w') as f: json.dump({'post_slot_of_day': 0}, f, indent=2)"
-          
-      - name: Run 1st Post (Teacher)
-        env:
-          FACEBOOK_APP_ID: ${{ secrets.FACEBOOK_APP_ID }}
-          FACEBOOK_APP_SECRET: ${{ secrets.FACEBOOK_APP_SECRET }}
-          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
-          FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
-        run: python teacher_post.py
-
-      - name: Run 2nd Post (Random)
-        env:
-          FACEBOOK_APP_ID: ${{ secrets.FACEBOOK_APP_ID }}
-          FACEBOOK_APP_SECRET: ${{ secrets.FACEBOOK_APP_SECRET }}
-          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
-          FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
-        run: python teacher_post.py
-
-      - name: Run 3rd Post (Teacher)
-        env:
-          FACEBOOK_APP_ID: ${{ secrets.FACEBOOK_APP_ID }}
-          FACEBOOK_APP_SECRET: ${{ secrets.FACEBOOK_APP_SECRET }}
-          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
-          FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
-        run: python teacher_post.py
