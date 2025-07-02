@@ -18,11 +18,13 @@ on:
         options:
           - random
           - teacher
-          - debug # For testing without actual posting (optional)
+          - debug # For testing without actual posting (useful for development)
 
 jobs:
   run_daily_post:
     runs-on: ubuntu-latest
+    # Optional: Add concurrency group if you want to prevent multiple runs from the same schedule
+    # concurrency: automated-facebook-post-single-run
 
     steps:
     - name: Checkout code
@@ -31,26 +33,19 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9' # Or your preferred Python version
+        python-version: '3.9' # Or your preferred Python version (e.g., '3.10', '3.11')
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt # Create this file with your Python dependencies
+        pip install -r requirements.txt
 
-    - name: Run Post Script (Scheduled)
-      if: github.event_name == 'schedule'
+    - name: Run Post Script (Scheduled or Manual)
       env:
+        # These are your GitHub Secrets
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }} # <--- Changed here
-        FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }} # If you don't want to hardcode in common.py
-      run: python post_to_facebook.py
-
-    - name: Run Post Script (Manual Dispatch)
-      if: github.event_name == 'workflow_dispatch'
-      env:
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }} # <--- Changed here
-        FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }} # If you don't want to hardcode in common.py
+        FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }} # Your Facebook Page Access Token
+        FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}       # Your Facebook Page ID
+        # This environment variable is set only for manual triggers
         MANUAL_POST_TYPE: ${{ github.event.inputs.post_type }}
       run: python post_to_facebook.py
