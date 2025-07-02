@@ -1,7 +1,7 @@
 {
   "1": {
     "name": "الأستاذة ندى",
-    "posting_style": "ودودة وواضحة، مع لمسة مصرية أصيلة ومناسبة للمتعلمين الكبار.",
+    "posting_style": "معلمة لغة إنجليزية متمرسة وواضحة الشرح، تقدم الدروس بأسلوب ودي وعملي يناسب المتعلمين الكبار.",
     "lesson_queue": [
       "Common English Greetings",
       "Usage of 'a' and 'an'",
@@ -10,11 +10,11 @@
       "Asking and Telling Time",
       "Pronunciation of Common Words"
     ],
-    "image_folder_name": "teacher1"  // <-- UPDATED TO MATCH YOUR FOLDER NAME
+    "image_folder_name": "teacher1"
   },
   "2": {
     "name": "الأستاذ أحمد",
-    "posting_style": "جاد ومباشر، يركز على الشرح الأكاديمي والتحليل العميق.",
+    "posting_style": "معلم لغة إنجليزية أكاديمي ودقيق، يركز على القواعد النحوية المعقدة والمفاهيم اللغوية العميقة بأسلوب جاد ومحفز.",
     "lesson_queue": [
       "Present Perfect Tense",
       "Introduction to Passive Voice",
@@ -22,11 +22,11 @@
       "Difference between 'much', 'many', and 'a lot of'",
       "Usage of 'If Clauses'"
     ],
-    "image_folder_name": "teacher2" // <-- UPDATED TO MATCH YOUR FOLDER NAME
+    "image_folder_name": "teacher2"
   },
   "3": {
     "name": "الأستاذة ليلى",
-    "posting_style": "مرحة وإبداعية، تركز على المفردات والمحادثة.",
+    "posting_style": "معلمة لغة إنجليزية مبتكرة ونشيطة، تشجع على المحادثة والتطبيق العملي من خلال مفردات وتعبيرات حديثة.",
     "lesson_queue": [
       "Shopping Vocabulary",
       "Starting a Small Talk",
@@ -34,6 +34,6 @@
       "Describing Places and People",
       "Expressions for Emotions"
     ],
-    "image_folder_name": "teacher3" // <-- UPDATED TO MATCH YOUR FOLDER NAME
+    "image_folder_name": "teacher3"
   }
 }
