@@ -1,0 +1,26 @@
+{
+  "Teacher1": {
+    "name": "الأستاذ أحمد",
+    "personality": "جدية ومحفزة",
+    "posting_style": "serious",
+    "lesson_queue": [
+      "المضارع البسيط (Present Simple)",
+      "المضارع المستمر (Present Continuous)",
+      "المضارع التام (Present Perfect)",
+      "الماضي البسيط (Past Simple)",
+      "الماضي المستمر (Past Continuous)"
+    ]
+  },
+  "Teacher2": {
+    "name": "الأستاذة ليلى",
+    "personality": "ودودة ومرحة",
+    "posting_style": "friendly",
+    "lesson_queue": [
+      "الأفعال المساعدة (Auxiliary Verbs)",
+      "المفرد والجمع (Singular and Plural Nouns)",
+      "الصفات والظروف (Adjectives and Adverbs)",
+      "حروف الجر (Prepositions of Place)",
+      "الضمائر (Pronouns)"
+    ]
+  }
+}
