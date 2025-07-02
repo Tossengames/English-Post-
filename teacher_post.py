@@ -8,9 +8,8 @@ LEARNING_MATERIALS_DIR = "learning_materials"
 
 def get_next_teacher(teacher_meta: dict, post_state: dict) -> str:
     """Determines the next teacher based on rotation."""
-    # --- CRITICAL CHANGE HERE: Sort keys as integers ---
+    # Ensure numerical IDs are sorted correctly
     teacher_ids = sorted(teacher_meta.keys(), key=int)
-    # --- End of CRITICAL CHANGE ---
     current_teacher_index = post_state.get("current_teacher_index", 0)
 
     if not teacher_ids:
@@ -54,9 +53,15 @@ def get_next_lesson(teacher_id: str, teacher_meta: dict, post_state: dict) -> st
 
     return next_lesson
 
-def get_random_teacher_image(teacher_id: str) -> str:
-    """Selects a random image for the teacher."""
-    teacher_image_dir = os.path.join(CHARACTER_DIR, teacher_id)
+def get_random_teacher_image(teacher_id: str, teacher_info: dict) -> str:
+    """
+    Selects a random image for the teacher.
+    Uses 'image_folder_name' from teacher_info if specified,
+    otherwise falls back to the teacher_id itself for the folder name.
+    """
+    folder_name = teacher_info.get("image_folder_name", teacher_id)
+    teacher_image_dir = os.path.join(CHARACTER_DIR, folder_name)
+
     if os.path.exists(teacher_image_dir):
         images = [f for f in os.listdir(teacher_image_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))]
         if images:
@@ -69,7 +74,7 @@ def generate_teacher_post(teacher_id: str, lesson_content: str, teacher_info: di
     Generates the teacher's post using AI based on lesson content and style.
     """
     teacher_name = teacher_info.get("name", "The Teacher")
-    posting_style = teacher_info.get("posting_style", "friendly")
+    posting_style = teacher_info.get("posting_style", "friendly") # Default to 'friendly' if not specified
 
     prompt = f"""
     أنت معلم لغة إنجليزية موجه للطلاب العرب. اسمك هو {teacher_name}، وشخصيتك هي {posting_style}.
@@ -103,6 +108,7 @@ def generate_teacher_post(teacher_id: str, lesson_content: str, teacher_info: di
 
     final_post_content = clean_ai_output(ai_generated_content)
 
+    # Ensure hashtags are present and on new lines
     if "#" not in final_post_content[-50:]:
         if not final_post_content.strip().endswith('\n\n'):
             final_post_content += '\n\n'
@@ -117,16 +123,17 @@ def generate_exam_post(teacher_meta: dict, post_log: dict) -> str:
     recent_lesson_topics = []
     if "posts" in post_log:
         teacher_posts = [p for p in post_log["posts"] if p.get("type") == "teacher_lesson"]
-        for post in teacher_posts[-5:]:
+        for post in teacher_posts[-5:]: # Look at the last 5 teacher lessons
             preview = post.get("content_preview", "").replace("...", "").strip()
+            # Simple keyword extraction for exam topics - can be improved if needed
             if "Present Simple" in preview: recent_lesson_topics.append("المضارع البسيط")
             elif "Present Continuous" in preview: recent_lesson_topics.append("المضارع المستمر")
             elif "Past Simple" in preview: recent_lesson_topics.append("الماضي البسيط")
             elif "Verbs" in preview: recent_lesson_topics.append("الأفعال")
             elif "Nouns" in preview: recent_lesson_topics.append("الأسماء")
             elif "Adjectives" in preview: recent_lesson_topics.append("الصفات")
-            else: recent_lesson_topics.append(preview.split('عن')[-1].strip() if 'عن' in preview else preview)
-    
+            else: recent_lesson_topics.append(preview.split('عن')[-1].strip() if 'عن' in preview else preview) # Generic fallback
+
     lessons_summary = ", ".join(list(set(recent_lesson_topics))) if recent_lesson_topics else "مفاهيم اللغة الإنجليزية الأساسية"
 
     prompt = f"""
@@ -158,6 +165,7 @@ def generate_exam_post(teacher_meta: dict, post_log: dict) -> str:
 
     final_post_content = clean_ai_output(ai_generated_content)
 
+    # Ensure hashtags are present and on new lines
     if "#" not in final_post_content[-50:]:
         if not final_post_content.strip().endswith('\n\n'):
             final_post_content += '\n\n'
@@ -165,14 +173,12 @@ def generate_exam_post(teacher_meta: dict, post_log: dict) -> str:
 
     return final_post_content
 
-# Modified main function to accept specific_teacher_id
 def main(specific_teacher_id: str = None):
     teacher_meta = read_json("teacher_meta.json")
-    # Load post_state and post_log, but only modify if it's a non-specific run
     post_state = read_json("post_state.json")
     post_log = read_json("post_log.json")
 
-    # If a specific teacher is requested, bypass regular rotation and exam logic
+    # Manual trigger logic for specific teacher testing
     if specific_teacher_id:
         print(f"Manual run for specific teacher: {specific_teacher_id}")
         if specific_teacher_id not in teacher_meta:
@@ -187,7 +193,7 @@ def main(specific_teacher_id: str = None):
         lesson_content = get_next_lesson(selected_teacher_id, teacher_meta, temp_post_state)
         # Note: We are not writing temp_post_state back, so the lesson_index isn't persisted for this test.
 
-        image_to_post = get_random_teacher_image(selected_teacher_id)
+        image_to_post = get_random_teacher_image(selected_teacher_id, teacher_info)
 
         if not lesson_content:
             print(f"No lessons found for specific teacher {selected_teacher_id}. Cannot generate post.")
@@ -218,40 +224,42 @@ def main(specific_teacher_id: str = None):
     post_state.setdefault("days_since_last_exam", 0)
     post_state.setdefault("teachers", {})
 
-    EXAM_INTERVAL_DAYS = 5 
+    EXAM_INTERVAL_DAYS = 5 # Example: Generate an exam every 5 teacher-led posts
 
     if post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS:
         print(f"It's exam day! (Days since last exam: {post_state['days_since_last_exam']})")
         post_content = generate_exam_post(teacher_meta, post_log)
-        image_to_post = None
+        image_to_post = None # Exams currently don't use images
         post_type_log = "exam"
-        post_state["days_since_last_exam"] = 0
+        post_state["days_since_last_exam"] = 0 # Reset exam counter
     else:
         selected_teacher_id = get_next_teacher(teacher_meta, post_state)
         
         if not selected_teacher_id:
             print("No teachers defined. Cannot generate teacher post. Falling back to random post if possible.")
             import random_post
-            random_post.main()
-            write_json("post_state.json", post_state)
+            random_post.main() # Fallback to random post if no teachers are configured
+            write_json("post_state.json", post_state) # Save state before exiting
             return
 
         teacher_info = teacher_meta.get(selected_teacher_id, {})
         lesson_content = get_next_lesson(selected_teacher_id, teacher_meta, post_state)
-        image_to_post = get_random_teacher_image(selected_teacher_id)
+        image_to_post = get_random_teacher_image(selected_teacher_id, teacher_info)
 
         if not lesson_content:
             print(f"No lessons found for teacher {selected_teacher_id} after getting next. Skipping teacher post and falling back to random.")
             import random_post
-            random_post.main()
-            write_json("post_state.json", post_state)
+            random_post.main() # Fallback to random post if teacher has no lessons left
+            write_json("post_state.json", post_state) # Save state before exiting
             return
 
         post_content = generate_teacher_post(selected_teacher_id, lesson_content, teacher_info)
         post_type_log = "teacher_lesson"
         print(f"Generated teacher post for {teacher_info.get('name', selected_teacher_id)}")
     
+    # Attempt to post to Facebook
     if post_to_facebook(post_content, image_to_post):
+        # Log successful post
         post_log.setdefault("posts", []).append({
             "timestamp": datetime.datetime.now().isoformat(),
             "type": post_type_log,
@@ -267,4 +275,3 @@ def main(specific_teacher_id: str = None):
 
 if __name__ == "__main__":
     main()
-
