@@ -1,8 +1,9 @@
 import json
 import os
 import datetime
-import requests # Added for Facebook API calls
+import requests
 import google.generativeai as genai
+import re # Added for regular expressions to clean markdown
 
 # Configure Google Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -11,7 +12,7 @@ if GEMINI_API_KEY:
     MODEL = genai.GenerativeModel('gemini-1.5-flash')
 else:
     print("Warning: GEMINI_API_KEY not set. AI functions will not work.")
-    MODEL = None # Or handle this by raising an error
+    MODEL = None
 
 # --- AI Interaction ---
 def ask_ai(prompt: str) -> str:
@@ -27,7 +28,7 @@ def ask_ai(prompt: str) -> str:
         return response.text.strip()
     except Exception as e:
         print(f"Error calling AI: {e}")
-        return "" # Return empty string or specific error message
+        return ""
 
 # --- File I/O ---
 def read_json(filepath: str) -> dict:
@@ -54,6 +55,31 @@ def write_json(filepath: str, data: dict):
     except Exception as e:
         print(f"An error occurred writing JSON to {filepath}: {e}")
 
+# --- Post Formatting and Cleanup ---
+def clean_ai_output(text: str) -> str:
+    """
+    Removes common markdown formatting characters and cleans up extra spaces/newlines.
+    """
+    # Remove bold/italic markdown (** and *)
+    text = re.sub(r'\*\*([^\*]+?)\*\*', r'\1', text) # Removes **text** -> text
+    text = re.sub(r'\*([^\*]+?)\*', r'\1', text)    # Removes *text* -> text
+    
+    # Remove heading markdown (#, ## etc.)
+    text = re.sub(r'^\s*#+\s*', '', text, flags=re.MULTILINE)
+
+    # Remove code blocks (```) if they accidentally appear
+    text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
+    text = text.replace('```', '')
+
+    # Normalize multiple newlines to max two (for paragraphs)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    # Remove leading/trailing whitespace from lines
+    cleaned_lines = [line.strip() for line in text.splitlines()]
+    text = '\n'.join(cleaned_lines)
+    
+    return text.strip() # Final strip
+
 # --- Facebook API Interaction ---
 def post_to_facebook(message: str, image_path: str = None) -> bool:
     """
@@ -67,7 +93,6 @@ def post_to_facebook(message: str, image_path: str = None) -> bool:
         return False
 
     # Base URL for the Facebook Graph API
-    # Always specify a version (e.g., v19.0, v20.0, v21.0)
     GRAPH_API_VERSION = "v20.0" # Using v20.0, released May 2024
     GRAPH_API_URL = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
 
@@ -117,7 +142,6 @@ def post_to_facebook(message: str, image_path: str = None) -> bool:
 # --- Other Utilities ---
 def get_current_day_of_week_arabic() -> str:
     """Returns the current day of the week in Arabic."""
-    # datetime module is already imported at the top
     days_of_week_arabic = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
     return days_of_week_arabic[datetime.datetime.now().weekday()]
 
