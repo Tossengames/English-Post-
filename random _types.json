@@ -1,0 +1,24 @@
+{
+  "types": [
+    {
+      "name": "Word of the Day",
+      "weight": 3
+    },
+    {
+      "name": "Grammar Tip",
+      "weight": 2
+    },
+    {
+      "name": "Quiz",
+      "weight": 1
+    },
+    {
+      "name": "Dialogue",
+      "weight": 1
+    },
+    {
+      "name": "Exercise",
+      "weight": 1
+    }
+  ]
+}
