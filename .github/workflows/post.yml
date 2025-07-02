@@ -7,10 +7,18 @@ on:
         description: 'Enter teacher ID (1, 2, 3) for a single test post (leaves blank for normal daily sequence)'
         required: false
         type: string
-      manual_post_slot: # NEW INPUT: Use this to control the post type manually (0, 1, or 2)
-        description: 'Manual post slot: 0 for 1st Teacher, 1 for Random, 2 for 2nd Teacher'
+      
+      # NEW: Use 'choice' type for a dropdown
+      post_type_selection: 
+        description: 'Select Post Type for Manual Run'
         required: false # This input is optional
-        type: string # Expecting a number as a string
+        type: choice
+        options:
+          - '0: 1st Teacher Post'
+          - '1: Random Post'
+          - '2: 2nd Teacher Post'
+          - 'None (Scheduled Sequence)' # Option for letting scheduled logic decide
+        default: 'None (Scheduled Sequence)' # Default selection
 
   schedule:
     # First post of the day: 8:00 AM EEST (5:00 UTC)
@@ -45,8 +53,10 @@ jobs:
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          # Pass both specific_teacher_id and manual_post_slot as arguments.
-          # Your Python script MUST be updated to accept and use these arguments.
+          # Extract the numerical slot from the dropdown selection (e.g., '0: 1st Teacher Post' -> '0')
+          # If 'None (Scheduled Sequence)' is selected, this will pass an empty string or 'None'
+          SELECTED_POST_SLOT=$(echo "${{ github.event.inputs.post_type_selection }}" | cut -d':' -f1 | xargs)
+          
           python teacher_post.py \
             "${{ github.event.inputs.specific_teacher_id }}" \
-            "${{ github.event.inputs.manual_post_slot }}"
+            "$SELECTED_POST_SLOT" # Pass the extracted slot or 'None'
