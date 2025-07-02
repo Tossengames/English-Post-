@@ -1,7 +1,7 @@
 {
   "1": {
     "name": "الأستاذة ندى",
-    "posting_style": "ودودة ومحبة، ذات لمسة مصرية.",
+    "posting_style": "ودودة وواضحة، مع لمسة مصرية أصيلة ومناسبة للمتعلمين الكبار.",
     "lesson_queue": [
       "Common English Greetings",
       "Usage of 'a' and 'an'",
@@ -9,18 +9,20 @@
       "Present Simple Tense",
       "Asking and Telling Time",
       "Pronunciation of Common Words"
-    ]
+    ],
+    "image_folder_name": "teacher1"  // <-- UPDATED TO MATCH YOUR FOLDER NAME
   },
   "2": {
     "name": "الأستاذ أحمد",
-    "posting_style": "جدي ومحفز، مع التركيز على القواعد النحوية الصعبة.",
+    "posting_style": "جاد ومباشر، يركز على الشرح الأكاديمي والتحليل العميق.",
     "lesson_queue": [
       "Present Perfect Tense",
       "Introduction to Passive Voice",
       "Modal Verbs (can, could, will, would)",
       "Difference between 'much', 'many', and 'a lot of'",
       "Usage of 'If Clauses'"
-    ]
+    ],
+    "image_folder_name": "teacher2" // <-- UPDATED TO MATCH YOUR FOLDER NAME
   },
   "3": {
     "name": "الأستاذة ليلى",
@@ -31,6 +33,7 @@
       "Common Phrasal Verbs",
       "Describing Places and People",
       "Expressions for Emotions"
-    ]
+    ],
+    "image_folder_name": "teacher3" // <-- UPDATED TO MATCH YOUR FOLDER NAME
   }
 }
