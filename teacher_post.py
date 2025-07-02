@@ -1,6 +1,6 @@
 import os
 import random
-from common import read_json, write_json, ask_ai, post_to_facebook, clean_ai_output # Added clean_ai_output
+from common import read_json, write_json, ask_ai, post_to_facebook, clean_ai_output
 import datetime
 
 CHARACTER_DIR = "characters"
@@ -67,31 +67,31 @@ def generate_teacher_post(teacher_id: str, lesson_content: str, teacher_info: di
     Generates the teacher's post using AI based on lesson content and style.
     """
     teacher_name = teacher_info.get("name", "The Teacher")
-    posting_style = teacher_info.get("posting_style", "friendly") # Default to friendly
+    posting_style = teacher_info.get("posting_style", "friendly")
 
-    # **IMPORTANT: Updated Prompt for better formatting**
+    # --- UPDATED PROMPT FOR LANGUAGE PRIORITY AND CLARITY ---
     prompt = f"""
-    You are an English language teacher for Arabic-speaking students. Your name is {teacher_name}, and your personality is {posting_style}.
-    Your task is to explain the following lesson in a human-written, educational, and Facebook-friendly style.
+    أنت معلم لغة إنجليزية موجه للطلاب العرب. اسمك هو {teacher_name}، وشخصيتك هي {posting_style}.
+    مهمتك هي شرح الدرس التالي بأسلوب تعليمي، مكتوب بواسطة إنسان، ومناسب لفيسبوك.
     
-    **CRITICAL FORMATTING RULES:**
-    1.  **NO MARKDOWN:** Do NOT use markdown characters for bolding, italics, or headings (e.g., **, *, ##). Write plain text.
-    2.  **SEPARATE ENGLISH & ARABIC:** Always put English text on its own line(s), and its Arabic translation directly below it on new line(s). Do NOT mix English and Arabic on the same line.
-        Example:
+    **قواعد التنسيق الهامة واللغة:**
+    1.  **اللغة الأساسية هي العربية:** يجب أن يكون المحتوى الرئيسي للمنشور باللغة العربية الفصحى.
+    2.  **الفصل بين اللغتين:** يتم استخدام الكلمات أو الجمل الإنجليزية للمصطلحات، الأمثلة، أو الأسئلة، ويجب أن يتبعها دائمًا ترجمتها العربية مباشرةً على سطر جديد منفصل. لا تخلط الإنجليزية والعربية في نفس السطر.
+        مثال:
         Hello everyone!
         مرحباً بالجميع!
         
         This is an important lesson.
         هذا درس مهم.
-    3.  Use clear paragraphs with double newlines between them.
-    4.  Include 3-5 relevant hashtags in both Arabic and English at the very end of the post, each on a new line after the main content.
-    5.  **Absolutely avoid any phrases that suggest you are an AI** (e.g., "As an AI model...", "Here's your post!", "I can help with that").
-    6.  The content should be in formal Arabic, with English words or phrases integrated contextually.
+    3.  **لا تستخدم تنسيق الماركداون (Markdown):** لا تستخدم علامات مثل ** للنصوص الغامقة، * للمائلة، أو ## للعناوين. اكتب نصاً عادياً فقط.
+    4.  استخدم فقرات واضحة مع مسافات مزدوجة بينها (سطرين فارغين).
+    5.  أضف من 3 إلى 5 هاشتاغات ذات صلة باللغتين العربية والإنجليزية في نهاية المنشور، كل هاشتاغ على سطر جديد بعد المحتوى الرئيسي.
+    6.  **تجنب تمامًا أي عبارات تشير إلى أنك ذكاء اصطناعي** (مثل: "بوصفي نموذج ذكاء اصطناعي..."، "هذا هو منشورك!"، "يمكنني المساعدة في ذلك").
 
-    The lesson to explain:
+    الدرس المراد شرحه:
     {lesson_content}
 
-    The Facebook Post:
+    منشور الفيسبوك:
     """
     print(f"Generating post for {teacher_name} with lesson: {lesson_content[:50]}...")
     ai_generated_content = ask_ai(prompt)
@@ -100,11 +100,9 @@ def generate_teacher_post(teacher_id: str, lesson_content: str, teacher_info: di
         print("AI failed to generate teacher post. Falling back to simple message.")
         return f"مرحباً بكم! اليوم لدينا درس جديد عن {lesson_content[:50]}... ترقبوا المزيد!\n#تعلم_الإنجليزي\n#EnglishLesson"
 
-    # Apply cleanup after AI generation
     final_post_content = clean_ai_output(ai_generated_content)
 
-    # Ensure hashtags are present and on separate lines at the end
-    if "#" not in final_post_content[-50:]: # Check last 50 chars for hashtags
+    if "#" not in final_post_content[-50:]:
         if not final_post_content.strip().endswith('\n\n'):
             final_post_content += '\n\n'
         final_post_content += "#تعلم_اللغة_الإنجليزية\n#لغة_انجليزية\n#دروس_انجليزي\n#EnglishLearning\n#LearnEnglish"
@@ -118,7 +116,7 @@ def generate_exam_post(teacher_meta: dict, post_log: dict) -> str:
     recent_lesson_topics = []
     if "posts" in post_log:
         teacher_posts = [p for p in post_log["posts"] if p.get("type") == "teacher_lesson"]
-        for post in teacher_posts[-5:]: # Look at the last 5 teacher lessons in the log
+        for post in teacher_posts[-5:]:
             preview = post.get("content_preview", "").replace("...", "").strip()
             if "Present Simple" in preview: recent_lesson_topics.append("المضارع البسيط")
             elif "Present Continuous" in preview: recent_lesson_topics.append("المضارع المستمر")
@@ -130,25 +128,26 @@ def generate_exam_post(teacher_meta: dict, post_log: dict) -> str:
     
     lessons_summary = ", ".join(list(set(recent_lesson_topics))) if recent_lesson_topics else "مفاهيم اللغة الإنجليزية الأساسية"
 
-    # **IMPORTANT: Updated Prompt for better formatting**
+    # --- UPDATED PROMPT FOR LANGUAGE PRIORITY AND CLARITY ---
     prompt = f"""
     لقد مر أسبوع من الدروس الشيقة في اللغة الإنجليزية! حان وقت الاختبار لتقييم فهم الطلاب.
     أنت معلم لغة إنجليزية موجه للطلاب العرب. مهمتك هي إنشاء اختبار قصير وممتع لفيسبوك، يغطي مواضيع مثل: {lessons_summary}.
     
-    **CRITICAL FORMATTING RULES:**
-    1.  **NO MARKDOWN:** Do NOT use markdown characters for bolding, italics, or headings (e.g., **, *, ##). Write plain text.
-    2.  **SEPARATE ENGLISH & ARABIC:** Always put English text on its own line(s), and its Arabic translation directly below it on new line(s). Do NOT mix English and Arabic on the same line.
-        Example:
+    **قواعد التنسيق الهامة واللغة:**
+    1.  **اللغة الأساسية هي العربية:** يجب أن يكون المحتوى الرئيسي للمنشور باللغة العربية الفصحى.
+    2.  **الفصل بين اللغتين:** يجب أن تكون الأسئلة أو الخيارات الإنجليزية متبوعة مباشرة بترجمتها العربية على سطر جديد منفصل. لا تخلط الإنجليزية والعربية في نفس السطر.
+        مثال:
         Question 1: What is...?
         السؤال الأول: ما هو...؟
         
         (A) Option A
         (أ) الخيار أ
-    3.  Use clear paragraphs with double newlines between them.
-    4.  Add 3-5 relevant hashtags in both Arabic and English at the very end of the post, each on a new line after the main content.
-    5.  Do not mention that you are an AI. Make it seem like it's prepared by a teacher.
+    3.  **لا تستخدم تنسيق الماركداون (Markdown):** لا تستخدم علامات مثل ** للنصوص الغامقة، * للمائلة، أو ## للعناوين. اكتب نصاً عادياً فقط.
+    4.  استخدم فقرات واضحة مع مسافات مزدوجة بينها (سطرين فارغين).
+    5.  أضف من 3 إلى 5 هاشتاغات ذات صلة باللغتين العربية والإنجليزية في نهاية المنشور، كل هاشتاغ على سطر جديد بعد المحتوى الرئيسي.
+    6.  لا تذكر أنك ذكاء اصطناعي. اجعلها تبدو وكأنها معدة من قبل معلم.
 
-    The Facebook Post:
+    منشور الفيسبوك:
     """
     print("Generating exam post...")
     ai_generated_content = ask_ai(prompt)
@@ -157,11 +156,9 @@ def generate_exam_post(teacher_meta: dict, post_log: dict) -> str:
         print("AI failed to generate exam post. Falling back to simple exam message.")
         return "حان وقت مراجعة ما تعلمناه هذا الأسبوع! استعدوا لاختبار قصير وممتع!\n#اختبار_انجليزي\n#EnglishQuiz"
 
-    # Apply cleanup after AI generation
     final_post_content = clean_ai_output(ai_generated_content)
 
-    # Ensure hashtags are present and on separate lines at the end
-    if "#" not in final_post_content[-50:]: # Check last 50 chars for hashtags
+    if "#" not in final_post_content[-50:]:
         if not final_post_content.strip().endswith('\n\n'):
             final_post_content += '\n\n'
         final_post_content += "#اختبارات_لغة_انجليزية\n#مراجعة_انجليزي\n#تقييم_اللغة\n#EnglishExam\n#LanguageAssessment"
