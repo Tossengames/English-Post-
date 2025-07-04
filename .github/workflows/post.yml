@@ -1,3 +1,4 @@
+# .github/workflows/daily_facebook_post.yml (Modified)
 name: Daily Facebook Post
 
 on:
@@ -8,24 +9,33 @@ on:
         required: false
         type: string
       
-      # NEW: Use 'choice' type for a dropdown
-      post_type_selection: 
-        description: 'Select Post Type for Manual Run'
+      manual_run_slot: # Renamed and simplified
+        description: 'Manual Post Slot (0-5 for specific type/teacher, or leave blank for schedule)'
         required: false # This input is optional
         type: choice
         options:
-          - '0: 1st Teacher Post'
-          - '1: Random Post'
-          - '2: 2nd Teacher Post'
-          - 'None (Scheduled Sequence)' # Option for letting scheduled logic decide
-        default: 'None (Scheduled Sequence)' # Default selection
+          - 'None' # Default for scheduled sequence
+          - '0' # Teacher 1 / Exam slot
+          - '1' # Random Post slot
+          - '2' # Teacher 2 slot
+          - '3' # Random Post slot
+          - '4' # Teacher 3 slot
+          - '5' # Random Post slot
+        default: 'None'
 
   schedule:
-    # First post of the day: 8:00 AM EEST (5:00 UTC)
+    # Schedule for 6 posts a day (EEST to UTC conversion)
+    # Slot 0 (Teacher 1 / Exam): 8:00 AM EEST -> 5:00 AM UTC
     - cron: '0 5 * * *'
-    # Second post of the day: 1:00 PM EEST (10:00 UTC)
-    - cron: '0 10 * * *'
-    # Third post of the day: 6:00 PM EEST (15:00 UTC)
+    # Slot 1 (Random):    10:00 AM EEST -> 7:00 AM UTC
+    - cron: '0 7 * * *'
+    # Slot 2 (Teacher 2): 12:00 PM EEST -> 9:00 AM UTC
+    - cron: '0 9 * * *'
+    # Slot 3 (Random):    2:00 PM EEST -> 11:00 AM UTC
+    - cron: '0 11 * * *'
+    # Slot 4 (Teacher 3): 4:00 PM EEST -> 1:00 PM UTC (13:00 UTC)
+    - cron: '0 13 * * *'
+    # Slot 5 (Random):    6:00 PM EEST -> 3:00 PM UTC (15:00 UTC)
     - cron: '0 15 * * *'
 
 jobs:
@@ -47,16 +57,13 @@ jobs:
           pip install requests
           pip install google-generativeai
 
-      - name: Run Teacher Post Script
+      - name: Run Main Posting Script
         env:
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # Pass manual inputs as environment variables to post_to_facebook.py
+          SPECIFIC_TEACHER_ID: ${{ github.event.inputs.specific_teacher_id }}
+          MANUAL_RUN_SLOT: ${{ github.event.inputs.manual_run_slot }}
         run: |
-          # Extract the numerical slot from the dropdown selection (e.g., '0: 1st Teacher Post' -> '0')
-          # If 'None (Scheduled Sequence)' is selected, this will pass an empty string or 'None'
-          SELECTED_POST_SLOT=$(echo "${{ github.event.inputs.post_type_selection }}" | cut -d':' -f1 | xargs)
-          
-          python teacher_post.py \
-            "${{ github.event.inputs.specific_teacher_id }}" \
-            "$SELECTED_POST_SLOT" # Pass the extracted slot or 'None'
+          python post_to_facebook.py # This is now the main entry point
