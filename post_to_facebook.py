@@ -1,100 +1,138 @@
+# post_to_facebook.py (Modified)
 import datetime
 import sys
 import os
-import random_post
+# Import the main functions from teacher_post and random_post
 import teacher_post
+import random_post
 from common import read_json, write_json
 
 # Define your desired posting times in 24-hour format (UTC)
 # GitHub Actions runs on UTC, so convert your local times to UTC.
 # Current EEST (Egypt Standard Time) is UTC+3.
-# Example for Egypt:
-# Morning (Teacher Lesson) at 9:00 AM EEST -> 6:00 AM UTC
-# Midday (Random Post) at 1:00 PM EEST -> 10:00 AM UTC
-# Evening (Teacher Lesson) at 6:00 PM EEST -> 3:00 PM UTC
-POSTING_TIMES_UTC = {
-    "morning": "06:00",  # Corresponds to 9:00 AM EEST
-    "midday": "10:00",   # Corresponds to 1:00 PM EEST
-    "evening": "15:00"   # Corresponds to 6:00 PM EEST
-}
+# 6 posts a day:
+# Slot 0 (Teacher 1): 8:00 AM EEST -> 5:00 AM UTC
+# Slot 1 (Random):    10:00 AM EEST -> 7:00 AM UTC
+# Slot 2 (Teacher 2): 12:00 PM EEST -> 9:00 AM UTC
+# Slot 3 (Random):    2:00 PM EEST -> 11:00 AM UTC
+# Slot 4 (Teacher 3): 4:00 PM EEST -> 1:00 PM UTC (13:00 UTC)
+# Slot 5 (Random):    6:00 PM EEST -> 3:00 PM UTC (15:00 UTC)
+POSTING_TIMES_UTC = [
+    "05:00",  # Slot 0: Teacher 1 or Exam
+    "07:00",  # Slot 1: Random Post
+    "09:00",  # Slot 2: Teacher 2
+    "11:00",  # Slot 3: Random Post
+    "13:00",  # Slot 4: Teacher 3
+    "15:00"   # Slot 5: Random Post
+]
 
-def get_post_type_for_current_time(current_utc_hour_minute: str) -> str:
-    """Determines if it's time for a specific post type."""
-    if current_utc_hour_minute == POSTING_TIMES_UTC["morning"]:
-        return "teacher"
-    elif current_utc_hour_minute == POSTING_TIMES_UTC["midday"]:
-        return "random"
-    elif current_utc_hour_minute == POSTING_TIMES_UTC["evening"]:
-        return "teacher"
-    return None
+def get_current_slot_index(current_utc_hour_minute: str) -> int:
+    """
+    Determines the slot index for the current UTC time.
+    Returns the 0-indexed slot number (0-5) or -1 if no match.
+    """
+    for i, time_str in enumerate(POSTING_TIMES_UTC):
+        if current_utc_hour_minute == time_str:
+            return i
+    return -1
 
 def main():
+    post_state = read_json("post_state.json")
+    post_log = read_json("post_log.json")
+
+    # Initialize current_post_cycle_index for the daily cycle
+    post_state.setdefault("current_post_cycle_index", 0) # 0 to 5 for 6 daily slots
+    post_state.setdefault("days_since_last_exam", 0)
+    post_state.setdefault("teachers", {}) # Ensure this is initialized for teacher_post.py
+
     # Get current UTC time
     now_utc = datetime.datetime.utcnow()
     current_utc_hour_minute = now_utc.strftime("%H:%M")
-    current_hour = now_utc.hour
+    today_date = now_utc.strftime("%Y-%m-%d")
 
     print(f"Current UTC time: {current_utc_hour_minute}")
 
-    # Manual trigger logic for GitHub Actions workflow_dispatch
-    manual_post_type = os.getenv("MANUAL_POST_TYPE")
-    specific_teacher_id = os.getenv("SPECIFIC_TEACHER_ID") # New: Read specific teacher ID
+    # --- Handle Manual Workflow Dispatch ---
+    manual_run_slot_str = os.getenv("MANUAL_RUN_SLOT")
+    specific_teacher_id = os.getenv("SPECIFIC_TEACHER_ID") # For manual teacher test
 
-    if manual_post_type:
-        print(f"Manual trigger detected for post type: {manual_post_type}")
-        if specific_teacher_id:
-            print(f"  Specific Teacher ID requested: {specific_teacher_id}")
+    if manual_run_slot_str:
+        # If specific_teacher_id is provided, it's a direct teacher test and overrides slot logic
+        if specific_teacher_id and specific_teacher_id not in ('None', ''):
+            print(f"Manual trigger: Specific Teacher ID test for {specific_teacher_id}")
+            teacher_post.main(specific_teacher_id=specific_teacher_id)
+            sys.exit(0)
+        
+        # Otherwise, it's a manual run for a specific slot in the daily cycle
+        try:
+            manual_run_slot = int(manual_run_slot_str)
+            if not (0 <= manual_run_slot <= 5):
+                raise ValueError("Slot out of range (0-5)")
+            print(f"Manual trigger: Running for specific slot: {manual_run_slot}")
+            
+            # This is the key change: call the appropriate script based on the manual slot
+            if manual_run_slot % 2 == 0: # Teacher slots (0, 2, 4)
+                teacher_post.main(current_post_slot=manual_run_slot)
+            else: # Random slots (1, 3, 5)
+                random_post.main() # random_post.main doesn't need slot info
+            sys.exit(0)
 
-        if manual_post_type == "random":
-            print("Executing random_post.main()")
-            random_post.main()
-        elif manual_post_type == "teacher":
-            print("Executing teacher_post.main()")
-            # Pass the specific_teacher_id if provided, otherwise it's None
-            teacher_post.main(specific_teacher_id=specific_teacher_id) 
-        elif manual_post_type == "debug":
-            print("Debug mode: Simulating post generation without actual Facebook API call.")
-            if random.random() > 0.5:
-                print("Debug: Simulating a teacher post generation (will attempt FB post).")
-                teacher_post.main(specific_teacher_id=specific_teacher_id if specific_teacher_id else None)
-            else:
-                print("Debug: Simulating a random post generation (will attempt FB post).")
-                random_post.main()
-        else:
-            print(f"Unknown manual post type: {manual_post_type}")
-        sys.exit(0)
+        except (ValueError, TypeError) as e:
+            print(f"Warning: Invalid MANUAL_RUN_SLOT '{manual_run_slot_str}'. Error: {e}. Falling back to scheduled logic if no specific teacher ID.")
+            # Continue to scheduled logic if manual slot is invalid and no specific teacher ID
 
-    # Automatic schedule logic
-    post_type = get_post_type_for_current_time(current_utc_hour_minute)
+    # --- Handle Scheduled Runs ---
 
-    # Check if a post for this specific hour has already been made today to prevent duplicates
-    post_state = read_json("post_state.json")
-    today_date = now_utc.strftime("%Y-%m-%d")
-
+    # Reset daily cycle index and posts_today_hours at the start of a new day
     if post_state.get("last_run_date") != today_date:
-        print(f"New day detected ({today_date}). Resetting daily post tracker.")
+        print(f"New day detected ({today_date}). Resetting daily post tracker and cycle index.")
         post_state["last_run_date"] = today_date
-        post_state["posts_today_hours"] = []
+        post_state["posts_today_hours"] = [] # Track which hours have been posted for today
+        post_state["current_post_cycle_index"] = 0 # Reset daily cycle index
         write_json("post_state.json", post_state)
 
-    made_posts_today_hours = post_state.get("posts_today_hours", [])
-    if f"{current_hour:02d}" in made_posts_today_hours:
-        print(f"A post has already been made for hour {current_hour:02d} UTC today. Skipping current scheduled run to prevent duplicates.")
+    # Determine the expected slot for the current time
+    expected_slot_index = get_current_slot_index(current_utc_hour_minute)
+
+    if expected_slot_index == -1:
+        print(f"No specific post scheduled for {current_utc_hour_minute} UTC. Skipping this run.")
         sys.exit(0)
 
-    if post_type == "teacher":
+    # Prevent duplicate posts for the same time slot on the same day
+    # Check if the exact hour of the current scheduled time has already been processed today.
+    current_scheduled_hour = POSTING_TIMES_UTC[expected_slot_index].split(':')[0]
+    if current_scheduled_hour in post_state.get("posts_today_hours", []):
+        print(f"A post for {current_utc_hour_minute} UTC (slot {expected_slot_index}) has already been triggered today. Skipping duplicate.")
+        sys.exit(0)
+
+    # Ensure we are executing the correct slot in sequence, or allow if it's the very first run of the day
+    # This prevents out-of-order execution if a cron job fires late for a previous slot.
+    if expected_slot_index != post_state["current_post_cycle_index"]:
+        print(f"Scheduled time ({current_utc_hour_minute}, slot {expected_slot_index}) does not match expected cycle index ({post_state['current_post_cycle_index']}). Skipping this run to maintain sequence.")
+        # Optionally, you could try to process late posts here, but for strict sequential, skip.
+        sys.exit(0)
+
+    print(f"Processing scheduled slot {expected_slot_index} for {current_utc_hour_minute} UTC.")
+
+    # Determine post type based on current_post_cycle_index
+    if expected_slot_index % 2 == 0: # Teacher posts (0, 2, 4)
         print("It's time for a teacher lesson post (scheduled)!")
-        # For scheduled runs, we never pass a specific teacher ID
-        teacher_post.main() 
-        post_state["posts_today_hours"].append(f"{current_hour:02d}")
-        write_json("post_state.json", post_state)
-    elif post_type == "random":
+        teacher_post.main(current_post_slot=expected_slot_index)
+    else: # Random posts (1, 3, 5)
         print("It's time for a random post (scheduled)!")
-        random_post.main()
-        post_state["posts_today_hours"].append(f"{current_hour:02d}")
-        write_json("post_state.json", post_state)
-    else:
-        print(f"No specific post scheduled for {current_utc_hour_minute} UTC. Skipping this run.")
+        random_post.main() # random_post.main handles its own posting
+
+    # After a successful post, update the state
+    post_state["posts_today_hours"].append(current_scheduled_hour)
+    post_state["current_post_cycle_index"] = (expected_slot_index + 1) % len(POSTING_TIMES_UTC)
+    
+    # If we just completed the last slot of the day (slot 5), advance exam counter.
+    if post_state["current_post_cycle_index"] == 0: # Means all 6 posts completed and cycle reset
+        post_state["days_since_last_exam"] = post_state.get("days_since_last_exam", 0) + 1
+        print(f"Daily cycle complete. Incrementing days_since_last_exam to: {post_state['days_since_last_exam']}")
+    
+    write_json("post_state.json", post_state)
+    print("Post state updated successfully for scheduled run.")
 
 if __name__ == "__main__":
     main()
