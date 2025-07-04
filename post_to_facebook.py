@@ -16,11 +16,10 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 # EEST (Eastern European Summer Time) is UTC+3.
 # So, 8 AM EEST is 5 AM UTC, 10 AM EEST is 7 AM UTC, etc.
 POSTING_TIMES_UTC = ["05:00", "07:00", "09:00", "11:00", "13:00", "15:00"] # 6 slots
-EXAM_INTERVAL_DAYS = 7 # Number of days between exam posts (for Slot 0)
+# EXAM_INTERVAL_DAYS is removed as exam logic is no longer active
 
 # --- Gemini API Configuration ---
 genai.configure(api_key=GEMINI_API_KEY)
-# Using the specified Gemini 1.5 Flash model
 GEMINI_MODEL = genai.GenerativeModel('gemini-1.5-flash') 
 
 # --- File Operations ---
@@ -36,7 +35,6 @@ def read_json(filename, default_value=None):
         print(f"Warning: {filename} not found or corrupted. Initializing with default value.")
         if default_value is not None:
             return default_value
-        # Fallback for old calls where default_value wasn't passed, or for dicts
         return {}
 
 def write_json(filename, data):
@@ -70,7 +68,6 @@ def generate_ai_post(prompt_text):
             return response.text.strip()
         else:
             print("Gemini API primary response was empty or did not contain text.")
-            # If primary response is empty, check candidates if available
             if response and response.candidates:
                 for candidate in response.candidates:
                     if candidate.content and hasattr(candidate.content, 'parts') and candidate.content.parts:
@@ -78,13 +75,9 @@ def generate_ai_post(prompt_text):
                             if hasattr(part, 'text') and part.text.strip():
                                 print("Using text from candidate due to primary response issue.")
                                 return part.text.strip()
-            return None # No text found even in candidates
+            return None
     except Exception as e:
         print(f"Error generating AI content: {e}")
-        # The UnboundLocalError should now be prevented, as 'response' is always defined.
-        # However, if the initial API call truly failed (e.g., 404), 'response' will be None.
-        # The secondary check for candidates after an exception might not be fruitful
-        # if the API call itself didn't return a proper response object.
         return None
 
 # --- Teacher Post Module ---
@@ -116,27 +109,17 @@ class TeacherPost:
         lesson_topic = teacher["lesson_queue"][current_lesson_index]
         posting_style = teacher["posting_style"]
 
-        base_prompt = (
+        # Simplified prompt: no exam-specific addition
+        prompt = (
             f"You are an English teacher named {teacher['name']}. Your persona and teaching style are: '{posting_style}'. "
             f"Your current lesson topic is: '{lesson_topic}'. "
             f"Explain this topic clearly and concisely, including key points. "
             f"Your post should be engaging and encourage interaction, always including a call to action to like, share, and comment. "
             f"Keep it within 150-200 words, using the specified Arabic dialect if mentioned in the posting style.\n\n"
         )
-
-        is_exam = False
-        if teacher_id_str == "1" and self.post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS:
-            print(f"It's time for an exam post for Teacher {teacher['name']}!")
-            prompt = (
-                f"{base_prompt}\n\nAdditionally, include a small, engaging quiz or a question "
-                f"at the end related to the lesson or general English knowledge, "
-                f"to test understanding. Make it interactive, asking users to comment their answers."
-            )
-            is_exam = True
-        else:
-            prompt = base_prompt
         
-        return prompt, is_exam, teacher_id_str, current_lesson_index
+        # is_exam is now always False, or can be removed entirely from the return
+        return prompt, False, teacher_id_str, current_lesson_index # False for is_exam_post
 
     def main(self, current_post_slot=None, specific_teacher_id=None, post_state=None, post_log=None):
         self.post_state = post_state if post_state is not None else self.post_state
@@ -160,12 +143,13 @@ class TeacherPost:
 
             print(f"Generating post for scheduled teacher ID: {teacher_to_post_id} for slot {current_post_slot}")
 
+        # post_data now contains prompt, False (for is_exam), teacher_id_str, current_lesson_index
         post_data = self.prepare_teacher_post(teacher_to_post_id)
         if not post_data:
             print(f"No content generated for teacher ID {teacher_to_post_id}.")
             return False
 
-        prompt, is_exam_post, teacher_id_str, current_lesson_index = post_data
+        prompt, is_exam_post, teacher_id_str, current_lesson_index = post_data # is_exam_post will always be False now
         ai_post_content = generate_ai_post(prompt)
 
         if ai_post_content:
@@ -179,14 +163,12 @@ class TeacherPost:
                     "type": "teacher",
                     "teacher_id": teacher_id_str,
                     "lesson_index": current_lesson_index,
-                    "is_exam": is_exam_post,
+                    "is_exam": False, # Always False now
                     "content": ai_post_content[:200] + "..." if len(ai_post_content) > 200 else ai_post_content
                 })
-                if not is_exam_post:
-                    self.post_state["teacher_progress"][teacher_id_str]["lesson_index"] += 1
-                    print(f"Advanced lesson for Teacher ID {teacher_id_str} to index {self.post_state['teacher_progress'][teacher_id_str]['lesson_index']}")
-                else:
-                    print(f"Teacher ID {teacher_id_str} posted an exam. Lesson index NOT advanced.")
+                # Lesson index will now always advance after a successful teacher post
+                self.post_state["teacher_progress"][teacher_id_str]["lesson_index"] += 1
+                print(f"Advanced lesson for Teacher ID {teacher_id_str} to index {self.post_state['teacher_progress'][teacher_id_str]['lesson_index']}")
                 
                 return True
         return False
@@ -255,9 +237,8 @@ def get_current_slot_index(current_time_str):
 
 
 def main():
-    # Correctly initialize post_state as a dictionary and post_log as a list
     post_state = read_json("post_state.json", default_value={
-        "days_since_last_exam": 0,
+        # "days_since_last_exam": 0, # Removed
         "teacher_progress": {
             "1": {"lesson_index": 0},
             "2": {"lesson_index": 0},
@@ -267,12 +248,9 @@ def main():
         "posts_today_hours": [],
         "last_run_date": ""
     })
-    # This line is crucial: default_value=[] means it will be initialized as a list if file not found/corrupted
     post_log = read_json("post_log.json", default_value=[])
 
-    # Ensure all expected keys are present in post_state, initializing them if missing
-    # (These setdefault calls are good for robustness, especially if an older post_state.json exists)
-    post_state.setdefault("days_since_last_exam", 0)
+    # post_state.setdefault("days_since_last_exam", 0) # Removed
     post_state.setdefault("teacher_progress", {
         "1": {"lesson_index": 0},
         "2": {"lesson_index": 0},
@@ -337,6 +315,7 @@ def main():
         post_state["last_run_date"] = today_date
         post_state["posts_today_hours"] = []
         post_state["current_post_cycle_index"] = 0
+        # post_state["days_since_last_exam"] = 0 # If you want to explicitly reset it for a new day, but it's not used now.
         write_json("post_state.json", post_state) 
         print("Post state reset for new day and saved.")
     
@@ -363,9 +342,10 @@ def main():
         teacher_post_handler = TeacherPost(post_state, post_log)
         teacher_post_handler.main(current_post_slot=current_slot_to_process, post_state=post_state, post_log=post_log)
 
-        if current_slot_to_process == 0 and post_state.get("teacher_progress", {}).get("1", {}).get("lesson_index", 0) > 0 and post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS:
-            post_state["days_since_last_exam"] = 0
-            print("Exam posted, resetting days_since_last_exam.")
+        # Removed the exam logic check and reset here
+        # if current_slot_to_process == 0 and post_state.get("teacher_progress", {}).get("1", {}).get("lesson_index", 0) > 0 and post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS:
+        #     post_state["days_since_last_exam"] = 0
+        #     print("Exam posted, resetting days_since_last_exam.")
         
     else:
         print("It's time for a random post (scheduled)!")
@@ -375,9 +355,10 @@ def main():
     post_state["posts_today_hours"].append(current_scheduled_hour)
     post_state["current_post_cycle_index"] = (current_slot_to_process + 1) % len(POSTING_TIMES_UTC)
     
-    if post_state["current_post_cycle_index"] == 0:
-        post_state["days_since_last_exam"] = post_state.get("days_since_last_exam", 0) + 1
-        print(f"Daily cycle complete. Incrementing days_since_last_exam to: {post_state['days_since_last_exam']}")
+    # Removed the days_since_last_exam increment
+    # if post_state["current_post_cycle_index"] == 0:
+    #     post_state["days_since_last_exam"] = post_state.get("days_since_last_exam", 0) + 1
+    #     print(f"Daily cycle complete. Incrementing days_since_last_exam to: {post_state['days_since_last_exam']}")
     
     write_json("post_state.json", post_state)
     write_json("post_log.json", post_log)
