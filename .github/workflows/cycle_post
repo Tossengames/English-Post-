@@ -1,0 +1,34 @@
+name: Manual - Run Next Post in Cycle
+
+on:
+  workflow_dispatch:
+    # No inputs needed. The script will automatically determine the next post
+    # in the cycle based on post_state.json, just like a scheduled run.
+
+jobs:
+  run_next_post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5 # Set a timeout to prevent long runs if something hangs
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13' # Or '3.1x' for broader compatibility
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Python Script for Next Planned Post
+        run: python post_to_facebook.py
+        env:
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # IMPORTANT: DO NOT pass SPECIFIC_TEACHER_ID or MANUAL_RUN_SLOT here.
+          # This ensures the script uses its internal cycle logic based on post_state.json.
