@@ -2,8 +2,8 @@ name: Manual - Run Next Post in Cycle
 
 on:
   workflow_dispatch:
-    # No inputs needed. The script will automatically determine the next post
-    # in the cycle based on post_state.json, just like a scheduled run.
+    # No inputs needed from the UI.
+    # The script will now use the FORCE_NEXT_CYCLE_POST env var.
 
 jobs:
   run_next_post:
@@ -17,18 +17,19 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13' # Or '3.1x' for broader compatibility
+          python-version: '3.13' # Or '3.x' for broader compatibility
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Python Script for Next Planned Post
+      - name: Run Python Script for Next Planned Post in Cycle
         run: python post_to_facebook.py
         env:
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          # IMPORTANT: DO NOT pass SPECIFIC_TEACHER_ID or MANUAL_RUN_SLOT here.
-          # This ensures the script uses its internal cycle logic based on post_state.json.
+          FORCE_NEXT_CYCLE_POST: 'true' # <--- THIS IS THE KEY CHANGE!
+          # Do NOT pass SPECIFIC_TEACHER_ID or MANUAL_RUN_SLOT here,
+          # as FORCE_NEXT_CYCLE_POST now takes precedence for this workflow.
