@@ -1,4 +1,3 @@
-# post_to_facebook.py (Modified)
 import datetime
 import sys
 import os
@@ -38,7 +37,7 @@ def get_current_slot_index(current_utc_hour_minute: str) -> int:
 
 def main():
     post_state = read_json("post_state.json")
-    post_log = read_json("post_log.json")
+    post_log = read_json("post_log.json") # Read post_log here too, so it's passed around
 
     # Initialize current_post_cycle_index for the daily cycle
     post_state.setdefault("current_post_cycle_index", 0) # 0 to 5 for 6 daily slots
@@ -60,7 +59,9 @@ def main():
         # If specific_teacher_id is provided, it's a direct teacher test and overrides slot logic
         if specific_teacher_id and specific_teacher_id not in ('None', ''):
             print(f"Manual trigger: Specific Teacher ID test for {specific_teacher_id}")
-            teacher_post.main(specific_teacher_id=specific_teacher_id)
+            # Pass post_state and post_log to teacher_post.main
+            teacher_post.main(specific_teacher_id=specific_teacher_id, post_state=post_state, post_log=post_log)
+            # The teacher_post.main for specific_teacher_id handles its own state saving, so we can exit.
             sys.exit(0)
         
         # Otherwise, it's a manual run for a specific slot in the daily cycle
@@ -70,11 +71,17 @@ def main():
                 raise ValueError("Slot out of range (0-5)")
             print(f"Manual trigger: Running for specific slot: {manual_run_slot}")
             
-            # This is the key change: call the appropriate script based on the manual slot
+            # This is the key change: pass post_state and post_log
             if manual_run_slot % 2 == 0: # Teacher slots (0, 2, 4)
-                teacher_post.main(current_post_slot=manual_run_slot)
+                teacher_post.main(current_post_slot=manual_run_slot, post_state=post_state, post_log=post_log)
             else: # Random slots (1, 3, 5)
-                random_post.main() # random_post.main doesn't need slot info
+                # Assuming random_post.main also needs post_state to update its state
+                random_post.main(current_post_slot=manual_run_slot, post_state=post_state, post_log=post_log) 
+            
+            # After manual run, ensure state is saved, as child functions no longer save it
+            write_json("post_state.json", post_state)
+            write_json("post_log.json", post_log)
+            print("Manual run completed and state saved.")
             sys.exit(0)
 
         except (ValueError, TypeError) as e:
@@ -89,7 +96,7 @@ def main():
         post_state["last_run_date"] = today_date
         post_state["posts_today_hours"] = [] # Track which hours have been posted for today
         post_state["current_post_cycle_index"] = 0 # Reset daily cycle index
-        write_json("post_state.json", post_state)
+        # Don't save yet, will save at the end of main()
 
     # Determine the expected slot for the current time
     expected_slot_index = get_current_slot_index(current_utc_hour_minute)
@@ -109,30 +116,45 @@ def main():
     # This prevents out-of-order execution if a cron job fires late for a previous slot.
     if expected_slot_index != post_state["current_post_cycle_index"]:
         print(f"Scheduled time ({current_utc_hour_minute}, slot {expected_slot_index}) does not match expected cycle index ({post_state['current_post_cycle_index']}). Skipping this run to maintain sequence.")
-        # Optionally, you could try to process late posts here, but for strict sequential, skip.
         sys.exit(0)
 
     print(f"Processing scheduled slot {expected_slot_index} for {current_utc_hour_minute} UTC.")
 
-    # Determine post type based on current_post_cycle_index
+    # Determine post type based on expected_slot_index
     if expected_slot_index % 2 == 0: # Teacher posts (0, 2, 4)
         print("It's time for a teacher lesson post (scheduled)!")
-        teacher_post.main(current_post_slot=expected_slot_index)
+        # Pass post_state and post_log to teacher_post.main
+        teacher_post.main(current_post_slot=expected_slot_index, post_state=post_state, post_log=post_log)
+
+        # Handle exam counter reset if it was an exam post (slot 0 only)
+        if expected_slot_index == 0 and post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS:
+            post_state["days_since_last_exam"] = 0
+            print("Exam posted, resetting days_since_last_exam.")
+
     else: # Random posts (1, 3, 5)
         print("It's time for a random post (scheduled)!")
-        random_post.main() # random_post.main handles its own posting
+        # Pass post_state and post_log to random_post.main
+        # You'll need to modify random_post.py to accept these args as well!
+        random_post.main(current_post_slot=expected_slot_index, post_state=post_state, post_log=post_log) 
 
-    # After a successful post, update the state
+    # After a successful post call (whether teacher or random), update the state
     post_state["posts_today_hours"].append(current_scheduled_hour)
     post_state["current_post_cycle_index"] = (expected_slot_index + 1) % len(POSTING_TIMES_UTC)
     
     # If we just completed the last slot of the day (slot 5), advance exam counter.
     if post_state["current_post_cycle_index"] == 0: # Means all 6 posts completed and cycle reset
-        post_state["days_since_last_exam"] = post_state.get("days_since_last_exam", 0) + 1
-        print(f"Daily cycle complete. Incrementing days_since_last_exam to: {post_state['days_since_last_exam']}")
+        # Only increment if it wasn't an exam day (exam already reset days_since_last_exam)
+        # Or, just increment it, and the exam logic will reset it when it triggers.
+        # Let's ensure it only increments once per day cycle completion.
+        # It's safer to have the exam logic in teacher_post.main() reset it directly when an exam is posted.
+        # So here, just increment it daily if no exam was posted today.
+        if expected_slot_index == 5: # Only increment when the *last* slot of the day is processed
+             post_state["days_since_last_exam"] = post_state.get("days_since_last_exam", 0) + 1
+             print(f"Daily cycle complete. Incrementing days_since_last_exam to: {post_state['days_since_last_exam']}")
     
-    write_json("post_state.json", post_state)
-    print("Post state updated successfully for scheduled run.")
+    write_json("post_state.json", post_state) # Save post_state at the end of the main orchestrator
+    write_json("post_log.json", post_log) # Save post_log here as well, now that it's centralized
+    print("Post state and log updated successfully for scheduled run.")
 
 if __name__ == "__main__":
     main()
