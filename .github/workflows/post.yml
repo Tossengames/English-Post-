@@ -23,9 +23,13 @@ on:
         default: 'None'
 
   schedule:
-    # TEMPORARY: Runs every 2 minutes for testing purposes
-    # IMPORTANT: Revert this after testing!
-    - cron: '*/2 * * * *' # This means "at every 2nd minute" (e.g., :00, :02, :04, etc.)
+    # Reverted to original schedule: Run at specific UTC times
+    - cron: '0 5 * * *'  # 05:00 UTC
+    - cron: '0 7 * * *'  # 07:00 UTC
+    - cron: '0 9 * * *'  # 09:00 UTC
+    - cron: '0 11 * * *' # 11:00 UTC
+    - cron: '0 13 * * *' # 13:00 UTC
+    - cron: '0 15 * * *' # 15:00 UTC
 
 jobs:
   post:
