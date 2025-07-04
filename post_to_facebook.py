@@ -20,24 +20,23 @@ EXAM_INTERVAL_DAYS = 7 # Number of days between exam posts (for Slot 0)
 
 # --- Gemini API Configuration ---
 genai.configure(api_key=GEMINI_API_KEY)
-# **** IMPORTANT CHANGE HERE: Updated model name to gemini-1.5-flash ****
+# Using the specified Gemini 1.5 Flash model
 GEMINI_MODEL = genai.GenerativeModel('gemini-1.5-flash') 
 
 # --- File Operations ---
 def read_json(filename, default_value=None):
-    """Reads a JSON file, returns its content, or a default value if file doesn't exist."""
+    """
+    Reads a JSON file, returns its content, or a default value if file doesn't exist or is corrupted.
+    Handles both dictionaries and lists as default_value.
+    """
     try:
         with open(filename, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except FileNotFoundError:
-        print(f"Warning: {filename} not found. Returning default value.")
+    except (FileNotFoundError, json.JSONDecodeError):
+        print(f"Warning: {filename} not found or corrupted. Initializing with default value.")
         if default_value is not None:
             return default_value
-        return {} 
-    except json.JSONDecodeError:
-        print(f"Error: Could not decode JSON from {filename}. Returning default value.")
-        if default_value is not None:
-            return default_value
+        # Fallback for old calls where default_value wasn't passed, or for dicts
         return {}
 
 def write_json(filename, data):
@@ -64,30 +63,28 @@ def post_to_facebook(message):
 
 # --- Post Generation Logic (Moved from main script) ---
 def generate_ai_post(prompt_text):
+    response = None # Initialize response outside try block
     try:
         response = GEMINI_MODEL.generate_content(prompt_text)
         if hasattr(response, 'text') and response.text.strip():
             return response.text.strip()
         else:
-            print("Gemini API response was empty or did not contain text.")
-            return None
+            print("Gemini API primary response was empty or did not contain text.")
+            # If primary response is empty, check candidates if available
+            if response and response.candidates:
+                for candidate in response.candidates:
+                    if candidate.content and hasattr(candidate.content, 'parts') and candidate.content.parts:
+                        for part in candidate.content.parts:
+                            if hasattr(part, 'text') and part.text.strip():
+                                print("Using text from candidate due to primary response issue.")
+                                return part.text.strip()
+            return None # No text found even in candidates
     except Exception as e:
         print(f"Error generating AI content: {e}")
-        # Attempt to get text from candidate if primary response failed
-        # Make sure 'response' is defined before trying to access its attributes
-        response_obj = None # Initialize response_obj
-        try: # Try to get the response object if the initial call failed
-            response_obj = GEMINI_MODEL.generate_content(prompt_text) # Re-attempt or get last available
-        except Exception:
-            pass # Ignore if re-attempt also fails
-
-        if response_obj and response_obj.candidates:
-            for candidate in response_obj.candidates:
-                if candidate.content and hasattr(candidate.content, 'parts') and candidate.content.parts:
-                    for part in candidate.content.parts:
-                        if hasattr(part, 'text') and part.text.strip():
-                            print("Using text from candidate due to primary response issue.")
-                            return part.text.strip()
+        # The UnboundLocalError should now be prevented, as 'response' is always defined.
+        # However, if the initial API call truly failed (e.g., 404), 'response' will be None.
+        # The secondary check for candidates after an exception might not be fruitful
+        # if the API call itself didn't return a proper response object.
         return None
 
 # --- Teacher Post Module ---
@@ -258,6 +255,7 @@ def get_current_slot_index(current_time_str):
 
 
 def main():
+    # Correctly initialize post_state as a dictionary and post_log as a list
     post_state = read_json("post_state.json", default_value={
         "days_since_last_exam": 0,
         "teacher_progress": {
@@ -269,8 +267,11 @@ def main():
         "posts_today_hours": [],
         "last_run_date": ""
     })
+    # This line is crucial: default_value=[] means it will be initialized as a list if file not found/corrupted
     post_log = read_json("post_log.json", default_value=[])
 
+    # Ensure all expected keys are present in post_state, initializing them if missing
+    # (These setdefault calls are good for robustness, especially if an older post_state.json exists)
     post_state.setdefault("days_since_last_exam", 0)
     post_state.setdefault("teacher_progress", {
         "1": {"lesson_index": 0},
@@ -385,4 +386,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
