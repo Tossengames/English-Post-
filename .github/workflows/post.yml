@@ -1,35 +1,12 @@
-name: Daily Facebook Post
+name: Random Daily Facebook Post
 
 on:
-  workflow_dispatch:
-    inputs:
-      specific_teacher_id:
-        description: 'Enter teacher ID (1, 2, 3) for a single test post (leaves blank for normal daily sequence)'
-        required: false
-        type: string
-      
-      manual_run_slot:
-        description: 'Manual Post Slot (0-5 for specific type/teacher, or leave blank for schedule)'
-        required: false
-        type: choice
-        options:
-          - 'None'
-          - '0'
-          - '1'
-          - '2'
-          - '3'
-          - '4'
-          - '5'
-        default: 'None'
-
   schedule:
-    # Reverted to original schedule: Run at specific UTC times
-    - cron: '0 5 * * *'  # 05:00 UTC
-    - cron: '0 7 * * *'  # 07:00 UTC
-    - cron: '0 9 * * *'  # 09:00 UTC
-    - cron: '0 11 * * *' # 11:00 UTC
-    - cron: '0 13 * * *' # 13:00 UTC
-    - cron: '0 15 * * *' # 15:00 UTC
+    # Runs 6 times a day (at 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC)
+    # Corresponding EEST times (UTC+3): 3 AM, 7 AM, 11 AM, 3 PM, 7 PM, 11 PM
+    - cron: '0 0,4,8,12,16,20 * * *' 
+  workflow_dispatch:
+    # This allows manual triggering from the GitHub Actions tab.
 
 jobs:
   post:
@@ -38,24 +15,21 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
       - name: Install dependencies
         run: |
-          pip install requests
-          pip install google-generativeai
+          python -m pip install --upgrade pip
+          pip install requests google-generativeai
 
-      - name: Run Main Posting Script
+      - name: Run Random Post Script
         env:
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          SPECIFIC_TEACHER_ID: ${{ github.event.inputs.specific_teacher_id }}
-          MANUAL_RUN_SLOT: ${{ github.event.inputs.manual_run_slot }}
-        run: |
-          python post_to_facebook.py
+        run: python post_to_facebook.py
