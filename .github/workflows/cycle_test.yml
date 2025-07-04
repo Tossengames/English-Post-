@@ -1,36 +1,36 @@
-name: Random Daily Post
+name: Random Daily Facebook Post
 
 on:
   schedule:
-    # This example runs every day at 8 AM EEST (5 AM UTC)
-    # Adjust as needed for your desired frequency
+    # This schedule runs daily at 5:00 AM UTC (which is 8:00 AM EEST in Egypt)
     - cron: '0 5 * * *' 
   workflow_dispatch:
-    # Allows manual triggering from the GitHub Actions tab
+    # This allows manual triggering from the GitHub Actions tab.
+    # No specific inputs are needed, as the script now decides randomly.
 
 jobs:
-  run_random_post:
+  post:
     runs-on: ubuntu-latest
-    timeout-minutes: 5 # Set a timeout to prevent long runs if something hangs
+    environment: production # Make sure this matches your environment name if you use one
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4 # Use the latest action version
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5 # Use the latest action version
         with:
-          python-version: '3.13' # Or '3.x' for broader compatibility
+          python-version: '3.x' # Or '3.13' for a specific version
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install requests google-generativeai
 
       - name: Run Random Post Script
-        run: python post_to_facebook.py
         env:
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          # No other specific environment variables are needed now
+          # No other environment variables are needed for specific post types or teachers
+        run: python post_to_facebook.py
