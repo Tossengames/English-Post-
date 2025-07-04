@@ -101,37 +101,43 @@ def clean_ai_output(text):
 def post_to_facebook(message, image_path=None):
     """
     Posts a message to Facebook, optionally with a local image file.
-    This uses the /photos endpoint for direct image upload.
+    Uses /photos endpoint for image uploads, and /feed for text-only posts.
     """
     if not FB_PAGE_ID or not FB_PAGE_TOKEN:
         print("Facebook Page ID or Token is not set. Cannot post to Facebook.")
         return False
 
-    url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/photos"
-    
     files = {}
     data = {
         'message': message,
         'access_token': FB_PAGE_TOKEN
     }
-
+    
+    # Determine the API endpoint based on image presence
     if image_path:
+        # Use the /photos endpoint for image uploads
+        url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/photos"
         if os.path.exists(image_path):
             try:
-                # Open image in binary read mode
                 files = {'source': open(image_path, 'rb')}
                 print(f"Attempting to upload image from: {image_path}")
             except Exception as e:
-                print(f"Error opening image file {image_path}: {e}")
-                image_path = None # Don't try to send a broken file
+                print(f"Error opening image file {image_path}: {e}. Posting message only.")
+                image_path = None # Revert to text-only if image fails
         else:
             print(f"Image file not found at: {image_path}. Posting message only.")
-            image_path = None # Don't try to send a non-existent file
+            image_path = None # Revert to text-only if image fails
+    
+    if not image_path:
+        # If no image or image failed, use the /feed endpoint for text-only posts
+        url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/feed"
+        print("No image provided or image failed. Posting text-only to /feed endpoint.")
+
 
     response = requests.post(url, data=data, files=files)
     
     # Close the file if it was opened
-    if image_path and 'source' in files:
+    if 'source' in files and files['source']:
         files['source'].close()
 
     if response.status_code == 200:
@@ -253,7 +259,6 @@ def generate_random_general_post_content():
 def main():
     # Load necessary data
     teacher_meta_data = read_json("teacher_meta.json", default_value={})
-    # post_log related lines have been removed
 
     if not teacher_meta_data and not get_random_general_prompt(): 
         print("ERROR: Both teacher_meta.json is empty and no general random prompts are defined. Cannot generate any posts.")
@@ -275,8 +280,7 @@ def main():
     print(f"Randomly chosen post type for this run: {chosen_post_type}")
 
     post_content = None
-    image_to_post = None # This will now store the local image path
-    # log_entry_details is no longer needed as we're not logging posts
+    image_to_post = None # This will store the local image path
 
     if chosen_post_type == "teacher":
         post_content, image_to_post, teacher_name, lesson_topic = generate_teacher_post_content(teacher_meta_data)
@@ -288,8 +292,9 @@ def main():
                 print("No fallback to random general post. Exiting.")
                 sys.exit(1)
 
+    # If chosen_post_type was originally 'random_general' OR it became 'random_general' as a fallback
     if chosen_post_type == "random_general": 
-        # Only attempt to generate if it wasn't already generated (e.g., as a fallback)
+        # Only attempt to generate if content hasn't been generated yet (e.g., from a failed teacher post)
         if post_content is None: 
             post_content = generate_random_general_post_content()
         if not post_content:
