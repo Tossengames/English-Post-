@@ -2,9 +2,9 @@ name: Random Daily Facebook Post
 
 on:
   schedule:
-    # Runs 6 times a day (at 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC)
-    # Corresponding EEST times (UTC+3): 3 AM, 7 AM, 11 AM, 3 PM, 7 PM, 11 PM
-    - cron: '0 0,4,8,12,16,20 * * *' 
+    # Runs 6 times a day, starting at 5:00 AM UTC (8:00 AM EEST)
+    # Corresponding EEST times (UTC+3): 8 AM, 12 PM, 4 PM, 8 PM, 12 AM, 4 AM
+    - cron: '0 5,9,13,17,21,1 * * *' 
   workflow_dispatch:
     # This allows manual triggering from the GitHub Actions tab.
 
