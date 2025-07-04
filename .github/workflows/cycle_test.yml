@@ -1,12 +1,15 @@
-name: Manual - Run Next Post in Cycle
+name: Random Daily Post
 
 on:
+  schedule:
+    # This example runs every day at 8 AM EEST (5 AM UTC)
+    # Adjust as needed for your desired frequency
+    - cron: '0 5 * * *' 
   workflow_dispatch:
-    # No inputs needed from the UI.
-    # The script will now use the FORCE_NEXT_CYCLE_POST env var.
+    # Allows manual triggering from the GitHub Actions tab
 
 jobs:
-  run_next_post:
+  run_random_post:
     runs-on: ubuntu-latest
     timeout-minutes: 5 # Set a timeout to prevent long runs if something hangs
 
@@ -24,12 +27,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Python Script for Next Planned Post in Cycle
+      - name: Run Random Post Script
         run: python post_to_facebook.py
         env:
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          FORCE_NEXT_CYCLE_POST: 'true' # <--- THIS IS THE KEY CHANGE!
-          # Do NOT pass SPECIFIC_TEACHER_ID or MANUAL_RUN_SLOT here,
-          # as FORCE_NEXT_CYCLE_POST now takes precedence for this workflow.
+          # No other specific environment variables are needed now
