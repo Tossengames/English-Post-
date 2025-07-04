@@ -4,6 +4,7 @@ import datetime
 import sys
 import requests
 import google.generativeai as genai
+import random # Make sure random is imported at the top
 
 # --- Configuration (from environment variables) ---
 FB_PAGE_ID = os.getenv('FB_PAGE_ID')
@@ -29,10 +30,16 @@ def read_json(filename, default_value=None):
             return json.load(f)
     except FileNotFoundError:
         print(f"Warning: {filename} not found. Returning default value.")
-        return default_value if default_value is not None else {}
+        # Ensure correct default for list-like JSONs like random_topics
+        if default_value is not None:
+            return default_value
+        # For dictionary-like JSONs (like teacher_meta, post_state, post_log)
+        return {} 
     except json.JSONDecodeError:
         print(f"Error: Could not decode JSON from {filename}. Returning default value.")
-        return default_value if default_value is not None else {}
+        if default_value is not None:
+            return default_value
+        return {}
 
 def write_json(filename, data):
     """Writes data to a JSON file."""
@@ -57,11 +64,9 @@ def post_to_facebook(message):
         return False
 
 # --- Post Generation Logic (Moved from main script) ---
-
 def generate_ai_post(prompt_text):
     try:
         response = GEMINI_MODEL.generate_content(prompt_text)
-        # Check if response.text exists and is not empty
         if hasattr(response, 'text') and response.text.strip():
             return response.text.strip()
         else:
@@ -84,49 +89,44 @@ class TeacherPost:
     def __init__(self, post_state, post_log):
         self.post_state = post_state
         self.post_log = post_log
-        self.teachers_data = read_json("teachers.json", default_value=[])
-        self.teaching_styles = read_json("teaching_styles.json", default_value={})
-        self.english_levels = read_json("english_levels.json", default_value={})
+        # Load teacher_meta.json directly
+        self.teacher_meta_data = read_json("teacher_meta.json", default_value={})
+        if not self.teacher_meta_data:
+            print("ERROR: teacher_meta.json not found or empty. Teacher posts will not function.")
+            sys.exit(1) # Exit if critical teacher data is missing
 
     def get_teacher_by_id(self, teacher_id):
-        return next((t for t in self.teachers_data if t["id"] == int(teacher_id)), None)
+        # Teacher IDs are now strings in teacher_meta.json (e.g., "1", "2", "3")
+        return self.teacher_meta_data.get(str(teacher_id), None)
 
-    def get_random_teacher(self):
-        # Filter out teachers who have completed all their lessons
-        available_teachers = [
-            t for t in self.teachers_data
-            if self.post_state["teacher_progress"].get(str(t["id"]), {}).get("lesson_index", 0) < len(t["lessons"])
-        ]
-        if not available_teachers:
-            print("All teachers have completed their lessons. Please add more lessons or reset progress.")
+    def prepare_teacher_post(self, teacher_id_str):
+        teacher = self.get_teacher_by_id(teacher_id_str)
+        if not teacher:
+            print(f"Teacher with ID {teacher_id_str} not found in teacher_meta.json.")
             return None
-        return random.choice(available_teachers)
 
-    def prepare_teacher_post(self, teacher):
-        teacher_id_str = str(teacher["id"])
         teacher_progress = self.post_state["teacher_progress"].setdefault(teacher_id_str, {"lesson_index": 0})
         current_lesson_index = teacher_progress["lesson_index"]
 
-        if current_lesson_index >= len(teacher["lessons"]):
+        if current_lesson_index >= len(teacher["lesson_queue"]):
             print(f"Teacher {teacher['name']} has completed all their lessons.")
             return None # Indicate no more lessons
 
-        lesson = teacher["lessons"][current_lesson_index]
+        lesson_topic = teacher["lesson_queue"][current_lesson_index]
         
-        style = self.teaching_styles.get(teacher["style_id"], {"name": "General", "description": ""})
-        level = self.english_levels.get(teacher["level_id"], {"name": "General", "description": ""})
+        # Use the posting_style directly from teacher_meta.json
+        posting_style = teacher["posting_style"]
 
         base_prompt = (
-            f"You are an English teacher named {teacher['name']} with a {style['name']} teaching style. "
-            f"You teach students at an {level['name']} English level. "
-            f"Your current lesson is about: {lesson['topic']}. "
+            f"You are an English teacher named {teacher['name']}. Your persona and teaching style are: '{posting_style}'. "
+            f"Your current lesson topic is: '{lesson_topic}'. "
             f"Explain this topic clearly and concisely, including key points. "
-            f"Your post should be engaging and encourage interaction. "
-            f"Keep it within 150-200 words.\n\n"
-            f"Lesson Content: {lesson['content']}"
+            f"Your post should be engaging and encourage interaction, always including a call to action to like, share, and comment. "
+            f"Keep it within 150-200 words, using the specified Arabic dialect if mentioned in the posting style.\n\n"
         )
 
-        if teacher["id"] == 1 and self.post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS:
+        is_exam = False
+        if teacher_id_str == "1" and self.post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS:
             print(f"It's time for an exam post for Teacher {teacher['name']}!")
             prompt = (
                 f"{base_prompt}\n\nAdditionally, include a small, engaging quiz or a question "
@@ -136,7 +136,6 @@ class TeacherPost:
             is_exam = True
         else:
             prompt = base_prompt
-            is_exam = False
         
         return prompt, is_exam, teacher_id_str, current_lesson_index
 
@@ -144,34 +143,28 @@ class TeacherPost:
         self.post_state = post_state if post_state is not None else self.post_state
         self.post_log = post_log if post_log is not None else self.post_log
 
+        teacher_to_post_id = None
         if specific_teacher_id:
-            teacher = self.get_teacher_by_id(specific_teacher_id)
-            if not teacher:
-                print(f"Error: Teacher with ID {specific_teacher_id} not found.")
-                return False
-            print(f"Generating post for specific teacher: {teacher['name']} (ID: {specific_teacher_id})")
+            teacher_to_post_id = str(specific_teacher_id) # Ensure it's a string
+            print(f"Generating post for specific teacher ID: {teacher_to_post_id}")
         else: # Scheduled run, determine teacher based on current slot
             if current_post_slot is None:
                 print("Error: current_post_slot must be provided for scheduled teacher posts.")
                 return False
             
-            # Map slots to teachers
-            teacher_map = {0: 1, 2: 2, 4: 3} # Slot -> Teacher ID
-            teacher_id_for_slot = teacher_map.get(current_post_slot)
+            # Map slots to teacher IDs (which are strings now)
+            teacher_map = {0: "1", 2: "2", 4: "3"} # Slot -> Teacher ID (string)
+            teacher_to_post_id = teacher_map.get(current_post_slot)
 
-            if not teacher_id_for_slot:
+            if not teacher_to_post_id:
                 print(f"Error: No teacher mapped to slot {current_post_slot}. This should not happen for teacher slots.")
                 return False
 
-            teacher = self.get_teacher_by_id(teacher_id_for_slot)
-            if not teacher:
-                print(f"Error: Teacher with ID {teacher_id_for_slot} not found for slot {current_post_slot}.")
-                return False
-            print(f"Generating post for scheduled teacher: {teacher['name']} (ID: {teacher_id_for_slot}) for slot {current_post_slot}")
+            print(f"Generating post for scheduled teacher ID: {teacher_to_post_id} for slot {current_post_slot}")
 
-        post_data = self.prepare_teacher_post(teacher)
+        post_data = self.prepare_teacher_post(teacher_to_post_id)
         if not post_data:
-            print(f"No content generated for teacher {teacher['name']}.")
+            print(f"No content generated for teacher ID {teacher_to_post_id}.")
             return False
 
         prompt, is_exam_post, teacher_id_str, current_lesson_index = post_data
@@ -187,7 +180,7 @@ class TeacherPost:
                 self.post_log.append({
                     "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                     "type": "teacher",
-                    "teacher_id": teacher["id"],
+                    "teacher_id": teacher_id_str,
                     "lesson_index": current_lesson_index,
                     "is_exam": is_exam_post,
                     "content": ai_post_content[:200] + "..." if len(ai_post_content) > 200 else ai_post_content
@@ -195,9 +188,9 @@ class TeacherPost:
                 # Update teacher progress and exam status
                 if not is_exam_post: # Only advance lesson if it's not an exam post
                     self.post_state["teacher_progress"][teacher_id_str]["lesson_index"] += 1
-                    print(f"Advanced lesson for Teacher {teacher['name']} to index {self.post_state['teacher_progress'][teacher_id_str]['lesson_index']}")
+                    print(f"Advanced lesson for Teacher ID {teacher_id_str} to index {self.post_state['teacher_progress'][teacher_id_str]['lesson_index']}")
                 else:
-                    print(f"Teacher {teacher['name']} posted an exam. Lesson index NOT advanced.")
+                    print(f"Teacher ID {teacher_id_str} posted an exam. Lesson index NOT advanced.")
                 
                 return True
         return False
@@ -231,7 +224,8 @@ class RandomPost:
             f"Create an engaging Facebook post about: {topic_data['topic']}. "
             f"Include interesting facts or a brief explanation from this content: {topic_data['content']}. "
             f"The post should be positive, concise (150-200 words), and encourage interaction "
-            f"(e.g., ask a question related to the topic for comments)."
+            f"(e.g., ask a question related to the topic for comments). "
+            f"Always include a call to action to like, share, and comment."
         )
 
         ai_post_content = generate_ai_post(prompt)
@@ -264,32 +258,29 @@ def get_current_slot_index(current_time_str):
             return i
     return -1
 
-import random # Import random module needed for random_post
 
 def main():
     post_state = read_json("post_state.json", default_value={
-        "current_teacher_index": 0, # Legacy, might not be used directly anymore
         "days_since_last_exam": 0,
-        "post_slot_of_day": 0, # Legacy, might not be used directly anymore
         "teacher_progress": {
             "1": {"lesson_index": 0},
             "2": {"lesson_index": 0},
             "3": {"lesson_index": 0}
         },
         "current_post_cycle_index": 0, # The primary index for daily post sequence (0-5)
-        "posts_today_hours": [], # Tracks the *hours* for which a post was made today
+        "posts_today_hours": [], # Tracks the *hours* for which a post was made today (for original schedule)
         "last_run_date": ""
     })
     post_log = read_json("post_log.json", default_value=[])
 
-    # Initialize current_post_cycle_index and other necessary defaults if not present
-    post_state.setdefault("current_post_cycle_index", 0)
+    # Initialize missing keys if they don't exist
     post_state.setdefault("days_since_last_exam", 0)
     post_state.setdefault("teacher_progress", {
         "1": {"lesson_index": 0},
         "2": {"lesson_index": 0},
         "3": {"lesson_index": 0}
     })
+    post_state.setdefault("current_post_cycle_index", 0)
     post_state.setdefault("posts_today_hours", [])
     post_state.setdefault("last_run_date", "")
 
@@ -304,18 +295,18 @@ def main():
     manual_run_slot_str = os.getenv("MANUAL_RUN_SLOT")
     specific_teacher_id = os.getenv("SPECIFIC_TEACHER_ID")
 
+    manual_run_attempted = False
+    manual_run_successful = False
+
     # If specific_teacher_id is provided, it's a direct teacher test and overrides slot logic
     if specific_teacher_id and specific_teacher_id not in ('None', ''): # Robustness: check for 'None' string
+        manual_run_attempted = True
         print(f"Manual trigger: Specific Teacher ID test for {specific_teacher_id}")
         teacher_post_handler = TeacherPost(post_state, post_log)
-        teacher_post_handler.main(specific_teacher_id=specific_teacher_id, post_state=post_state, post_log=post_log)
-        write_json("post_state.json", post_state) # Save state after manual teacher run
-        write_json("post_log.json", post_log) # Save log after manual teacher run
-        print("Manual run for specific teacher completed and state/log saved.")
-        sys.exit(0)
-    
-    # If manual_run_slot is provided (and not 'None' string), handle it
-    if manual_run_slot_str and manual_run_slot_str not in ('None', ''): # Robustness: check for 'None' string
+        if teacher_post_handler.main(specific_teacher_id=specific_teacher_id, post_state=post_state, post_log=post_log):
+            manual_run_successful = True
+    elif manual_run_slot_str and manual_run_slot_str not in ('None', ''): # Robustness: check for 'None' string
+        manual_run_attempted = True
         try:
             manual_run_slot = int(manual_run_slot_str)
             if not (0 <= manual_run_slot <= 5):
@@ -324,19 +315,24 @@ def main():
             
             if manual_run_slot % 2 == 0: # Teacher slots (0, 2, 4)
                 teacher_post_handler = TeacherPost(post_state, post_log)
-                teacher_post_handler.main(current_post_slot=manual_run_slot, post_state=post_state, post_log=post_log)
+                if teacher_post_handler.main(current_post_slot=manual_run_slot, post_state=post_state, post_log=post_log):
+                    manual_run_successful = True
             else: # Random slots (1, 3, 5)
                 random_post_handler = RandomPost(post_state, post_log)
-                random_post_handler.main(current_post_slot=manual_run_slot, post_state=post_state, post_log=post_log) 
-            
-            write_json("post_state.json", post_state) # Save state after manual slot run
-            write_json("post_log.json", post_log) # Save log after manual slot run
-            print("Manual run for specific slot completed and state/log saved.")
-            sys.exit(0)
-
+                if random_post_handler.main(current_post_slot=manual_run_slot, post_state=post_state, post_log=post_log):
+                    manual_run_successful = True
         except (ValueError, TypeError) as e:
-            print(f"Warning: Invalid MANUAL_RUN_SLOT '{manual_run_slot_str}'. Error: {e}. Falling back to scheduled logic if no specific teacher ID.")
+            print(f"Warning: Manual run input '{manual_run_slot_str}' error: {e}. Not proceeding with manual run.")
+            manual_run_successful = False # Ensure this is false if conversion or range failed
 
+    if manual_run_attempted: # If a manual run was even attempted, we save state and exit.
+        write_json("post_state.json", post_state)
+        write_json("post_log.json", post_log)
+        if manual_run_successful:
+            print("Manual run completed and state/log saved.")
+        else:
+            print("Manual run attempted but failed or had invalid input. State/log saved.")
+        sys.exit(0) # Exit cleanly if a manual run was processed, whether successful or not
 
     # --- Handle Scheduled Runs ---
     
@@ -367,11 +363,10 @@ def main():
 
         # Handle exam counter reset if it was an exam post (slot 0 only)
         # This logic remains, even in test mode, to simulate day progression
-        if current_slot_to_process == 0:
-            if post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS:
-                post_state["days_since_last_exam"] = 0 # Reset only if an exam was actually due and posted
-                print("Exam posted, resetting days_since_last_exam.")
-            # If no exam was due, days_since_last_exam will be incremented at the end of the 6-post cycle
+        # Note: teacher_id "1" (string) corresponds to Slot 0
+        if current_slot_to_process == 0 and post_state.get("teacher_progress", {}).get("1", {}).get("lesson_index", 0) > 0 and post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS:
+            post_state["days_since_last_exam"] = 0 # Reset only if an exam was actually due and posted
+            print("Exam posted, resetting days_since_last_exam.")
         
     else: # Random posts (1, 3, 5)
         print(f"Executing Random post for Slot {current_slot_to_process}...")
@@ -397,3 +392,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
