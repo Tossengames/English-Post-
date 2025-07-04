@@ -1,3 +1,4 @@
+# teacher_post.py (Modified)
 import os
 import random
 from common import read_json, write_json, ask_ai, post_to_facebook, clean_ai_output
@@ -6,52 +7,68 @@ import sys # Import sys to read command line arguments
 
 # --- Import random_post functions ---
 # These functions should be defined in your separate random_post.py file
-from random_post import generate_did_you_know_post, generate_vocabulary_challenge_post, generate_grammar_tip_post
+# Note: These are not used directly in this modified teacher_post.py, as random_post.py now handles its own generation.
+# from random_post import generate_did_you_know_post, generate_vocabulary_challenge_post, generate_grammar_tip_post
 
 CHARACTER_DIR = "characters"
 LEARNING_MATERIALS_DIR = "learning_materials"
 
-def get_next_teacher(teacher_meta: dict, post_state: dict) -> str:
-    """Determines the next teacher based on rotation."""
-    teacher_ids = sorted(teacher_meta.keys(), key=int)
-    current_teacher_index = post_state.get("current_teacher_index", 0)
+def get_next_teacher_for_slot(slot_index: int, teacher_meta: dict) -> str:
+    """
+    Determines the teacher ID based on the slot index.
+    Slot 0: Teacher 1
+    Slot 2: Teacher 2
+    Slot 4: Teacher 3
+    """
+    if slot_index == 0:
+        return "1"
+    elif slot_index == 2:
+        return "2"
+    elif slot_index == 4:
+        return "3"
+    return None # Should not happen if slots are managed correctly
 
-    if not teacher_ids:
-        print("No teachers configured in teacher_meta.json.")
-        return None
+def advance_teacher_lesson_index(teacher_id: str, teacher_meta: dict, post_state: dict):
+    """
+    Advances the lesson index for a specific teacher.
+    This function is called by main, not directly.
+    """
+    lessons = teacher_meta.get(teacher_id, {}).get("lesson_queue", [])
+    if not lessons:
+        print(f"No lesson queue found for teacher {teacher_id}. Cannot advance lesson index.")
+        return
 
-    next_teacher_id = teacher_ids[current_teacher_index % len(teacher_ids)]
-    
-    return next_teacher_id
+    teacher_state = post_state.setdefault("teachers", {}).setdefault(teacher_id, {"lesson_index": 0})
+    current_lesson_index = teacher_state.get("lesson_index", 0)
 
-def advance_teacher_index(post_state: dict, teacher_meta: dict):
-    """Advances the main teacher index for the next cycle."""
-    teacher_ids = sorted(teacher_meta.keys(), key=int)
-    post_state["current_teacher_index"] = (post_state.get("current_teacher_index", 0) + 1) % len(teacher_ids)
+    next_lesson_index = (current_lesson_index + 1) % len(lessons)
+    teacher_state["lesson_index"] = next_lesson_index
+    print(f"Advanced teacher {teacher_id} lesson index from {current_lesson_index} to {next_lesson_index}.")
 
 
-def get_next_lesson(teacher_id: str, teacher_meta: dict, post_state: dict) -> str:
-    """Gets the next lesson from the teacher's queue."""
+def get_current_lesson_content(teacher_id: str, teacher_meta: dict, post_state: dict) -> str:
+    """
+    Gets the current lesson from the teacher's queue without advancing the index.
+    The advancement is handled by advance_teacher_lesson_index after a successful post.
+    """
     lessons = teacher_meta.get(teacher_id, {}).get("lesson_queue", [])
     if not lessons:
         print(f"No lesson queue found for teacher {teacher_id}.")
         return None
 
-    # Get teacher-specific state or initialize it
     teacher_state = post_state.setdefault("teachers", {}).setdefault(teacher_id, {"lesson_index": 0})
     lesson_index = teacher_state.get("lesson_index", 0)
 
     if lesson_index >= len(lessons):
-        # All lessons for this teacher are done, reset index for next cycle
-        print(f"Teacher {teacher_id} has completed all lessons in queue. Resetting lesson index.")
+        # This case should ideally be caught and handled by advance_teacher_lesson_index
+        # if the lesson_index was not reset properly in a previous run.
+        # For safety, reset here if somehow out of bounds.
+        print(f"Warning: Teacher {teacher_id} lesson index {lesson_index} out of bounds ({len(lessons)}). Resetting to 0.")
         lesson_index = 0
-        teacher_state["lesson_index"] = 0 # Reset for next cycle
+        teacher_state["lesson_index"] = 0
 
-    next_lesson = lessons[lesson_index]
-    # Advance lesson index for this teacher for the next post
-    teacher_state["lesson_index"] = (lesson_index + 1) % len(lessons)
+    return lessons[lesson_index]
 
-    return next_lesson
 
 def get_random_teacher_image(teacher_id: str, teacher_info: dict) -> str:
     """
@@ -69,18 +86,33 @@ def get_random_teacher_image(teacher_id: str, teacher_info: dict) -> str:
     print(f"No images found for teacher {teacher_id} in {teacher_image_dir}.")
     return None
 
-def generate_teacher_post(teacher_id: str, lesson_content: str, teacher_info: dict) -> str:
+def generate_teacher_post(teacher_id: str, lesson_content: str, teacher_info: dict, post_number_of_day: int) -> str:
     """
     Generates the teacher's post using AI based on lesson content and style.
+    Includes the post number of the day in the title and a shorter greeting.
     """
     teacher_name = teacher_info.get("name", "The Teacher")
     posting_style = teacher_info.get("posting_style", "friendly") # Default to 'friendly' if not specified
+
+    # Adjusting the title creation to include the post number of the day
+    # Assuming post_number_of_day is 0-indexed, display it as 1-6.
+    display_post_number_for_title = (post_number_of_day // 2) + 1 # Converts 0,1->1; 2,3->2; 4,5->3 for teacher index
+    
+    # Decide which teacher is speaking for the title
+    if post_number_of_day == 0:
+        teacher_in_title = "الأستاذة ندى"
+    elif post_number_of_day == 2:
+        teacher_in_title = "الأستاذة ريتا"
+    elif post_number_of_day == 4:
+        teacher_in_title = "الأستاذة سارة"
+    else:
+        teacher_in_title = teacher_name # Fallback, though controlled by main
 
     prompt = f"""
     أنت معلم لغة إنجليزية موجه للطلاب العرب. اسمك هو {teacher_name}، وشخصيتك هي {posting_style}.
     مهمتك هي شرح الدرس التالي بأسلوب تعليمي، مكتوب بواسطة إنسان، ومناسب لفيسبوك.
     
-    **في بداية المنشور، قم بإنشاء عنوان واضح ومباشر يحدد مستوى الدرس واسم المعلمة. يجب أن يكون العنوان على النحو التالي: 'درس اليوم: [مستوى الدرس باللغة العربية] مع {teacher_name}'. على سبيل المثال: 'درس اليوم: مستوى مبتدئ مع الأستاذة ندى'.**
+    **في بداية المنشور، ابدأ بتحية قصيرة جداً (مثل "أهلاً!" أو "مرحباً!"). ثم قم بإنشاء عنوان واضح ومباشر يحدد مستوى الدرس واسم المعلمة ورقم المنشور لهذا اليوم. يجب أن يكون العنوان على النحو التالي: 'درس اليوم: [مستوى الدرس باللغة العربية] - المنشور رقم {display_post_number_for_title} مع {teacher_in_title}'. على سبيل المثال: 'درس اليوم: مستوى مبتدئ - المنشور رقم 1 مع الأستاذة ندى'.**
 
     **قواعد التنسيق الهامة واللغة:**
     1.  **اللغة الأساسية هي العربية:** يجب أن يكون المحتوى الرئيسي للمنشور باللغة العربية الفصحى.
@@ -124,7 +156,7 @@ def generate_exam_post(teacher_meta: dict, post_log: dict) -> str:
     """
     recent_lesson_topics = []
     if "posts" in post_log:
-        teacher_posts = [p for p in post_log["posts"] if p.get("type") == "teacher_lesson"]
+        teacher_posts = [p for p in post_log["posts"] if p.get("type") and "teacher_lesson" in p.get("type")]
         for post in teacher_posts[-5:]: # Look at the last 5 teacher lessons
             preview = post.get("content_preview", "").replace("...", "").strip()
             # Simple keyword extraction for exam topics - can be improved if needed
@@ -188,67 +220,50 @@ def generate_exam_post(teacher_meta: dict, post_log: dict) -> str:
 
     return final_post_content
 
-# We'll adjust the main function to accept the manual_post_slot_override directly
-# from the workflow dispatch.
-def main():
-    # Parse command line arguments for specific_teacher_id and manual_post_slot_override
-    # sys.argv[0] is the script name
-    # sys.argv[1] would be specific_teacher_id (or 'None' or '')
-    # sys.argv[2] would be manual_post_slot_override (or 'None' or '')
-
-    specific_teacher_id = None
-    if len(sys.argv) > 1 and sys.argv[1] not in ('None', ''):
-        specific_teacher_id = sys.argv[1]
-
-    manual_post_slot_override = None
-    if len(sys.argv) > 2 and sys.argv[2] not in ('None', ''):
-        try:
-            manual_post_slot_override = int(sys.argv[2])
-            print(f"Manual post slot override detected: {manual_post_slot_override}")
-        except ValueError:
-            print(f"Warning: Invalid manual_post_slot value '{sys.argv[2]}'. Ignoring override.")
-            manual_post_slot_override = None
-
+def main(current_post_slot: int = None, specific_teacher_id: str = None):
+    """
+    Main function to generate and post content based on the current slot or manual override.
+    current_post_slot: 0-5 for scheduled slots, None for specific_teacher_id test.
+    specific_teacher_id: Used for manual testing of a single teacher post.
+    """
     teacher_meta = read_json("teacher_meta.json")
     post_state = read_json("post_state.json")
     post_log = read_json("post_log.json")
 
     # Initialize state variables if they don't exist
-    post_state.setdefault("current_teacher_index", 0)
     post_state.setdefault("days_since_last_exam", 0)
-    post_state.setdefault("post_slot_of_day", 0) # 0 = 1st post, 1 = 2nd, 2 = 3rd
     post_state.setdefault("teachers", {})
+    # current_post_cycle_index is now managed by post_to_facebook.py and passed in
+    # This script will only advance global state if it's the last post of a full cycle.
 
-    EXAM_INTERVAL_DAYS = 5 # An exam every 5 days of posting cycles (which is 15 individual posts in total)
+    EXAM_INTERVAL_DAYS = 5 # An exam every 5 days of posting cycles (which is 30 individual posts in total, 6 posts/day * 5 days)
 
-    # --- Manual trigger logic for specific teacher testing ---
+    post_content = ""
+    image_to_post = None
+    post_type_log = ""
+
+    # --- Manual trigger logic for specific teacher testing (from workflow_dispatch) ---
     if specific_teacher_id:
         print(f"Manual test run for specific teacher: {specific_teacher_id}")
         if specific_teacher_id not in teacher_meta:
-            print(f"Error: Teacher ID '{specific_teacher_id}' not found in teacher_meta.json. Please check the ID.")
+            print(f"Error: Teacher ID '{specific_teacher_id}' not in teacher_meta.json. Please check.")
             return
 
-        selected_teacher_id = specific_teacher_id
-        teacher_info = teacher_meta.get(selected_teacher_id, {})
-        
-        # For testing, we get the next lesson but don't persist index change in main post_state
-        temp_teacher_state = post_state.setdefault("teachers", {}).get(selected_teacher_id, {"lesson_index": 0}).copy()
-        temp_post_state_for_lesson_getter = {"teachers": {selected_teacher_id: temp_teacher_state}}
-        lesson_content = get_next_lesson(selected_teacher_id, teacher_meta, temp_post_state_for_lesson_getter)
-        # Revert lesson index change for testing purposes, if it was modified
-        if selected_teacher_id in post_state["teachers"]:
-            post_state["teachers"][selected_teacher_id]["lesson_index"] = temp_teacher_state["lesson_index"]
-
-        image_to_post = get_random_teacher_image(selected_teacher_id, teacher_info)
+        teacher_info = teacher_meta.get(specific_teacher_id, {})
+        lesson_content = get_current_lesson_content(specific_teacher_id, teacher_meta, post_state)
+        image_to_post = get_random_teacher_image(specific_teacher_id, teacher_info)
 
         if not lesson_content:
-            print(f"No lessons found for specific teacher {selected_teacher_id}. Cannot generate post.")
+            print(f"No lessons found for specific teacher {specific_teacher_id}. Cannot generate post.")
             return
 
-        post_content = generate_teacher_post(selected_teacher_id, lesson_content, teacher_info)
-        post_type_log = f"teacher_lesson_test_{selected_teacher_id}" # Indicate this is a test post
+        # For specific teacher tests, we can use slot 0 (or any) for title formatting,
+        # but it doesn't affect the actual sequence.
+        # We also don't advance the lesson index for test posts.
+        post_content = generate_teacher_post(specific_teacher_id, lesson_content, teacher_info, 0)
+        post_type_log = f"teacher_lesson_test_{specific_teacher_id}"
 
-        print(f"Generated test post for {teacher_info.get('name', selected_teacher_id)}")
+        print(f"Generated test post for {teacher_info.get('name', specific_teacher_id)}")
         
         if post_to_facebook(post_content, image_to_post):
             post_log.setdefault("posts", []).append({
@@ -264,95 +279,102 @@ def main():
             print("Failed to post test content to Facebook.")
         return # Exit after specific teacher run
 
-    # --- Determine the current_slot for THIS run ---
-    # If a manual override is provided, use it. Otherwise, use the slot from post_state.json.
-    current_slot = post_state.get("post_slot_of_day", 0) # Default to 0 if not found
-    if manual_post_slot_override is not None:
-        current_slot = manual_post_slot_override % 3 # Ensure it's 0, 1, or 2
-        print(f"Overriding to manual slot: {current_slot}")
-    else:
-        print(f"Running for scheduled/sequential slot: {current_slot}")
-
-    # --- Regular Scheduled Posting Logic (main daily cycle or manual slot) ---
-    post_content = ""
-    image_to_post = None
-    post_type_log = ""
-
-    selected_teacher_id = get_next_teacher(teacher_meta, post_state)
-    teacher_info = teacher_meta.get(selected_teacher_id, {})
-
-    # Random post types available (from random_post.py)
-    random_post_generators = [
-        generate_did_you_know_post,
-        generate_vocabulary_challenge_post,
-        generate_grammar_tip_post
-    ]
-
-    # Check for exam only at the first slot of the day (current_slot == 0)
-    # This also acts as the first potential post for a manual '0' selection
-    if post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS and current_slot == 0:
-        print(f"It's exam day! Generating Exam Post for slot {current_slot}. (Days since last exam: {post_state['days_since_last_exam']})")
+    # --- Regular Scheduled Posting Logic (managed by current_post_slot) ---
+    # Determine if it's an exam slot (always slot 0, replacing Teacher 1)
+    # The decision to post an exam is only made if it's slot 0 of the day.
+    if current_post_slot == 0 and post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS:
+        print(f"It's exam day! Generating Exam Post for slot {current_post_slot}.")
         post_content = generate_exam_post(teacher_meta, post_log)
         post_type_log = "exam"
         post_state["days_since_last_exam"] = 0 # Reset exam counter after posting
-        # Note: manual_post_slot_override == 0 will also trigger this if it's exam day.
-        # This means manual 0 on exam day will post an exam.
-    elif current_slot == 0 or current_slot == 2: # First and Third post are Teacher Posts
-        print(f"Generating Teacher Post for slot {current_slot}")
-        lesson_content = get_next_lesson(selected_teacher_id, teacher_meta, post_state)
-        image_to_post = get_random_teacher_image(selected_teacher_id, teacher_info)
-        post_content = generate_teacher_post(selected_teacher_id, lesson_content, teacher_info)
-        post_type_log = "teacher_lesson"
-            
-    elif current_slot == 1: # Second post is a Random Post
-        print(f"Generating Random Post for slot {current_slot}")
-        selected_random_generator = random.choice(random_post_generators)
-        post_content = selected_random_generator()
-        post_type_log = "random_content"
-        image_to_post = None # Random posts typically don't have images
+    
+    # Otherwise, proceed with teacher or random posts based on slot
+    elif current_post_slot % 2 == 0: # Slots 0, 2, 4 are teacher posts
+        # Determine the teacher based on the slot
+        teacher_id_for_slot = get_next_teacher_for_slot(current_post_slot, teacher_meta)
+        if not teacher_id_for_slot:
+            print(f"Error: No teacher mapped for slot {current_post_slot}. Skipping post.")
+            return
 
-    # --- State Update Logic ---
-    # Only advance post_slot_of_day if it's NOT a manual override.
-    if manual_post_slot_override is None:
-        # Advance slot for next time this script runs today
-        post_state["post_slot_of_day"] = (current_slot + 1) % 3
-        print(f"Advancing scheduled slot to: {post_state['post_slot_of_day']}")
+        teacher_info = teacher_meta.get(teacher_id_for_slot, {})
+        print(f"Generating Teacher Post for slot {current_post_slot} ({teacher_info.get('name', teacher_id_for_slot)})")
         
-        # Advance exam counter and teacher_index only if it's the last post of the daily cycle (slot 2 completing)
-        if post_state["post_slot_of_day"] == 0: # It means all 3 posts for the day are done
-            # If an exam was posted, days_since_last_exam was already reset within the if block.
-            # Otherwise, increment for a regular day.
-            if post_type_log != "exam": # Only increment if it wasn't an exam day that reset it
-                post_state["days_since_last_exam"] = post_state.get("days_since_last_exam", 0) + 1
-                print(f"Incrementing days_since_last_exam to: {post_state['days_since_last_exam']}")
-            advance_teacher_index(post_state, teacher_meta) # Advance teacher for next day's cycle
-            print(f"Advanced teacher index to: {post_state['current_teacher_index']}")
-    else:
-        print("Manual override detected, not advancing post_slot_of_day for scheduled sequence.")
-        # If specific_teacher_id was also used, it would exit before this.
-        # Lesson index and teacher index for specific teacher are updated *within* get_next_lesson
-        # and advance_teacher_index respectively, which are called for both manual/scheduled runs.
-        # The main thing we avoid here is advancing the `post_slot_of_day` if it was a manual run.
+        lesson_content = get_current_lesson_content(teacher_id_for_slot, teacher_meta, post_state)
+        image_to_post = get_random_teacher_image(teacher_id_for_slot, teacher_info)
+        post_content = generate_teacher_post(teacher_id_for_slot, lesson_content, teacher_info, current_post_slot)
+        post_type_log = f"teacher_lesson_{teacher_id_for_slot}"
+        
+        # Advance the lesson for this specific teacher only after generating the post
+        advance_teacher_lesson_index(teacher_id_for_slot, teacher_meta, post_state)
+            
+    elif current_post_slot % 2 == 1: # Slots 1, 3, 5 are random posts
+        print(f"Generating Random Post for slot {current_post_slot}")
+        # Call the random_post.main() function (if it returns content, otherwise generate directly here)
+        # Assuming random_post.main() generates and posts itself,
+        # or we need to import its generation functions.
+        # For simplicity, let's assume random_post.py contains functions to generate, not post.
+        # This will be handled by the call from post_to_facebook.py
+        # THIS PART OF THE LOGIC SHOULD NOT BE IN teacher_post.py anymore for random posts.
+        # The calling script (post_to_facebook.py) will decide what to call.
+        pass # This branch will now be handled by post_to_facebook.py calling random_post.main()
 
 
-    # Attempt to post to Facebook
-    if post_content:
+    # Attempt to post to Facebook IF content was generated here (i.e., not a random post slot)
+    if post_content: # Only if a teacher or exam post was generated
         if post_to_facebook(post_content, image_to_post):
             post_log.setdefault("posts", []).append({
                 "timestamp": datetime.datetime.now().isoformat(),
                 "type": post_type_log,
                 "content_preview": post_content[:200] + "...",
                 "image_used": image_to_post if image_to_post else "none",
-                "is_manual_override": manual_post_slot_override is not None # Log if it was a manual run
+                "slot_index": current_post_slot # Log the slot index
             })
             write_json("post_log.json", post_log)
             print("Post logged successfully.")
         else:
             print("Failed to post content to Facebook. Post state not updated for failed post.")
     else:
-        print("No content generated to post.")
+        # This branch will be hit if it was a random post slot (1, 3, 5)
+        # as post_content is not generated in this script for those slots.
+        # The calling script (post_to_facebook.py) will handle random_post.main()
+        print(f"No teacher/exam content generated in teacher_post.py for slot {current_post_slot}.")
 
+    # Increment days_since_last_exam ONLY if the full 6-post cycle is completed (slot 5 has been processed)
+    # This logic is best handled in post_to_facebook.py as it orchestrates the full cycle.
+    # We will remove this responsibility from teacher_post.py
+    
     write_json("post_state.json", post_state) # Always save post_state at the end
 
 if __name__ == "__main__":
-    main()
+    # For direct testing, you might run: python teacher_post.py --slot 0
+    # Or: python teacher_post.py --teacher 1
+    # This is mainly for scheduled/orchestrated runs now.
+    
+    # Parse command line arguments for manual testing
+    # Expecting: python teacher_post.py [specific_teacher_id] [current_post_slot]
+    
+    _specific_teacher_id = None
+    _current_post_slot = None
+
+    if len(sys.argv) > 1 and sys.argv[1] not in ('None', ''):
+        _specific_teacher_id = sys.argv[1]
+
+    if len(sys.argv) > 2 and sys.argv[2] not in ('None', ''):
+        try:
+            _current_post_slot = int(sys.argv[2])
+        except ValueError:
+            print(f"Warning: Invalid current_post_slot value '{sys.argv[2]}'. Ignoring.")
+
+    # If a specific teacher ID is provided, it's a test run for that teacher
+    if _specific_teacher_id:
+        main(specific_teacher_id=_specific_teacher_id)
+    # Otherwise, assume it's a scheduled run and current_post_slot must be provided
+    elif _current_post_slot is not None:
+        main(current_post_slot=_current_post_slot)
+    else:
+        print("Usage: python teacher_post.py [specific_teacher_id] [current_post_slot]")
+        print("  or:  python teacher_post.py --slot <0-5> (for scheduled run simulation)")
+        print("  or:  python teacher_post.py --teacher <ID> (for specific teacher test)")
+        print("No arguments provided, exiting.")
+        sys.exit(1)
+
