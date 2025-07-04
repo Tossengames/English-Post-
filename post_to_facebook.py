@@ -75,7 +75,7 @@ def generate_ai_post(prompt_text):
     except Exception as e:
         print(f"Error generating AI content: {e}")
         # Attempt to get text from candidate if primary response failed
-        if response and response.candidates:
+        if response and response.candidates: # 'response' might not be defined if the API call truly failed at its core
             for candidate in response.candidates:
                 if candidate.content and hasattr(candidate.content, 'parts') and candidate.content.parts:
                     for part in candidate.content.parts:
@@ -126,6 +126,7 @@ class TeacherPost:
         )
 
         is_exam = False
+        # Teacher ID "1" (string) is for the exam post logic
         if teacher_id_str == "1" and self.post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS:
             print(f"It's time for an exam post for Teacher {teacher['name']}!")
             prompt = (
@@ -268,7 +269,7 @@ def main():
             "3": {"lesson_index": 0}
         },
         "current_post_cycle_index": 0, # The primary index for daily post sequence (0-5)
-        "posts_today_hours": [], # Tracks the *hours* for which a post was made today (for original schedule)
+        "posts_today_hours": [], # Tracks the *hours* for which a post was made today
         "last_run_date": ""
     })
     post_log = read_json("post_log.json", default_value=[])
@@ -334,7 +335,8 @@ def main():
             print("Manual run attempted but failed or had invalid input. State/log saved.")
         sys.exit(0) # Exit cleanly if a manual run was processed, whether successful or not
 
-    # --- Handle Scheduled Runs ---
+
+    # --- Handle Scheduled Runs (REVERTED TO ORIGINAL LOGIC) ---
     
     # Reset daily cycle index and posts_today_hours at the start of a new day
     if post_state.get("last_run_date") != today_date:
@@ -346,40 +348,49 @@ def main():
         write_json("post_state.json", post_state) 
         print("Post state reset for new day and saved.")
     
-    # --- TEMPORARY TEST OVERRIDE START ---
-    # FOR TESTING ONLY: This section bypasses the exact time matching and sequential slot check
-    # to allow rapid cycling through all post types (0-5) for testing.
-    # The workflow cron (e.g., every 2 minutes) will trigger this, and each time,
-    # it will try to process the next slot in the sequence.
-    current_slot_to_process = post_state["current_post_cycle_index"]
-    print(f"*** TEST MODE ACTIVE *** Forcing processing of slot {current_slot_to_process} to observe sequence.")
-    # --- TEMPORARY TEST OVERRIDE END ---
+    # Determine the expected slot for the current time
+    expected_slot_index = get_current_slot_index(current_utc_hour_minute)
 
-    # Determine post type based on current_slot_to_process (which is now determined by the TEST MODE override)
+    if expected_slot_index == -1:
+        print(f"No specific post scheduled for {current_utc_hour_minute} UTC. Skipping this run.")
+        sys.exit(0)
+
+    # Prevent duplicate posts for the same time slot on the same day
+    current_scheduled_hour = POSTING_TIMES_UTC[expected_slot_index].split(':')[0]
+    if current_scheduled_hour in post_state.get("posts_today_hours", []):
+        print(f"A post for {current_utc_hour_minute} UTC (slot {expected_slot_index}) has already been triggered today. Skipping duplicate.")
+        sys.exit(0)
+
+    # Ensure posts are triggered in the correct sequence for the day
+    if expected_slot_index != post_state["current_post_cycle_index"]:
+        print(f"Scheduled time ({current_utc_hour_minute}, slot {expected_slot_index}) does not match expected cycle index ({post_state['current_post_cycle_index']}). Skipping this run to maintain sequence.")
+        sys.exit(0)
+
+    # If all checks pass, proceed with posting
+    print(f"Proceeding with post for scheduled slot: {expected_slot_index}")
+    current_slot_to_process = expected_slot_index
+
+    # Determine post type based on current_slot_to_process
     if current_slot_to_process % 2 == 0: # Teacher posts (0, 2, 4)
-        print(f"Executing Teacher post for Slot {current_slot_to_process}...")
+        print("It's time for a teacher lesson post (scheduled)!")
         teacher_post_handler = TeacherPost(post_state, post_log)
         teacher_post_handler.main(current_post_slot=current_slot_to_process, post_state=post_state, post_log=post_log)
 
         # Handle exam counter reset if it was an exam post (slot 0 only)
-        # This logic remains, even in test mode, to simulate day progression
-        # Note: teacher_id "1" (string) corresponds to Slot 0
         if current_slot_to_process == 0 and post_state.get("teacher_progress", {}).get("1", {}).get("lesson_index", 0) > 0 and post_state["days_since_last_exam"] >= EXAM_INTERVAL_DAYS:
-            post_state["days_since_last_exam"] = 0 # Reset only if an exam was actually due and posted
+            post_state["days_since_last_exam"] = 0
             print("Exam posted, resetting days_since_last_exam.")
         
     else: # Random posts (1, 3, 5)
-        print(f"Executing Random post for Slot {current_slot_to_process}...")
+        print("It's time for a random post (scheduled)!")
         random_post_handler = RandomPost(post_state, post_log)
         random_post_handler.main(current_post_slot=current_slot_to_process, post_state=post_state, post_log=post_log) 
 
-    # After a successful post call, update the cycle index for the next run
-    # This is crucial for the sequential testing.
-    post_state["posts_today_hours"].append(current_utc_hour_minute.split(':')[0]) # Still log the actual hour, though less relevant for forced test
+    # After a successful post call, update the state for the next scheduled run
+    post_state["posts_today_hours"].append(current_scheduled_hour) # Track the hour for which post was made
     post_state["current_post_cycle_index"] = (current_slot_to_process + 1) % len(POSTING_TIMES_UTC)
     
     # If we just completed the last slot of the day (slot 5), advance exam counter.
-    # This check relies on the cycle index wrapping back to 0.
     if post_state["current_post_cycle_index"] == 0: # Means all 6 posts completed and cycle reset
         post_state["days_since_last_exam"] = post_state.get("days_since_last_exam", 0) + 1
         print(f"Daily cycle complete. Incrementing days_since_last_exam to: {post_state['days_since_last_exam']}")
