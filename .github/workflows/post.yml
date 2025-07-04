@@ -23,20 +23,11 @@ on:
           - '5' # Random Post slot
         default: 'None'
 
-  schedule:
-    # Schedule for 6 posts a day (EEST to UTC conversion)
-    # Slot 0 (Teacher 1 / Exam): 8:00 AM EEST -> 5:00 AM UTC
-    - cron: '0 5 * * *'
-    # Slot 1 (Random):    10:00 AM EEST -> 7:00 AM UTC
-    - cron: '0 7 * * *'
-    # Slot 2 (Teacher 2): 12:00 PM EEST -> 9:00 AM UTC
-    - cron: '0 9 * * *'
-    # Slot 3 (Random):    2:00 PM EEST -> 11:00 AM UTC
-    - cron: '0 11 * * *'
-    # Slot 4 (Teacher 3): 4:00 PM EEST -> 1:00 PM UTC (13:00 UTC)
-    - cron: '0 13 * * *'
-    # Slot 5 (Random):    6:00 PM EEST -> 3:00 PM UTC (15:00 UTC)
-    - cron: '0 15 * * *'
+    schedule:
+    # Temporarily set to run every minute for testing.
+    # IMPORTANT: Change this back to your desired schedule after testing!
+    - cron: '* * * * *' # This cron expression means "every minute"
+
 
 jobs:
   post:
