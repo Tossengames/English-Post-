@@ -1,33 +1,31 @@
-# .github/workflows/daily_facebook_post.yml (Modified)
 name: Daily Facebook Post
 
 on:
-  workflow_dispatch: # This enables the "Run workflow" button on GitHub Actions
+  workflow_dispatch:
     inputs:
       specific_teacher_id:
         description: 'Enter teacher ID (1, 2, 3) for a single test post (leaves blank for normal daily sequence)'
         required: false
         type: string
       
-      manual_run_slot: # Renamed and simplified
+      manual_run_slot:
         description: 'Manual Post Slot (0-5 for specific type/teacher, or leave blank for schedule)'
-        required: false # This input is optional
+        required: false
         type: choice
         options:
-          - 'None' # Default for scheduled sequence
-          - '0' # Teacher 1 / Exam slot
-          - '1' # Random Post slot
-          - '2' # Teacher 2 slot
-          - '3' # Random Post slot
-          - '4' # Teacher 3 slot
-          - '5' # Random Post slot
+          - 'None'
+          - '0'
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
         default: 'None'
 
-    schedule:
-    # Temporarily set to run every minute for testing.
-    # IMPORTANT: Change this back to your desired schedule after testing!
-    - cron: '* * * * *' # This cron expression means "every minute"
-
+  schedule:
+    # TEMPORARY: Runs every 2 minutes for testing purposes
+    # IMPORTANT: Revert this after testing!
+    - cron: '*/2 * * * *' # This means "at every 2nd minute" (e.g., :00, :02, :04, etc.)
 
 jobs:
   post:
@@ -53,8 +51,7 @@ jobs:
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          # Pass manual inputs as environment variables to post_to_facebook.py
           SPECIFIC_TEACHER_ID: ${{ github.event.inputs.specific_teacher_id }}
           MANUAL_RUN_SLOT: ${{ github.event.inputs.manual_run_slot }}
         run: |
-          python post_to_facebook.py # This is now the main entry point
+          python post_to_facebook.py
