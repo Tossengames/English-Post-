@@ -32,11 +32,6 @@ def read_json(filename, default_value=None):
             return default_value
         return {}
 
-def write_json(filename, data):
-    """Writes data to a JSON file."""
-    with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-
 def ask_ai(prompt_text):
     """Sends a prompt to the Gemini AI model and returns the response text."""
     response = None
@@ -102,7 +97,7 @@ def clean_ai_output(text):
 
     return cleaned_content
 
-# --- Post to Facebook Function (UPDATED for local images) ---
+# --- Post to Facebook Function ---
 def post_to_facebook(message, image_path=None):
     """
     Posts a message to Facebook, optionally with a local image file.
@@ -148,7 +143,7 @@ def post_to_facebook(message, image_path=None):
         print(response.json())
         return False
 
-# --- Teacher Image Selection Logic (NEW) ---
+# --- Teacher Image Selection Logic ---
 def get_random_teacher_image_path(teacher_info: dict) -> str:
     """
     Selects a random image file path for the teacher from their designated folder.
@@ -168,7 +163,7 @@ def get_random_teacher_image_path(teacher_info: dict) -> str:
     print(f"No images found for teacher in {teacher_image_dir}. Post will be text-only.")
     return None
 
-# --- Teacher Post Generation Logic (UPDATED for image path) ---
+# --- Teacher Post Generation Logic ---
 def generate_teacher_post_content(teacher_meta_data):
     """
     Randomly selects a teacher and a lesson, then generates a post.
@@ -258,8 +253,7 @@ def generate_random_general_post_content():
 def main():
     # Load necessary data
     teacher_meta_data = read_json("teacher_meta.json", default_value={})
-    post_log = read_json("post_log.json", default_value={"posts": []})
-    post_log.setdefault("posts", []) 
+    # post_log related lines have been removed
 
     if not teacher_meta_data and not get_random_general_prompt(): 
         print("ERROR: Both teacher_meta.json is empty and no general random prompts are defined. Cannot generate any posts.")
@@ -282,32 +276,23 @@ def main():
 
     post_content = None
     image_to_post = None # This will now store the local image path
-    log_entry_details = {} 
+    # log_entry_details is no longer needed as we're not logging posts
 
     if chosen_post_type == "teacher":
         post_content, image_to_post, teacher_name, lesson_topic = generate_teacher_post_content(teacher_meta_data)
-        if post_content:
-            log_entry_details = {
-                "post_category": "teacher_lesson",
-                "teacher_name": teacher_name,
-                "lesson_topic": lesson_topic
-            }
-        else:
+        if not post_content: # If teacher post generation failed
             print("Failed to generate content for a teacher post. Attempting a random general post instead if possible.")
-            if "random_general" in post_type_options:
+            if "random_general" in post_type_options: # Check if fallback is an option
                 chosen_post_type = "random_general" 
             else:
                 print("No fallback to random general post. Exiting.")
                 sys.exit(1)
 
     if chosen_post_type == "random_general": 
-        post_content = generate_random_general_post_content()
-        if post_content:
-            log_entry_details = {
-                "post_category": "random_general",
-                "topic_type": "AI_Generated_Random_Prompt" 
-            }
-        else:
+        # Only attempt to generate if it wasn't already generated (e.g., as a fallback)
+        if post_content is None: 
+            post_content = generate_random_general_post_content()
+        if not post_content:
             print("Failed to generate content for a random general post. Exiting.")
             sys.exit(1) 
 
@@ -320,17 +305,9 @@ def main():
         # Pass the local image path to the post_to_facebook function
         success = post_to_facebook(post_content, image_to_post)
         if success:
-            post_log["posts"].append({
-                "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
-                "type": log_entry_details.get("post_category", "unknown"),
-                "content_preview": post_content[:200] + "..." if len(post_content) > 200 else post_content,
-                "image_posted": bool(image_to_post), # Log whether an image was attempted
-                **{k: v for k, v in log_entry_details.items() if k != "post_category"} 
-            })
-            write_json("post_log.json", post_log)
-            print("Post successful and log updated.")
+            print("Post successful!")
         else:
-            print("Post failed. Log not updated for this entry.")
+            print("Post failed.")
     else:
         print("No content was generated for posting. Exiting.")
 
