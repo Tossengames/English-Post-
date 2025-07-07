@@ -1,10 +1,10 @@
-name: Random Daily Facebook Post
+name: Automated Facebook Teacher Posts
 
 on:
   schedule:
-    # Runs 6 times a day, starting at 5:00 AM UTC (8:00 AM EEST)
-    # Corresponding EEST times (UTC+3): 8 AM, 12 PM, 4 PM, 8 PM, 12 AM, 4 AM
-    - cron: '0 5,9,13,17,21,1 * * *' 
+    # Runs 4 times a day at 5:00 AM, 11:00 AM, 5:00 PM, 11:00 PM UTC
+    # Corresponding EEST times (UTC+3): 8 AM, 2 PM, 8 PM, 2 AM (next day)
+    - cron: '0 5,11,17,23 * * *' 
   workflow_dispatch:
     # This allows manual triggering from the GitHub Actions tab.
 
@@ -27,9 +27,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests google-generativeai
 
-      - name: Run Random Post Script
+      - name: Run Teacher Post Script
         env:
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python post_to_facebook.py
+          PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }} # Make sure this secret is added!
+        run: python teacher_post.py
+
