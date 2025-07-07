@@ -3,7 +3,8 @@ import os
 import datetime
 import requests
 import google.generativeai as genai
-import re # Added for regular expressions to clean markdown
+import re
+import random
 
 # Configure Google Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -13,6 +14,11 @@ if GEMINI_API_KEY:
 else:
     print("Warning: GEMINI_API_KEY not set. AI functions will not work.")
     MODEL = None
+
+# Configure Pixabay API Key
+PIXABAY_API_KEY = os.getenv('PIXABAY_KEY')
+if not PIXABAY_API_KEY:
+    print("Warning: PIXABAY_KEY not set. Pixabay image fetching will not work.")
 
 # --- AI Interaction ---
 def ask_ai(prompt: str) -> str:
@@ -24,27 +30,34 @@ def ask_ai(prompt: str) -> str:
         raise ValueError("AI model not initialized. GEMINI_API_KEY might be missing.")
     try:
         response = MODEL.generate_content(prompt)
-        # You might need to adjust how to extract text based on the specific API response format
-        return response.text.strip()
+        if hasattr(response, 'text') and response.text.strip():
+            return response.text.strip()
+        else:
+            print("Gemini API primary response was empty or did not contain text.")
+            if response and response.candidates:
+                for candidate in response.candidates:
+                    if candidate.content and hasattr(candidate.content, 'parts') and candidate.content.parts:
+                        for part in candidate.content.parts:
+                            if hasattr(part, 'text') and part.text.strip():
+                                print("Using text from candidate due to primary response issue.")
+                                return part.text.strip()
+            return None
     except Exception as e:
-        print(f"Error calling AI: {e}")
-        return ""
+        print(f"Error generating AI content: {e}")
+        return None
 
 # --- File I/O ---
-def read_json(filepath: str) -> dict:
-    """Reads a JSON file and returns its content."""
+def read_json(filepath: str, default_value=None) -> dict:
+    """Reads a JSON file and returns its content, or a default value if file doesn't exist or is corrupted."""
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except FileNotFoundError:
-        print(f"File not found: {filepath}")
-        return {}
-    except json.JSONDecodeError:
-        print(f"Error decoding JSON from: {filepath}")
-        return {}
+    except (FileNotFoundError, json.JSONDecodeError):
+        print(f"Warning: {filepath} not found or corrupted. Initializing with default value.")
+        return default_value if default_value is not None else {}
     except Exception as e:
         print(f"An error occurred reading JSON from {filepath}: {e}")
-        return {}
+        return default_value if default_value is not None else {}
 
 
 def write_json(filepath: str, data: dict):
@@ -58,16 +71,34 @@ def write_json(filepath: str, data: dict):
 # --- Post Formatting and Cleanup ---
 def clean_ai_output(text: str) -> str:
     """
-    Removes common markdown formatting characters and cleans up extra spaces/newlines.
+    Removes common AI output artifacts, markdown formatting, and ensures hashtags.
     """
-    # Remove bold/italic markdown (** and *)
-    text = re.sub(r'\*\*([^\*]+?)\*\*', r'\1', text) # Removes **text** -> text
-    text = re.sub(r'\*([^\*]+?)\*', r'\1', text)    # Removes *text* -> text
+    text = text.strip()
     
-    # Remove heading markdown (#, ## etc.)
+    # Remove AI introductory phrases (more comprehensive list)
+    text = text.replace("Here's your Facebook post:", "").strip()
+    text = text.replace("Here is the Facebook post:", "").strip()
+    text = text.replace("تفضل منشورك على فيسبوك:", "").strip()
+    text = text.replace("بالتأكيد، إليك منشور الفيسبوك:", "").strip()
+    text = text.replace("إليك منشور الفيسبوك:", "").strip()
+    text = text.replace("هذا هو منشورك!", "").strip()
+    text = text.replace("يمكنني المساعدة في ذلك.", "").strip()
+    text = text.replace("بصفتي نموذجًا لغويا", "").strip()
+    text = text.replace("بصفتي نموذج ذكاء اصطناعي", "").strip()
+    text = text.replace("Sure, here is your post:", "").strip()
+    text = text.replace("Of course, here is your post:", "").strip()
+    text = text.replace("I can help with that.", "").strip()
+    text = text.replace("I am an AI language model and cannot...", "").strip()
+    text = text.replace("As an AI language model, I cannot...", "").strip()
+    text = text.replace("بالتأكيد، إليك ما طلبته:", "").strip()
+    text = text.replace("ها هو:", "").strip()
+    
+    # Remove markdown bold/italic/header formatting
+    text = re.sub(r'\*\*([^\*]+?)\*\*', r'\1', text)
+    text = re.sub(r'\*([^\*]+?)\*', r'\1', text)
     text = re.sub(r'^\s*#+\s*', '', text, flags=re.MULTILINE)
-
-    # Remove code blocks (```) if they accidentally appear
+    
+    # Remove code blocks (```)
     text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
     text = text.replace('```', '')
 
@@ -77,40 +108,93 @@ def clean_ai_output(text: str) -> str:
     # Remove leading/trailing whitespace from lines
     cleaned_lines = [line.strip() for line in text.splitlines()]
     text = '\n'.join(cleaned_lines)
+
+    # Separate hashtags from content and ensure standard hashtags are present
+    lines = text.split('\n')
+    extracted_hashtags = [line for line in lines if line.strip().startswith('#')]
+    content_lines = [line for line in lines if not line.strip().startswith('#')]
     
-    return text.strip() # Final strip
+    cleaned_content = '\n'.join(content_lines).strip()
+
+    # Default hashtags if none or too few are generated
+    default_hashtags = [
+        "#تعلم_اللغة_الإنجليزية",
+        "#لغة_انجليزية",
+        "#دروس_انجليزي",
+        "#EnglishLearning",
+        "#LearnEnglish"
+    ]
+
+    if len(extracted_hashtags) < 3:
+        hashtags_to_add = default_hashtags
+    else:
+        hashtags_to_add = extracted_hashtags
+
+    if not cleaned_content.endswith('\n\n'):
+        cleaned_content += '\n\n'
+    
+    cleaned_content += '\n'.join([h.strip() for h in hashtags_to_add])
+
+    return cleaned_content.strip()
+
+# --- Pixabay Image Interaction ---
+def get_pixabay_image_url(query: str, orientation: str = 'horizontal', safesearch: bool = True) -> str:
+    """
+    Searches Pixabay for an image based on the query and returns a direct image URL.
+    Returns None if no image is found or an error occurs.
+    """
+    if not PIXABAY_API_KEY:
+        print("Pixabay API Key not set. Cannot fetch images.")
+        return None
+
+    url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY}&q={query}&image_type=photo&orientation={orientation}&safesearch={safesearch}&per_page=20"
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+
+        if data['hits']:
+            random_hit = random.choice(data['hits'])
+            print(f"Found Pixabay image for '{query}': {random_hit['webformatURL']}")
+            return random_hit['webformatURL']
+        else:
+            print(f"No Pixabay images found for query: '{query}'.")
+            return None
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching image from Pixabay for query '{query}': {e}")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred with Pixabay API for query '{query}': {e}")
+        return None
 
 # --- Facebook API Interaction ---
-def post_to_facebook(message: str, image_path: str = None) -> bool:
+def post_to_facebook(message: str, image_url: str = None) -> bool:
     """
     Posts content to Facebook using the Graph API.
+    Accepts a direct image URL for sharing.
     """
-    PAGE_ACCESS_TOKEN = os.getenv("FB_PAGE_TOKEN") # Using FB_PAGE_TOKEN as requested
+    PAGE_ACCESS_TOKEN = os.getenv("FB_PAGE_TOKEN")
     PAGE_ID = os.getenv("FB_PAGE_ID")
 
     if not PAGE_ACCESS_TOKEN or not PAGE_ID:
         print("Facebook credentials (FB_PAGE_TOKEN or FB_PAGE_ID) not set in environment variables. Cannot post.")
         return False
 
-    # Base URL for the Facebook Graph API
-    GRAPH_API_VERSION = "v20.0" # Using v20.0, released May 2024
+    GRAPH_API_VERSION = "v20.0"
     GRAPH_API_URL = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
 
     try:
-        if image_path and os.path.exists(image_path):
-            # --- Scenario 1: Posting with an image ---
+        if image_url:
             photo_upload_endpoint = f"{GRAPH_API_URL}/{PAGE_ID}/photos"
-
-            with open(image_path, 'rb') as img_file:
-                files = {'source': img_file}
-                photo_payload = {
-                    'access_token': PAGE_ACCESS_TOKEN,
-                    'caption': message # The text that goes with the image
-                }
-                print(f"Attempting to upload image from: {image_path} with caption to {photo_upload_endpoint}")
-                response = requests.post(photo_upload_endpoint, data=photo_payload, files=files)
+            photo_payload = {
+                'access_token': PAGE_ACCESS_TOKEN,
+                'caption': message,
+                'url': image_url
+            }
+            print(f"Attempting to upload image from URL: {image_url} with caption to {photo_upload_endpoint}")
+            response = requests.post(photo_upload_endpoint, data=photo_payload)
         else:
-            # --- Scenario 2: Posting text-only ---
             feed_post_endpoint = f"{GRAPH_API_URL}/{PAGE_ID}/feed"
             post_payload = {
                 'message': message,
@@ -119,8 +203,7 @@ def post_to_facebook(message: str, image_path: str = None) -> bool:
             print(f"Attempting to post text message to Facebook feed at {feed_post_endpoint}")
             response = requests.post(feed_post_endpoint, data=post_payload)
 
-        # Check the response from Facebook
-        response.raise_for_status() # This will raise an HTTPError for bad responses (4xx or 5xx)
+        response.raise_for_status()
         response_data = response.json()
 
         if response.status_code == 200 and ('id' in response_data or 'post_id' in response_data):
@@ -144,4 +227,3 @@ def get_current_day_of_week_arabic() -> str:
     """Returns the current day of the week in Arabic."""
     days_of_week_arabic = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
     return days_of_week_arabic[datetime.datetime.now().weekday()]
-
