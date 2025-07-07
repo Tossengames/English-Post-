@@ -2,35 +2,30 @@ import os
 import random
 import datetime
 import sys
-from common import ask_ai, post_to_facebook, clean_ai_output, read_json, get_pixabay_image_url # No need for write_json here
+from common import ask_ai, post_to_facebook, clean_ai_output, read_json, get_pixabay_image_url
 
-# LEARNING_MATERIALS_DIR = "learning_materials" # Keep if you have local learning material files, otherwise remove
+# Centralized Pixabay Keywords
+# These keywords will be used randomly when fetching an image for any teacher post.
+# You can expand this list with more relevant terms.
+PIXABAY_GLOBAL_KEYWORDS = [
+    "education", "learning", "classroom", "study", "student", "teacher",
+    "books", "knowledge", "ideas", "inspire", "communication",
+    "reading", "writing", "dictionary", "language", "school supplies",
+    "graduation", "achievement", "success", "teaching"
+]
 
-def get_teacher_image_from_pixabay(teacher_info: dict) -> str:
+def get_teacher_image_from_pixabay() -> str:
     """
-    Selects a Pixabay image URL based on keywords relevant to the teacher/lesson.
-    Prioritizes specific teacher keywords, then general ones.
+    Selects a random keyword from the global list and fetches a Pixabay image.
     """
-    # Try teacher-specific keywords first
-    teacher_keywords = teacher_info.get("pixabay_keywords")
-    if teacher_keywords:
-        selected_keyword = random.choice(teacher_keywords)
-        image_url = get_pixabay_image_url(selected_keyword)
-        if image_url:
-            return image_url
-        else:
-            print(f"No Pixabay image found for teacher-specific keywords '{selected_keyword}'. Trying general keywords.")
-    
-    # Fallback to general keywords
-    general_keywords = ["education", "learning", "classroom", "study", "teacher", "student"]
-    selected_general_keyword = random.choice(general_keywords)
-    print(f"Searching Pixabay for image with general keyword: {selected_general_keyword}")
-    return get_pixabay_image_url(selected_general_keyword)
+    selected_keyword = random.choice(PIXABAY_GLOBAL_KEYWORDS)
+    print(f"Searching Pixabay for image with keyword: '{selected_keyword}'")
+    return get_pixabay_image_url(selected_keyword)
 
 def generate_teacher_lesson_post(teacher_meta: dict) -> tuple[str, str, str, str]:
     """
     Randomly selects a teacher and a random lesson from their queue,
-    then generates a post with a Pixabay image.
+    then generates a post with a Pixabay image using global keywords.
     Returns (post_content, image_url, teacher_name, lesson_topic) or None if failed.
     """
     teacher_ids = list(teacher_meta.keys())
@@ -53,11 +48,9 @@ def generate_teacher_lesson_post(teacher_meta: dict) -> tuple[str, str, str, str
     teacher_name = teacher.get("name", "المعلم")
     posting_style = teacher.get("posting_style", "ودود")
     
-    # Get image URL from Pixabay
-    image_to_post_url = get_teacher_image_from_pixabay(teacher)
+    # Get image URL from Pixabay using global keywords
+    image_to_post_url = get_teacher_image_from_pixabay()
 
-    # The title for a randomly chosen teacher post won't have a slot number
-    # We'll make it general: "درس اليوم: [مستوى الدرس باللغة العربية] مع [اسم المعلمة]"
     # Extract level if it's in the lesson_topic (e.g., "مستوى مبتدئ: Present Simple")
     lesson_level = "درس جديد"
     if ":" in lesson_topic:
