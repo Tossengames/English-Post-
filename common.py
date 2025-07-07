@@ -20,6 +20,27 @@ PIXABAY_API_KEY = os.getenv('PIXABAY_KEY')
 if not PIXABAY_API_KEY:
     print("Warning: PIXABAY_KEY not set. Pixabay image fetching will not work.")
 
+# --- Define your REAL, High-Impact Hashtags here ---
+# These are examples. You should research popular hashtags for English learning in Arabic.
+# Consider a mix of broad, specific, and trending hashtags.
+HIGH_IMPACT_HASHTAGS = [
+    "#تعلم_الانجليزية",          # Learn English (Arabic) - Broad
+    "#لغة_انجليزية",           # English Language (Arabic) - Broad
+    "#دروس_انجليزي",           # English Lessons (Arabic) - Specific
+    "#تعليم_انجليزي",          # English Education (Arabic) - Specific
+    "#الإنجليزية_للعرب",       # English for Arabs (Arabic) - Target audience
+    "#مفردات_انجليزية",        # English Vocabulary (Arabic) - Content specific
+    "#قواعد_اللغة_الإنجليزية",  # English Grammar Rules (Arabic) - Content specific
+    "#طور_لغتك_الإنجليزية",    # Improve Your English (Arabic) - Call to action
+    "#EnglishLearning",        # English Learning (English) - Broad
+    "#LearnEnglish",           # Learn English (English) - Broad
+    "#EnglishTips",            # English Tips (English) - Specific
+    "#LanguageLearning",       # Language Learning (English) - Broad
+    "#DailyEnglish"            # Daily English (English) - Frequency
+]
+# Ensure uniqueness and shuffle for slight variation if desired
+random.shuffle(HIGH_IMPACT_HASHTAGS)
+
 # --- AI Interaction ---
 def ask_ai(prompt: str) -> str:
     """
@@ -71,11 +92,12 @@ def write_json(filepath: str, data: dict):
 # --- Post Formatting and Cleanup ---
 def clean_ai_output(text: str) -> str:
     """
-    Removes common AI output artifacts, markdown formatting, and ensures hashtags.
+    Removes common AI output artifacts, markdown formatting,
+    and appends a predefined set of high-impact hashtags.
     """
     text = text.strip()
     
-    # Remove AI introductory phrases (more comprehensive list)
+    # Remove AI introductory phrases
     text = text.replace("Here's your Facebook post:", "").strip()
     text = text.replace("Here is the Facebook post:", "").strip()
     text = text.replace("تفضل منشورك على فيسبوك:", "").strip()
@@ -109,31 +131,18 @@ def clean_ai_output(text: str) -> str:
     cleaned_lines = [line.strip() for line in text.splitlines()]
     text = '\n'.join(cleaned_lines)
 
-    # Separate hashtags from content and ensure standard hashtags are present
+    # --- Crucial Change: Remove ALL AI-generated hashtags and append HIGH_IMPACT_HASHTAGS ---
+    # First, separate potential AI-generated hashtags from the content
     lines = text.split('\n')
-    extracted_hashtags = [line for line in lines if line.strip().startswith('#')]
     content_lines = [line for line in lines if not line.strip().startswith('#')]
-    
     cleaned_content = '\n'.join(content_lines).strip()
 
-    # Default hashtags if none or too few are generated
-    default_hashtags = [
-        "#تعلم_اللغة_الإنجليزية",
-        "#لغة_انجليزية",
-        "#دروس_انجليزي",
-        "#EnglishLearning",
-        "#LearnEnglish"
-    ]
-
-    if len(extracted_hashtags) < 3:
-        hashtags_to_add = default_hashtags
-    else:
-        hashtags_to_add = extracted_hashtags
-
+    # Ensure two newlines before appending the new hashtags
     if not cleaned_content.endswith('\n\n'):
         cleaned_content += '\n\n'
     
-    cleaned_content += '\n'.join([h.strip() for h in hashtags_to_add])
+    # Append the curated high-impact hashtags
+    cleaned_content += '\n'.join(HIGH_IMPACT_HASHTAGS)
 
     return cleaned_content.strip()
 
@@ -227,3 +236,4 @@ def get_current_day_of_week_arabic() -> str:
     """Returns the current day of the week in Arabic."""
     days_of_week_arabic = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
     return days_of_week_arabic[datetime.datetime.now().weekday()]
+
