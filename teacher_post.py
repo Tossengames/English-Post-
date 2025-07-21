@@ -2,7 +2,7 @@ import random
 from common import ask_ai, post_to_facebook, clean_ai_output, get_pixabay_image_url
 
 # Image Keywords
-PIXABAY_KEYWORDS = ["grammar", "language", "education", "writing", "books"]
+PIXABAY_KEYWORDS = ["email", "writing", "office", "communication", "business"]
 
 # Lesson Topics (75 topics - 25 per level)
 LESSON_TOPICS = {
@@ -89,94 +89,83 @@ LESSON_TOPICS = {
     ]
 }
 
-# Posting Styles with Fixed Hashtags
+
+# Posting Styles
 POST_STYLES = {
-    "أكاديمي": "#قواعد_الإنجليزية #تعلم_اللغة #دروس",
-    "عملي": "#الإنجليزية_العملية #ممارسة #تطبيق",
-    "تفاعلي": "#اسأل_ونجاوب #تفاعل #تعلم_اللغة"
+    "detailed": {
+        "hashtags": "#كتابة_رسائل #البريد_الإلكتروني #مهارات_التواصل",
+        "structure": "3 نقاط رئيسية مع شرح لكل نقطة"
+    },
+    "examples": {
+        "hashtags": "#أمثلة_عملية #تعلم_المراسلة #نموذج_رسالة", 
+        "structure": "نقطتان رئيسيتان مع أمثلة تطبيقية"
+    }
 }
 
-# Call-to-Action Phrases
-CTAS = [
-    "ما رأيك في هذه الأمثلة؟ هل لديك إضافات؟",
-    "جرب تكوين جملة باستخدام هذه القاعدة!",
-    "ما الجانب الذي تريد توضيحه أكثر؟"
-]
-
-def get_educational_image():
-    """Get a random educational image from Pixabay"""
-    return get_pixabay_image_url(random.choice(PIXABAY_KEYWORDS))
-
-def clean_hashtags(content, default_hashtags):
-    """Ensure exactly 3 hashtags at the end"""
-    lines = content.split('\n')
-    
-    # Separate content lines from hashtag lines
-    content_lines = []
-    hashtag_lines = []
-    
-    for line in lines:
-        if line.startswith('#'):
-            hashtag_lines.extend(line.split())
-        else:
-            content_lines.append(line)
-    
-    # Use found hashtags or default ones
-    final_hashtags = ' '.join(hashtag_lines[:3]) if hashtag_lines else default_hashtags
-    
-    # Rebuild content
-    cleaned_content = '\n'.join(content_lines).strip()
-    return f"{cleaned_content}\n{final_hashtags}"
-
-def generate_post():
-    """Generate a lesson post with fixed format"""
-    level = random.choice(list(LESSON_TOPICS.keys()))
-    topic = random.choice(LESSON_TOPICS[level])
-    style_name, hashtags = random.choice(list(POST_STYLES.items()))
-    cta = random.choice(CTAS)
+def generate_email_writing_post():
+    """Generate a formatted post about email writing"""
+    topic = random.choice(LESSON_TOPICS)
+    style = random.choice(list(POST_STYLES.values()))
     
     prompt = f"""
-    اكتب شرحًا تعليميًا بالعربية الفصحى حسب المواصفات التالية:
-    
-    الموضوع: {topic}
+    اكتب منشورًا تعليميًا عن:
+    {topic}
     
     المتطلبات:
-    1. ابدأ مباشرة بالشرح دون مقدمات أو عناوين فرعية
-    2. قدم 3 نقاط رئيسية واضحة
-    3. أضف مثالين تطبيقيين
-    4. اختم بدعوة للتفاعل: {cta}
-    5. أضف 3 هاشتاقات فقط في السطر الأخير
+    1. ابدأ بعنوان واضح في الأعلى
+    2. المحتوى باللغة العربية الفصحى فقط
+    3. الهيكل: {style['structure']}
+    4. استخدم ترقيمًا واضحًا للفقرات
+    5. أضف أمثلة عملية عند الحاجة
+    6. اختم بـ 3 هاشتاقات فقط: {style['hashtags']}
+    7. لا تترك أسطرًا فارغة بين الهاشتاقات
     
     ملاحظات:
-    - استخدم لغة عربية فصحى واضحة
-    - تجنب أي إشارة للذكاء الاصطناعي
-    - لا تترك أسطرًا فارغة بين الهاشتاقات
+    - استخدم لغة واضحة وسهلة
+    - تجنب العبارات الطويلة المعقدة
+    - تأكد من صحة المعلومات
     """
     
     response = ask_ai(prompt)
     if response:
-        # Clean and standardize the output
-        cleaned_content = clean_ai_output(response)
-        standardized_content = clean_hashtags(cleaned_content, hashtags)
-        return standardized_content, get_educational_image(), topic
-    return None, None, None
+        # Ensure clean formatting
+        content = clean_ai_output(response)
+        lines = content.split('\n')
+        
+        # Remove any extra hashtags beyond the 3 specified
+        main_content = []
+        hashtags = []
+        for line in lines:
+            if line.startswith('#'):
+                hashtags.extend(line.split())
+            else:
+                main_content.append(line)
+        
+        # Use only the first 3 hashtags
+        final_hashtags = ' '.join(hashtags[:3]) if hashtags else style['hashtags']
+        
+        # Rebuild content with proper spacing
+        formatted_content = '\n'.join(main_content).strip()
+        formatted_content += '\n\n' + final_hashtags
+        
+        return formatted_content, get_pixabay_image_url(random.choice(PIXABAY_KEYWORDS))
+    
+    return None, None
 
 def main():
-    """Main execution function"""
-    print("--- بدء إنشاء المنشور التعليمي ---")
-    post_content, image_url, topic = generate_post()
+    print("--- Generating Email Writing Post ---")
+    post, image = generate_email_writing_post()
     
-    if post_content:
-        print("\n--- المحتوى النهائي ---")
-        print(post_content)
-        print("\n---")
+    if post:
+        print("\n--- Formatted Post ---")
+        print(post)
         
-        if post_to_facebook(post_content, image_url):
-            print(f"تم النشر بنجاح: {topic}")
+        if post_to_facebook(post, image):
+            print("\nPost published successfully!")
         else:
-            print("فشل في النشر")
+            print("\nFailed to publish post")
     else:
-        print("فشل في إنشاء المحتوى")
+        print("Failed to generate content")
 
 if __name__ == "__main__":
     main()
