@@ -4,8 +4,8 @@ from common import ask_ai, post_to_facebook, clean_ai_output, get_pixabay_image_
 # Image Keywords by Level
 PIXABAY_KEYWORDS = {
     "مبتدئ": ["alphabet", "numbers", "school", "family", "colors"],
-    "متوسط": ["grammar", "writing", "time", "travel", "business"],
-    "متقدم": ["literature", "science", "law", "medicine", "academic"]
+    "متوسط": ["grammar", "writing", "teaching", "college", "teacher"],
+    "متقدم": ["literature", "science", "students", "college", "academic"]
 }
 
 # Lesson Topics (75 topics - 25 per level)
