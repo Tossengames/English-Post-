@@ -1,114 +1,165 @@
 import random
 from common import ask_ai, post_to_facebook, clean_ai_output, get_pixabay_image_url
 
-# Centralized Pixabay Keywords
-PIXABAY_GLOBAL_KEYWORDS = [
-    "education", "learning", "classroom", "study", 
-    "books", "knowledge", "language", "school"
+# Enhanced Image Keywords
+PIXABAY_KEYWORDS = [
+    "education", "language", "books", "writing", 
+    "grammar", "vocabulary", "classroom", "study"
 ]
 
-# Built-in lesson topics categorized by level
+# Expanded Lesson Topics (50+ topics)
 LESSON_TOPICS = {
-    "beginner": [
-        "زمن المضارع البسيط (Present Simple)",
+    "مبتدئ": [
+        "الأبجدية الإنجليزية ونطق الحروف",
+        "الأرقام من 1 إلى 100",
+        "أيام الأسبوع والشهور",
+        "أفراد العائلة",
+        "المهن الأساسية",
+        "أجزاء الجسم",
+        "الألوان الأساسية",
+        "الأطعمة والمشروبات",
+        "أدوات المدرسة",
+        "الحيوانات الشائعة",
+        "المفرد والمجموع",
         "أدوات التعريف (a, an, the)",
-        "المفردات الأساسية (الألوان، الأرقام، العائلة)",
-        "حروف الجر الأساسية (in, on, at)"
+        "ضمائر الملكية",
+        "أفعال الحركة الأساسية",
+        "الصفات الوصفية البسيطة"
     ],
-    "intermediate": [
-        "زمن الماضي البسيط (Past Simple)",
-        "المقارنة والتفضيل (Comparatives/Superlatives)",
-        "الأفعال الناقصة (Modal Verbs: can, should, must)",
-        "الجمل الشرطية (Conditionals)"
+    "متوسط": [
+        "زمن المضارع المستمر",
+        "زمن الماضي البسيط",
+        "المقارنة والتفضيل",
+        "الأفعال الناقصة (can, should, must)",
+        "حروف الجر المكانية",
+        "أدوات الربط الأساسية",
+        "السؤال باستخدام wh-",
+        "الأفعال الشاذة في الماضي",
+        "صيغة الأمر",
+        "التعبير عن المستقبل (will/going to)",
+        "المعدود وغير المعدود",
+        "أدوات النفي",
+        "المفردات المتعلقة بالسفر",
+        "التعبير عن الوقت والتاريخ",
+        "الصفات المقارنة"
     ],
-    "advanced": [
-        "زمن المضارع التام (Present Perfect)",
-        "المبني للمجهول (Passive Voice)",
-        "الأساليب البلاغية في الإنجليزية",
-        "كتابة التقارير الرسمية"
+    "متقدم": [
+        "زمن المضارع التام",
+        "المبني للمجهول",
+        "الجمل الشرطية",
+        "الأسلوب غير المباشر",
+        "أزمنة المضارع التام المستمر",
+        "الصفات المشتقة",
+        "التعبيرات الاصطلاحية",
+        "الاختلافات بين البريطانية والأمريكية",
+        "لغة الأعمال الرسمية",
+        "كتابة الرسائل الإلكترونية",
+        "المجاز والكناية",
+        "تحليل النصوص الأدبية",
+        "الاختصارات الشائعة",
+        "المفردات الأكاديمية",
+        "الاشتقاقات اللغوية"
+    ],
+    "متخصص": [
+        "لغة الطب والتخصصات الصحية",
+        "المصطلحات الهندسية",
+        "لغة البرمجة والتقنية",
+        "المفردات القانونية",
+        "لغة التسويق الرقمي",
+        "المصطلحات المالية",
+        "الإنجليزية للسياحة",
+        "لغة الإعلام والصحافة",
+        "الترجمة الفورية",
+        "اللهجات الإقليمية",
+        "الكتابة الإبداعية",
+        "الخطابة العامة",
+        "اللغة الدبلوماسية",
+        "المصطلحات العلمية",
+        "الإنجليزية للطيران"
     ]
 }
 
-# Posting tones with Arabic descriptions
+# Enhanced Posting Tones (6 tones)
 POST_TONES = {
-    "serious": "أسلوب أكاديمي رسمي مع شرح مفصل",
-    "humorous": "أسلوب تعليمي ممزوج بلمسات من الدعابة المناسبة",
-    "motivational": "أسلوب تحفيزي يشجع على التعلم",
-    "interactive": "أسلوب تفاعلي مع طرح الأسئلة"
+    "أكاديمي": {
+        "desc": "أسلوب علمي دقيق مع شرح مفصل",
+        "hashtags": "#قواعد_الإنجليزية #تعلم_اللغة #لغة_إنجليزية"
+    },
+    "تفاعلي": {
+        "desc": "أسلوب يشجع على المشاركة مع أسئلة مباشرة",
+        "hashtags": "#تعلم_الإنجليزية #اسأل_ونجاوب #تفاعل"
+    },
+    "ترفيهي": {
+        "desc": "أسلوب ممتع مع أمثلة من الحياة اليومية",
+        "hashtags": "#تعلم_بمرح #الإنجليزية_سهلة #ثقافة"
+    },
+    "تحفيزي": {
+        "desc": "أسلوب يشجع على التعلم مع عبارات إيجابية",
+        "hashtags": "#تطوير_الذات #تعلم_جديد #إنجاز"
+    },
+    "سريع": {
+        "desc": "شرح مختصر في نقاط محددة",
+        "hashtags": "#خلاصة #الإنجليزية_السريعة #تعلم_سريع"
+    },
+    "قصصي": {
+        "desc": "شرح من خلال سياق قصصي أو أمثلة روائية",
+        "hashtags": "#الإنجليزية_بالقصص #تعلم_ممتع #حكايات"
+    }
 }
 
-# Common CTAs (Call to Action)
+# Enhanced CTAs
 CTAS = [
-    "ما هي الجمل التي يمكنك تكوينها باستخدام هذه القاعدة؟ شاركها في التعليقات!",
-    "هل لديك أسئلة عن هذا الدرس؟ اكتبها في التعليقات وسنجيب عليها!",
-    "جرب تطبيق هذه القاعدة في جملة من إنشائك!",
-    "ما أصعب جزء في هذا الدرس برأيك؟"
+    "ما رأيك في هذه الأمثلة؟ هل لديك إضافات؟",
+    "جرب تكوين جملة باستخدام هذه القاعدة وشاركها معنا!",
+    "ما الجانب الذي تريدون شرحه أكثر في هذا الموضوع؟",
+    "هل واجهتم صعوبات في تطبيق هذه القاعدة؟",
+    "ما الموضوع الذي تريدون أن نغطيه في المنشور القادم؟"
 ]
 
-def get_teacher_image_from_pixabay():
-    """Fetches a random educational image from Pixabay"""
-    keyword = random.choice(PIXABAY_GLOBAL_KEYWORDS)
-    print(f"Fetching image with keyword: {keyword}")
-    return get_pixabay_image_url(keyword)
+def get_educational_image():
+    return get_pixabay_image_url(random.choice(PIXABAY_KEYWORDS))
 
-def generate_lesson_post():
-    """Generates a formal Arabic lesson post with random tone"""
-    # Random selections
+def generate_post():
     level = random.choice(list(LESSON_TOPICS.keys()))
     topic = random.choice(LESSON_TOPICS[level])
-    tone = random.choice(list(POST_TONES.keys()))
+    tone_name, tone = random.choice(list(POST_TONES.items()))
     cta = random.choice(CTAS)
     
-    # Arabic level names
-    level_arabic = {
-        "beginner": "للمبتدئين",
-        "intermediate": "للمتوسطين",
-        "advanced": "للمتقدمين"
-    }[level]
-
     prompt = f"""
-    أنت خبير في تعليم اللغة الإنجليزية للعرب. مهمتك كتابة منشور تعليمي باللغة العربية الفصحى الرسمية.
+    اكتب منشورًا تعليميًا بالعربية الفصحى حسب المواصفات التالية:
     
-    **المتطلبات:**
-    1. العنوان: "درس اليوم: {topic} {level_arabic}"
-    2. الأسلوب: {POST_TONES[tone]}
-    3. المحتوى:
-       - شرح واضح للقاعدة/الموضوع
-       - أمثلة بالإنجليزية مع ترجمة عربية فورية أسفل كل مثال
-       - تجنب تمامًا أي إشارة للذكاء الاصطناعي
-    4. التنسيق:
-       - فقرات قصيرة مع سطر فارغ بينها
-       - لا تستخدم أي تنسيق ماركداون
-    5. الهاشتاقات: 3-4 هاشتاجات فقط ذات صلة
-    6. ختام المنشور: دعوة للتفاعل ({cta})
-
-    اكتب المنشور الآن:
+    العنوان: {topic}
+    
+    المتطلبات:
+    1. الأسلوب: {tone['desc']}
+    2. المحتوى:
+       - مقدمة قصيرة (سطران)
+       - 3 نقاط رئيسية
+       - مثالين تطبيقيين
+    3. الهاشتاقات: {tone['hashtags']}
+    4. دعوة تفاعل: {cta}
+    
+    ملاحظات:
+    - لا تذكر أي إشارة للذكاء الاصطناعي
+    - استخدم لغة واضحة وسلسة
+    - تجنب التكرار غير الضروري
     """
     
-    print(f"Generating {tone} post about: {topic} ({level} level)")
     response = ask_ai(prompt)
-    
     if response:
-        content = clean_ai_output(response)
-        image_url = get_teacher_image_from_pixabay()
-        return content, image_url, topic
+        return clean_ai_output(response), get_educational_image(), topic
     return None, None, None
 
 def main():
-    print("--- Generating English Lesson Post ---")
-    post, image, topic = generate_lesson_post()
-
+    post, image, topic = generate_post()
     if post:
-        print("\n--- Generated Post ---")
+        print("\n--- المنشور ---")
         print(post)
-        print("\n---")
         
         if post_to_facebook(post, image):
-            print(f"Posted successfully about: {topic}")
+            print(f"\nتم النشر: {topic}")
         else:
-            print("Posting failed")
-    else:
-        print("Content generation failed")
+            print("خطأ في النشر")
 
 if __name__ == "__main__":
     main()
