@@ -1,16 +1,13 @@
 import random
 from common import ask_ai, post_to_facebook, clean_ai_output, get_pixabay_image_url
 
-# Optimized Image Keywords
-PIXABAY_KEYWORDS = [
-    "grammar", "vocabulary", "language", 
-    "writing", "education", "books"
-]
+# Image Keywords
+PIXABAY_KEYWORDS = ["grammar", "language", "education", "writing", "books"]
 
-# Expanded Lesson Topics (75 topics total - 25 per level)
+# Lesson Topics (75 topics - 25 per level)
 LESSON_TOPICS = {
     "مبتدئ": [
-        "الأبجدية الإنجليزية ونطق الحروف",
+        "الأبجدية الإنجليزية",
         "الأرقام من 1 إلى 100",
         "أيام الأسبوع والشهور",
         "أفراد العائلة",
@@ -76,10 +73,9 @@ LESSON_TOPICS = {
         "كتابة الرسائل الإلكترونية",
         "المجاز والكناية",
         "تحليل النصوص الأدبية",
-        "الاشتقاقات اللغوية",
+        "الانزياحات الدلالية",
         "حذف حروف الجر في السياقات المختلفة",
         "الجمل المعقدة والتركيب النحوي",
-        "الانزياحات الدلالية",
         "الترادف والتضاد",
         "الانزياحات النحوية",
         "الانزياحات الصوتية",
@@ -88,76 +84,99 @@ LESSON_TOPICS = {
         "اللغة التقنية",
         "اللغة القانونية",
         "اللغة الطبية",
-        "اللغة الأكاديمية"
+        "اللغة الأكاديمية",
+        "الترجمة الفورية"
     ]
 }
 
-# Enhanced Posting Tones
-POST_TONES = {
-    "أكاديمي": {
-        "desc": "شرح منهجي دقيق مع تعاريف واضحة",
-        "hashtags": "#قواعد_الإنجليزية #تعلم_اللغة #دروس"
-    },
-    "عملي": {
-        "desc": "أمثلة تطبيقية من الحياة اليومية",
-        "hashtags": "#الإنجليزية_العملية #ممارسة #تطبيق"
-    },
-    "مختصر": {
-        "desc": "شرح موجز في نقاط محددة",
-        "hashtags": "#خلاصة #إنجليزي_سريع #ملخص"
-    }
+# Posting Styles with Fixed Hashtags
+POST_STYLES = {
+    "أكاديمي": "#قواعد_الإنجليزية #تعلم_اللغة #دروس",
+    "عملي": "#الإنجليزية_العملية #ممارسة #تطبيق",
+    "تفاعلي": "#اسأل_ونجاوب #تفاعل #تعلم_اللغة"
 }
 
-# Focused CTAs
+# Call-to-Action Phrases
 CTAS = [
-    "جرب تطبيق هذه القاعدة في جملة من إنشائك!",
-    "ما الجانب الذي يحتاج لمزيد من الشرح؟",
-    "شارك أمثلة أخرى من واقع خبرتك!"
+    "ما رأيك في هذه الأمثلة؟ هل لديك إضافات؟",
+    "جرب تكوين جملة باستخدام هذه القاعدة!",
+    "ما الجانب الذي تريد توضيحه أكثر؟"
 ]
 
 def get_educational_image():
+    """Get a random educational image from Pixabay"""
     return get_pixabay_image_url(random.choice(PIXABAY_KEYWORDS))
 
+def clean_hashtags(content, default_hashtags):
+    """Ensure exactly 3 hashtags at the end"""
+    lines = content.split('\n')
+    
+    # Separate content lines from hashtag lines
+    content_lines = []
+    hashtag_lines = []
+    
+    for line in lines:
+        if line.startswith('#'):
+            hashtag_lines.extend(line.split())
+        else:
+            content_lines.append(line)
+    
+    # Use found hashtags or default ones
+    final_hashtags = ' '.join(hashtag_lines[:3]) if hashtag_lines else default_hashtags
+    
+    # Rebuild content
+    cleaned_content = '\n'.join(content_lines).strip()
+    return f"{cleaned_content}\n{final_hashtags}"
+
 def generate_post():
+    """Generate a lesson post with fixed format"""
     level = random.choice(list(LESSON_TOPICS.keys()))
     topic = random.choice(LESSON_TOPICS[level])
-    tone_name, tone = random.choice(list(POST_TONES.items()))
+    style_name, hashtags = random.choice(list(POST_STYLES.items()))
     cta = random.choice(CTAS)
     
     prompt = f"""
-    اكتب شرحًا تعليميًا مباشرًا بالعربية الفصحى حسب المواصفات:
+    اكتب شرحًا تعليميًا بالعربية الفصحى حسب المواصفات التالية:
     
     الموضوع: {topic}
     
     المتطلبات:
-    1. الأسلوب: {tone['desc']}
-    2. المكونات:
-       - 3 نقاط رئيسية
-       - مثالين تطبيقيين
-    3. الهاشتاقات: {tone['hashtags']}
-    4. ختام بدعوة تفاعل: {cta}
+    1. ابدأ مباشرة بالشرح دون مقدمات أو عناوين فرعية
+    2. قدم 3 نقاط رئيسية واضحة
+    3. أضف مثالين تطبيقيين
+    4. اختم بدعوة للتفاعل: {cta}
+    5. أضف 3 هاشتاقات فقط في السطر الأخير
     
     ملاحظات:
-    - ابدأ مباشرة بالموضوع دون مقدمات
-    - استخدم لغة واضحة وسلسة
+    - استخدم لغة عربية فصحى واضحة
     - تجنب أي إشارة للذكاء الاصطناعي
+    - لا تترك أسطرًا فارغة بين الهاشتاقات
     """
     
     response = ask_ai(prompt)
     if response:
-        return clean_ai_output(response), get_educational_image(), topic
+        # Clean and standardize the output
+        cleaned_content = clean_ai_output(response)
+        standardized_content = clean_hashtags(cleaned_content, hashtags)
+        return standardized_content, get_educational_image(), topic
     return None, None, None
 
 def main():
-    post, image, topic = generate_post()
-    if post:
-        print("\n--- المنشور ---")
-        print(post)
+    """Main execution function"""
+    print("--- بدء إنشاء المنشور التعليمي ---")
+    post_content, image_url, topic = generate_post()
+    
+    if post_content:
+        print("\n--- المحتوى النهائي ---")
+        print(post_content)
+        print("\n---")
         
-        if post_to_facebook(post, image):
-            print(f"\nتم النشر: {topic}")
+        if post_to_facebook(post_content, image_url):
+            print(f"تم النشر بنجاح: {topic}")
         else:
-            print("خطأ في النشر")
+            print("فشل في النشر")
+    else:
+        print("فشل في إنشاء المحتوى")
 
 if __name__ == "__main__":
     main()
