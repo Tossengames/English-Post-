@@ -120,7 +120,7 @@ def generate_lesson_post():
     style_name, style = random.choice(list(POST_STYLES.items()))
     
     prompt = f"""
-    اكتب منشورًا تعليميًا عن:
+    اكتب منشورًا تعليميًا لتعليم الإنجليزية عن:
     {topic}
     
     المتطلبات:
