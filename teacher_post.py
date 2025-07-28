@@ -68,19 +68,7 @@ LESSON_TOPICS = [
     "💯 IELTS interview techniques for high scores",
     "📈 IELTS vocabulary for band 7+",
     "🗣️ IELTS pronunciation tips for clear speech",
-    "⏱️ IELTS test day - time management strategies",
-    
-    # New Pronunciation Focus
-    "🔊 10 words English learners mispronounce",
-    "🗣️ Pronunciation guide: /θ/ vs /ð/ sounds",
-    "👂 Listen & repeat: Difficult word pairs",
-    "🎤 Business words professionals mispronounce",
-    "📢 Stress patterns in academic vocabulary",
-    "🇺🇸 American English pronunciation tips",
-    "🇬🇧 British English pronunciation guide",
-    "💬 Linking sounds in natural speech",
-    "👄 Mouth positions for difficult sounds",
-    "📝 Phonetic transcription practice"
+    "⏱️ IELTS test day - time management strategies"
 ]
 
 # Posting Styles
@@ -102,8 +90,8 @@ POST_STYLES = {
         "structure": "📊 Practical advice\n✍️ Sample questions\n💡 Expert tips"
     },
     "Pronunciation Guide": {
-        "hashtags": "#EnglishPronunciation #SpeakClearly #Phonetics 🔈",
-        "structure": "🔊 Word list with phonetic symbols\n👄 Pronunciation tips\n🎙️ Practice sentences"
+        "hashtags": "#EnglishPronunciation #SpeakClearly #LearnEnglish 🔈",
+        "structure": "🔊 Word list with simple pronunciation\n👄 Sound-it-out examples\n🎙️ Practice sentences"
     }
 }
 
@@ -136,15 +124,17 @@ def generate_lesson_post():
     2. Content in clear, professional English with emojis
     3. Structure: {style['structure']}
     4. Include practical examples
-    5. For pronunciation: include phonetic symbols
+    5. For pronunciation:
+       - Use simple spelling (e.g., "Pronounced: WUHN-der")
+       - Capitalize stressed syllables (e.g., "in-DUS-tree")
+       - Add "Sounds like" when helpful (e.g., "Sounds like 'own-er'")
     6. End with exactly these 3 hashtags: {style['hashtags']}
     
     Notes:
-    - Use emojis to make it visually appealing
     - Keep explanations concise but thorough
+    - Make pronunciation guides beginner-friendly
     - For quizzes, include answers with explanations
-    - For pronunciation: use IPA symbols when helpful
-    - Make it interactive and engaging
+    - Use emojis to make it visually appealing
     """
     
     response = ask_ai(prompt)
