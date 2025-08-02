@@ -116,12 +116,12 @@ def generate_lesson_post():
         style_name, style = "Grammar Focus", POST_STYLES["Grammar Focus"]
     
     prompt = f"""
-    Create an engaging English learning post in Arabic about:
+    Create an engaging English learning post about:
     {topic}
     
     Requirements:
     1. Title on first line with relevant emoji
-    2. Content in clear, professional English with emojis, give the result post in Arabic language for Arabic speaking learners 
+    2. Content in clear, professional English with emojie
     3. Structure: {style['structure']}
     4. Include practical examples
     5. For pronunciation:
