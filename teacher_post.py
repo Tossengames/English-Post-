@@ -121,7 +121,7 @@ def generate_lesson_post():
     
     Requirements:
     1. Title on first line with relevant emoji
-    2. Content in clear, professional English with emojis
+    2. Content in clear, professional English with emojis, give the result post in Arabic language for Arabic speaking learners 
     3. Structure: {style['structure']}
     4. Include practical examples
     5. For pronunciation:
