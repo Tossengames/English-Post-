@@ -116,7 +116,7 @@ def generate_lesson_post():
         style_name, style = "Grammar Focus", POST_STYLES["Grammar Focus"]
     
     prompt = f"""
-    Create an engaging English learning post about:
+    Create an engaging English learning post in Arabic about:
     {topic}
     
     Requirements:
