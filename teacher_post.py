@@ -116,25 +116,25 @@ def generate_lesson_post():
         style_name, style = "Grammar Focus", POST_STYLES["Grammar Focus"]
     
     prompt = f"""
-    Create an engaging English learning post about:
+    Create an engaging English learning post in formal Arabic about:
     {topic}
     
     Requirements:
-    1. Title on first line with relevant emoji
-    2. Content in clear, professional English with emojie
+    1. Title on first line with relevant emoji (in Arabic)
+    2. Content in clear, formal Arabic with emojis
     3. Structure: {style['structure']}
-    4. Include practical examples
+    4. Include practical examples (in Arabic)
     5. For pronunciation:
-       - Use simple spelling (e.g., "Pronounced: WUHN-der")
-       - Capitalize stressed syllables (e.g., "in-DUS-tree")
-       - Add "Sounds like" when helpful (e.g., "Sounds like 'own-er'")
+       - Use simple Arabic pronunciation guide
+       - Add "تنطق مثل" when helpful
     6. End with exactly these 3 hashtags: {style['hashtags']}
     
     Notes:
-    - Keep explanations concise but thorough
+    - Keep explanations concise but thorough (in Arabic)
     - Make pronunciation guides beginner-friendly
-    - For quizzes, include answers with explanations
+    - For quizzes, include answers with explanations (in Arabic)
     - Use emojis to make it visually appealing
+    - Write entirely in formal Arabic (الفصحى)
     """
     
     response = ask_ai(prompt)
