@@ -11,87 +11,87 @@ PIXABAY_KEYWORDS = [
 # Lesson Topics
 LESSON_TOPICS = [
     # Grammar Topics
-    "🔍 Present perfect vs. past simple - spot the difference",
-    "💡 Conditionals (all types) with real-world examples",
-    "🛠️ Modal verbs advanced usage in professional contexts",
-    "🎭 Passive voice constructions in academic writing",
-    "⚠️ Articles (a, an, the) - most common mistakes",
-    "🔗 Prepositions in phrasal verbs - complete guide",
-    "🔄 Gerunds vs. infinitives - when to use which",
-    "🗣️ Reported speech transformations with examples",
-    "✂️ Relative clauses reduction techniques",
-    "📜 Inversion in formal English - advanced structures",
+    "🔍 الفرق بين المضارع التام والماضي البسيط",
+    "💡 الجمل الشرطية بأنواعها مع أمثلة واقعية",
+    "🛠️ استخدامات الأفعال الناقصة في السياقات المهنية",
+    "🎭 صيغة المبني للمجهول في الكتابة الأكاديمية",
+    "⚠️ أدوات التعريف والنكرة - الأخطاء الشائعة",
+    "🔗 حروف الجر في الأفعال المركبة - دليل شامل",
+    "🔄 المصدر والتصريف الثالث - متى نستخدم كل منهما",
+    "🗣️ الكلام المنقول مع أمثلة توضيحية",
+    "✂️ تقليل الجمل الوصفية - تقنيات عملية",
+    "📜 قلب ترتيب الجمل في الإنجليزية الرسمية",
     
     # Vocabulary Topics
-    "📚 Academic vocabulary for high-scoring essays",
-    "💼 Business English phrases for professionals",
-    "✍️ IELTS writing task vocabulary boosters",
-    "🔤 Synonyms for overused words - upgrade your vocabulary",
-    "🤝 Collocations with common verbs - natural combinations",
-    "🎩 Formal vs. informal vocabulary - context matters",
-    "🌐 Idioms for academic writing - use them correctly",
-    "💬 Phrasal verbs in context - business edition",
-    "🧩 Word formation prefixes/suffixes - build vocabulary",
-    "🚫 False friends in English - words that trick you",
+    "📚 مفردات أكاديمية لكتابة مقالات عالية المستوى",
+    "💼 عبارات إنجليزية الأعمال للمحترفين",
+    "✍️ تعزيز مفردات كتابة الآيلتس",
+    "🔤 مرادفات للكلمات المستهلكة - تطوير مفرداتك",
+    "🤝 المتلازمات اللفظية مع الأفعال الشائعة",
+    "🎩 المفردات الرسمية وغير الرسمية - حسب السياق",
+    "🌐 التعابير الاصطلاحية للكتابة الأكاديمية",
+    "💬 الأفعال المركبة في سياقات الأعمال",
+    "🧩 البادئات واللواحق لتكوين الكلمات",
+    "🚫 الكلمات الخادعة في الإنجليزية",
     
     # Pronunciation Topics
-    "🔊 Commonly mispronounced words - fix them now",
-    "🎙️ Silent letters in English - complete guide",
-    "🗣️ Difficult English sounds for non-natives",
-    "👄 Tongue twisters to improve pronunciation",
-    "🎵 Stress patterns in English words",
-    "🇺🇸🇬🇧 American vs. British pronunciation differences",
-    "📢 Homophones - words that sound the same",
-    "🎤 Pronunciation for IELTS speaking test",
-    "👂 Minimal pairs practice - train your ear",
-    "💬 Connected speech in natural conversation",
+    "🔊 الكلمات التي تُنطق خطأً بشكل شائع",
+    "🎙️ الحروف الصامتة في الإنجليزية - دليل شامل",
+    "🗣️ الأصوات الصعبة للناطقين بغير الإنجليزية",
+    "👄 تويستات اللسان لتحسين النطق",
+    "🎵 أنماط التشديد في الكلمات الإنجليزية",
+    "🇺🇸🇬🇧 الفروق بين النطق الأمريكي والبريطاني",
+    "📢 الكلمات المتشابهة نطقاً المختلفة معنى",
+    "🎤 النطق لاختبار الآيلتس الشفوي",
+    "👂 تمارين الأزواج الصوتية لتدريب الأذن",
+    "💬 الكلام المتصل في المحادثة الطبيعية",
     
     # Question/Quiz Topics
-    "❓ Common grammar mistakes - can you spot them?",
-    "🔎 Spot the error - advanced edition",
-    "🔄 Sentence transformation challenge",
-    "📝 Word order exercises - rearrange correctly",
-    "⏳ Choose the correct tense - timed quiz",
-    "📖 Vocabulary gap-fill - academic text",
-    "✅ Which sentence is correct? Grammar test",
-    "✏️ Paraphrasing practice - essential skill",
-    "✂️ Error correction challenge - find all mistakes",
-    "🏆 Grammar jeopardy - test your knowledge",
+    "❓ أخطاء قواعدية شائعة - هل تستطيع تمييزها؟",
+    "🔎 اكتشف الخطأ - نسخة متقدمة",
+    "🔄 تحويل الجمل - تحدٍ لغوي",
+    "📝 تمارين ترتيب الكلمات - رتبها بشكل صحيح",
+    "⏳ اختبار زمن الفعل الصحيح - مسابقة زمنية",
+    "📖 ملء الفراغات بمفردات أكاديمية",
+    "✅ أي جملة صحيحة؟ اختبار قواعدي",
+    "✏️ إعادة صياغة الجمل - مهارة أساسية",
+    "✂️ تصحيح الأخطاء - اكتشف كل الأخطاء",
+    "🏆 مسابقة القواعد - اختبر معلوماتك",
     
     # IELTS Practice
-    "🎤 IELTS speaking part 1 - model answers",
-    "✍️ IELTS writing task 1 - band 9 structure",
-    "👂 IELTS listening section - proven strategies",
-    "📚 IELTS reading - time management tips",
-    "📊 IELTS speaking band descriptors explained",
-    "🖋️ IELTS writing task 2 - essay types breakdown",
-    "💯 IELTS interview techniques for high scores",
-    "📈 IELTS vocabulary for band 7+",
-    "🗣️ IELTS pronunciation tips for clear speech",
-    "⏱️ IELTS test day - time management strategies"
+    "🎤 الجزء الأول من اختبار الآيلتس الشفوي - نماذج إجابات",
+    "✍️ مهمة الكتابة الأولى في الآيلتس - هيكل الدرجة 9",
+    "👂 قسم الاستماع في الآيلتس - استراتيجيات مجربة",
+    "📚 قسم القراءة في الآيلتس - نصائح إدارة الوقت",
+    "📊 معايير التقييم في اختبار الآيلتس الشفوي",
+    "🖋️ مهمة الكتابة الثانية في الآيلتس - أنواع المقالات",
+    "💯 تقنيات مقابلة الآيلتس لتحقيق درجات عالية",
+    "📈 مفردات الآيلتس للوصول لدرجة 7+",
+    "🗣️ نصائح نطق لخطاب واضح في الآيلتس",
+    "⏱️ إدارة الوقت في يوم الاختبار"
 ]
 
 # Posting Styles
 POST_STYLES = {
     "Grammar Focus": {
-        "hashtags": "#EnglishGrammar #GrammarQuiz #LearnEnglish 📚",
-        "structure": "📝 Explanation with 3 examples\n💡 1 practice question\n🔍 Answer with explanation"
+        "hashtags": "#قواعد_الإنجليزية #تعلم_الإنجليزية #الإنجليزية 📚",
+        "structure": "📝 شرح القاعدة مع 3 أمثلة\n💡 سؤال تطبيقي\n🔍 الإجابة مع الشرح"
     },
     "Vocabulary Builder": {
-        "hashtags": "#EnglishVocabulary #WordOfTheDay #LanguageLearning 📖", 
-        "structure": "✨ 5 useful words/phrases\n📖 Definitions & examples\n💬 Practice sentences"
+        "hashtags": "#مفردات_الإنجليزية #كلمة_اليوم #تعلم_اللغة 📖", 
+        "structure": "✨ 5 كلمات/عبارات مفيدة\n📖 التعريفات والأمثلة\n💬 جمل تطبيقية"
     },
     "Quiz Time": {
-        "hashtags": "#EnglishQuiz #TestYourEnglish #GrammarChallenge ❓",
-        "structure": "🧠 5-question quiz\n⏳ Take 30 seconds per question\n✅ Answers explained"
+        "hashtags": "#اختبار_الإنجليزية #تحدي_القواعد #مسابقة_لغوية ❓",
+        "structure": "🧠 اختبار من 5 أسئلة\n⏳ 30 ثانية لكل سؤال\n✅ الإجابات مع الشرح"
     },
     "IELTS Prep": {
-        "hashtags": "#IELTSPrep #IELTSTips #EnglishTest 🎯",
-        "structure": "📊 Practical advice\n✍️ Sample questions\n💡 Expert tips"
+        "hashtags": "#تحضير_آيلتس #نصائح_آيلتس #اختبار_الإنجليزية 🎯",
+        "structure": "📊 نصائح عملية\n✍️ نماذج أسئلة\n💡 نصائح خبراء"
     },
     "Pronunciation Guide": {
-        "hashtags": "#EnglishPronunciation #SpeakClearly #LearnEnglish 🔈",
-        "structure": "🔊 Word list with simple pronunciation\n👄 Sound-it-out examples\n🎙️ Practice sentences"
+        "hashtags": "#نطق_الإنجليزية #تحدث_بوضوح #تعلم_الإنجليزية 🔈",
+        "structure": "🔊 قائمة كلمات مع دليل نطق مبسط\n👄 أمثلة للتدريب\n🎙️ جمل للممارسة"
     }
 }
 
@@ -104,37 +104,38 @@ def generate_lesson_post():
     topic = random.choice(LESSON_TOPICS)
     
     # Choose style based on topic type
-    if "IELTS" in topic:
+    if "آيلتس" in topic:
         style_name, style = "IELTS Prep", POST_STYLES["IELTS Prep"]
-    elif "quiz" in topic.lower() or "question" in topic.lower() or "challenge" in topic.lower():
+    elif any(word in topic for word in ["اختبار", "مسابقة", "تحدي", "سؤال"]):
         style_name, style = "Quiz Time", POST_STYLES["Quiz Time"]
-    elif any(word in topic.lower() for word in ["vocabulary", "words", "phrases", "synonyms"]):
+    elif any(word in topic for word in ["مفردات", "كلمة", "عبارة", "مرادفات"]):
         style_name, style = "Vocabulary Builder", POST_STYLES["Vocabulary Builder"]
-    elif any(word in topic.lower() for word in ["pronounce", "pronunciation", "phonetic", "sound", "speak"]):
+    elif any(word in topic for word in ["نطق", "صوت", "لحن", "تحدث"]):
         style_name, style = "Pronunciation Guide", POST_STYLES["Pronunciation Guide"]
     else:
         style_name, style = "Grammar Focus", POST_STYLES["Grammar Focus"]
     
     prompt = f"""
-    Create an engaging English learning post in formal Arabic about:
+    أنشئ منشورًا تعليميًا باللغة العربية الفصحى حول:
     {topic}
     
-    Requirements:
-    1. Title on first line with relevant emoji (in Arabic) and no greetings or opening 
-    2. Content in clear, formal Arabic with emojis
-    3. Structure: {style['structure']}
-    4. Include practical examples (in Arabic)
-    5. For pronunciation:
-       - Use simple Arabic pronunciation guide
-       - Add "تنطق مثل" when helpful
-    6. End with exactly these 3 hashtags: {style['hashtags']}
+    المتطلبات:
+    1. العنوان في السطر الأول مع إيموجي مناسب (بالعربية) دون تحيات أو مقدمات
+    2. المحتوى بالعربية الفصحى مع استخدام إيموجي
+    3. الهيكل: {style['structure']}
+    4. تضمين أمثلة عملية (باللغة الإنجليزية مع الترجمة العربية)
+    5. بالنسبة للنطق:
+       - استخدم دليل نطق مبسط بالعربية
+       - أضف "تنطق مثل" عندما يكون ذلك مفيدًا
+    6. أنهِ المنشور بهذه الهاشتاقات بالضبط: {style['hashtags']}
     
-    Notes:
-    - Keep explanations concise but thorough (in Arabic)
-    - Make pronunciation guides beginner-friendly
-    - For quizzes, include answers with explanations (in Arabic)
-    - Use emojis to make it visually appealing
-    - Write entirely in formal Arabic (الفصحى)
+    ملاحظات:
+    - اجعل الشروحات مختصرة ولكن شاملة (بالعربية)
+    - اجعل أدلة النطق مناسبة للمبتدئين
+    - بالنسبة للاختبارات، أدرج الإجابات مع الشروحات (بالعربية)
+    - استخدم الإيموجي لجعل المنشور جذابًا بصريًا
+    - اكتب بالعربية الفصحى فقط
+    - الأمثلة يجب أن تكون باللغة الإنجليزية مع الترجمة العربية والنطق
     """
     
     response = ask_ai(prompt)
