@@ -2,9 +2,9 @@ name: Automated Facebook Teacher Posts
 
 on:
   schedule:
-    # Runs 4 times a day at 5:00 AM, 11:00 AM, 5:00 PM, 11:00 PM UTC
-    # Corresponding EEST times (UTC+3): 8 AM, 2 PM, 8 PM, 2 AM (next day)
-    - cron: '0 5,11,17,23 * * *' 
+    # Optimized for Middle East (UTC+3)
+    # 8 AM, 12 PM, 5 PM, 9 PM EEST (peak engagement times)
+    - cron: '0 5,9,14,18 * * *'  # UTC times: 5:00, 9:00, 14:00, 18:00
   workflow_dispatch:
     # This allows manual triggering from the GitHub Actions tab.
 
@@ -32,6 +32,5 @@ jobs:
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }} # Make sure this secret is added!
+          PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
         run: python teacher_post.py
-
