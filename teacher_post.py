@@ -8,93 +8,92 @@ PIXABAY_KEYWORDS = [
     "garden", "spring", "autumn", "winter", "summer"
 ]
 
-# Lesson Topics - Focused on Vocabulary, Grammar, and Pronunciation
+# Lesson Topics - Focused on English learning for Arabic speakers
 LESSON_TOPICS = [
-    # Grammar Tips with Pronunciation
-    "🔍 الفرق بين المضارع التام والماضي البسيط مع النطق",
-    "💡 الجمل الشرطية بأنواعها مع النطق الصحيح",
-    "🛠️ استخدامات الأفعال الناقصة مع الأمثلة المنطوقة",
-    "🎭 المبني للمجهول وكيفية نطقه",
-    "⚠️ أخطاء شائعة في أدوات التعريف والنكرة مع التصحيح",
+    # Grammar Tips
+    "🔍 Present Perfect vs Past Simple - Key Differences",
+    "💡 All Conditional Types Explained Simply",
+    "🛠️ How to Use Modal Verbs Correctly",
+    "🎭 Passive Voice Made Easy",
+    "⚠️ Common Article Mistakes and Fixes",
 
-    # Vocabulary Tips with Pronunciation
-    "📚 مفردات أكاديمية مهمة مع النطق العربي",
-    "💼 عبارات إنجليزية للأعمال مع طريقة اللفظ",
-    "✍️ كلمات الآيلتس الأساسية مع النطق",
-    "🔤 مرادفات متقدمة مع اللفظ الصحيح",
-    "🤝 متلازمات لفظية شائعة مع النطق",
+    # Vocabulary Tips
+    "📚 5 Advanced Academic Words You Need",
+    "💼 Essential Business English Phrases",
+    "✍️ Must-Know IELTS Vocabulary",
+    "🔤 Alternatives to Overused Words",
+    "🤝 Common Verb Collocations",
 
     # Pronunciation Focus
-    "🔊 أصعب الأصوات الإنجليزية للناطقين بالعربية",
-    "🗣️ نطق حرف الـ TH بثلاث طرق مختلفة",
-    "🎙️ الفرق بين R و L في النطق الإنجليزي",
-    "👄 كلمات ينطقها العرب خطأً بشكل شائع",
-    "🔈 نطق الحروف الصامتة في الإنجليزية"
+    "🔊 English Sounds Arabs Find Difficult",
+    "🗣️ Mastering the TH Sound",
+    "🎙️ R vs L Pronunciation Guide",
+    "👄 Commonly Mispronounced Words",
+    "🔈 Silent Letters in English"
 ]
 
 # Posting Styles
 POST_STYLES = {
     "Grammar Tips": {
-        "hashtags": "#نصائح_قواعدية #تعلم_الإنجليزية #النطق_الصحيح 🧠",
-        "structure": "🎯 تقديم قاعدة مع شرح مختصر\n💡 مثال إنجليزي مع:\n- الترجمة العربية\n- النطق بالحروف العربية\n🔑 لماذا هذه القاعدة مهمة؟"
+        "hashtags": "#English_Grammar #Learn_English #English_Tips 🧠",
+        "structure": "🎯 Rule Explanation\n💡 Example Sentences\n🔑 Why This Matters\n✨ Practical Tip"
     },
     "Vocabulary Tips": {
-        "hashtags": "#مفردات_إنجليزية #كلمة_اليوم #النطق_الصحيح 📖",
-        "structure": "🚀 تقديم 3 كلمات/عبارات مع:\n- المعنى\n- مثال\n- النطق بالحروف العربية\n💎 كيف تستخدمها في المحادثة؟"
+        "hashtags": "#English_Vocab #Word_of_the_Day #Learn_English 📖",
+        "structure": "🚀 3 Words/Phrases\n📌 Meaning\n💡 Example\n💎 Usage Tip"
     },
     "Pronunciation Guide": {
-        "hashtags": "#النطق_الصحيح #إنجليزية #تعلم_اللغة 🗣️",
-        "structure": "🔊 تقديم صوت/قاعدة نطق\n💡 كلمات توضيحية مع:\n- النطق بالحروف العربية\n- الفرق بين النطق الصحيح والخاطئ\n🎯 تمارين تطبيقية"
+        "hashtags": "#English_Pronunciation #Speak_English #Learn_English 🗣️",
+        "structure": "🔊 Sound/Rule Focus\n💡 Example Words\n🎯 Practice Exercise\n🔈 Pronunciation Tip"
     }
 }
 
-# Dynamic CTAs in Arabic
-CTAS = [
-    "💬 جرب نطق الكلمات في التعليقات وسنساعدك في التصحيح!",
-    "🌟 هل استفدت من درس النطق اليوم؟ لا تنسى الإعجاب والمشاركة",
-    "🗣️ شاركنا الكلمات التي تجد صعوبة في نطقها",
-    "🔔 تابعنا لمزيد من دروس النطق اليومية",
-    "🎧 استمع للفظ الصحيح على قناتنا في التلغرام"
+# Engagement Messages
+ENGAGEMENT_MSGS = [
+    "💬 Practice in the comments - we'll correct you!",
+    "🌟 Like if you found this helpful!",
+    "📌 Save this for later practice!",
+    "🔔 Turn on notifications for daily lessons!"
 ]
 
 def get_nature_image():
     """Get a random nature image"""
     return get_pixabay_image_url(random.choice(PIXABAY_KEYWORDS))
 
-def generate_pronunciation_post():
-    """Generate a post with Arabic pronunciation guides"""
+def generate_english_post():
+    """Generate an English learning post for Arabic speakers"""
     topic = random.choice(LESSON_TOPICS)
     
     # Choose style based on topic
-    if "نطق" in topic or "لفظ" in topic:
-        style_name, style = "Pronunciation Guide", POST_STYLES["Pronunciation Guide"]
-    elif any(word in topic for word in ["مفردات", "كلمة", "عبارة"]):
+    if any(word in topic for word in ["Grammar", "Verb", "Tense", "Article"]):
+        style_name, style = "Grammar Tips", POST_STYLES["Grammar Tips"]
+    elif any(word in topic for word in ["Vocab", "Word", "Phrase", "Collocation"]):
         style_name, style = "Vocabulary Tips", POST_STYLES["Vocabulary Tips"]
     else:
-        style_name, style = "Grammar Tips", POST_STYLES["Grammar Tips"]
+        style_name, style = "Pronunciation Guide", POST_STYLES["Pronunciation Guide"]
     
     prompt = f"""
-    أنشئ منشورًا تعليميًا باللغة العربية حول:
+    Create an English learning post in Arabic about:
     {topic}
     
-    المتطلبات:
-    1. العنوان في السطر الأول مع إيموجي
-    2. المحتوى بالعربية مع إيموجي
-    3. الهيكل: {style['structure']}
-    4. لكل مثال إنجليزي:
-       - اكتبه بالإنجليزية
-       - اكتب ترجمته العربية
-       - اكتب نطقه بالحروف العربية بين قوسين
-    5. أكتب في نهاية المنشور:
-       - "{random.choice(CTAS)}"
-       - "🔔 تابعنا لمزيد من الدروس"
-       - "🎧 استمع للنطق الصحيح على تلغرام: https://t.me/englishpronunciation"
-    6. الهاشتاقات: {style['hashtags']}
+    Requirements:
+    1. Arabic title with emoji
+    2. Content in Arabic explaining English concepts
+    3. Structure: {style['structure']}
+    4. For pronunciation posts:
+       - Show English words only
+       - Add Arabic pronunciation guides in parentheses
+    5. Include at the end:
+       - "{random.choice(ENGAGEMENT_MSGS)}"
+       - "👍 Like and follow for daily English lessons"
+       - "🎓 Advanced lessons on Telegram: https://t.me/alleliteenglish"
+    6. Hashtags: {style['hashtags']}
     
-    مثال:
-    كلمة: Schedule
-    الترجمة: جدول
-    النطق: (سكِدْيُول) للهجة البريطانية / (سكِدْوَل) للأمريكية
+    Important:
+    - Never provide pronunciation guides for Arabic words
+    - Focus only on English pronunciation
+    - Keep explanations simple and practical
+    - Use 3-5 emojis per post
     """
     
     response = ask_ai(prompt)
@@ -118,8 +117,8 @@ def generate_pronunciation_post():
     return None, None, None
 
 def main():
-    print("--- Generating English Pronunciation Post ---")
-    post, image, topic = generate_pronunciation_post()
+    print("--- Generating English Learning Post ---")
+    post, image, topic = generate_english_post()
     
     if post:
         print("\n--- Final Content ---")
