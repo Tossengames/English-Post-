@@ -8,28 +8,79 @@ PIXABAY_KEYWORDS = [
     "garden", "spring", "autumn", "winter", "summer"
 ]
 
-# Lesson Topics - Focused on English learning for Arabic speakers
+# Lesson Topics - 65 English learning topics for Arabic speakers
 LESSON_TOPICS = [
-    # Grammar Tips
+    # Grammar Tips (25 topics)
     "🔍 Present Perfect vs Past Simple - Key Differences",
     "💡 All Conditional Types Explained Simply",
     "🛠️ How to Use Modal Verbs Correctly",
     "🎭 Passive Voice Made Easy",
     "⚠️ Common Article Mistakes and Fixes",
+    "📝 Reported Speech - Rules and Examples",
+    "🔄 Essential Phrasal Verbs You Need",
+    "⏳ Future Tenses Comparison (Will/Going to/Present Continuous)",
+    "🔤 Countable vs Uncountable Nouns",
+    "🤔 Question Tags - How to Form Them Correctly",
+    "📌 Relative Clauses (Who/Which/That/Where)",
+    "✨ Gerunds vs Infinitives - Common Verbs",
+    "🧩 Prepositions of Time and Place",
+    "🆚 Comparative and Superlative Adjectives",
+    "🔗 Linking Words for Better Writing",
+    "📊 Quantifiers (Some/Any/Much/Many)",
+    "🔄 Subject-Verb Agreement Rules",
+    "🎯 Demonstratives (This/That/These/Those)",
+    "📌 Possessive Forms ('s vs of)",
+    "🔄 Word Order in English Questions",
+    "⏰ Time Expressions with Different Tenses",
+    "🔤 Irregular Plural Nouns",
+    "🔄 So vs Such - When to Use Each",
+    "🎯 Either/Neither - Correct Usage",
+    "📌 Adverbs of Frequency Placement",
 
-    # Vocabulary Tips
+    # Vocabulary Tips (25 topics)
     "📚 5 Advanced Academic Words You Need",
     "💼 Essential Business English Phrases",
     "✍️ Must-Know IELTS Vocabulary",
     "🔤 Alternatives to Overused Words",
     "🤝 Common Verb Collocations",
+    "🏥 Medical and Health Vocabulary",
+    "💻 Technology Terms Everyone Should Know",
+    "✈️ Travel and Airport Vocabulary",
+    "🍳 Cooking and Kitchen Terms",
+    "🛒 Shopping and Money Expressions",
+    "🎓 University and Education Terms",
+    "⚽ Sports and Fitness Vocabulary",
+    "🎨 Art and Culture Related Words",
+    "🌳 Environment and Ecology Terms",
+    "👔 Job Interview Vocabulary",
+    "📱 Social Media and Internet Slang",
+    "🏠 House and Furniture Vocabulary",
+    "🚗 Car and Driving Terms",
+    "👗 Clothing and Fashion Words",
+    "🐾 Animal Related Vocabulary",
+    "🌦️ Weather Expressions",
+    "💑 Relationship and Dating Terms",
+    "🎭 Theater and Performance Words",
+    "📉 Business and Finance Vocabulary",
+    "👶 Baby and Parenting Terms",
+    "⚖️ Law and Legal Vocabulary",
 
-    # Pronunciation Focus
+    # Pronunciation Focus (15 topics)
     "🔊 English Sounds Arabs Find Difficult",
     "🗣️ Mastering the TH Sound",
     "🎙️ R vs L Pronunciation Guide",
     "👄 Commonly Mispronounced Words",
-    "🔈 Silent Letters in English"
+    "🔈 Silent Letters in English",
+    "🎵 Word Stress Patterns",
+    "📢 Sentence Intonation Rules",
+    "👂 Homophones (Same Sound, Different Meaning)",
+    "💬 Linking Sounds in Natural Speech",
+    "📖 -ED Ending Pronunciation Rules",
+    "🔊 V vs W Sound Difference",
+    "🗣️ P vs B Pronunciation Tips",
+    "🎙️ Schwa Sound - The Most Common Vowel",
+    "👄 Contractions in Spoken English",
+    "🔈 Difficult Consonant Clusters"
 ]
 
 # Posting Styles
