@@ -76,12 +76,11 @@ LESSON_TOPICS = [
     "⚖️ Law and Legal Vocabulary",
 
     # Pronunciation Focus (15 topics)
-    "🔊 English Sounds Arabs Find Difficult",
+
     "🗣️ Mastering the TH Sound",
     "🎙️ R vs L Pronunciation Guide",
     "👄 Commonly Mispronounced Words",
     "🔈 Silent Letters in English",
-    "🎵 Word Stress Patterns",
     "📢 Sentence Intonation Rules",
     "👂 Homophones (Same Sound, Different Meaning)",
     "💬 Linking Sounds in Natural Speech",
@@ -89,7 +88,6 @@ LESSON_TOPICS = [
     "🔊 V vs W Sound Difference",
     "🗣️ P vs B Pronunciation Tips",
     "🎙️ Schwa Sound - The Most Common Vowel",
-    "👄 Contractions in Spoken English",
     "🔈 Difficult Consonant Clusters"
 ]
 
@@ -111,10 +109,10 @@ POST_STYLES = {
 
 # ===== ENGAGEMENT MESSAGES =====
 ENGAGEMENT_MSGS = [
-    "💬 Practice in the comments - we'll correct you!",
-    "🌟 Like if you found this helpful!",
-    "📌 Save this for later practice!",
-    "🔔 Turn on notifications for daily lessons!"
+    "💬 share your thoughts in the comments!",
+    "🌟 click the Like button if you found this helpful!",
+    "📌 Share this to help others to learn English!",
+    "🔔 Follow our page for daily lessons!"
 ]
 
 # ===== CORE FUNCTIONS =====
