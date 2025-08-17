@@ -1,14 +1,24 @@
 import random
-from common import ask_ai, post_to_facebook, clean_ai_output, get_pixabay_image_url
+import requests
+import json
+import re
+import os
+from datetime import datetime
 
-# Image Keywords - Nature themes
+# ===== CONFIGURATION =====
+FB_PAGE_TOKEN = os.getenv('FB_PAGE_TOKEN')       # Your Facebook Page Token
+FB_PAGE_ID = os.getenv('FB_PAGE_ID')             # Your Facebook Page ID
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')     # Your Gemini API Key
+PIXABAY_KEY = os.getenv('PIXABAY_KEY')           # Your Pixabay API Key
+
+# ===== IMAGE KEYWORDS =====
 PIXABAY_KEYWORDS = [
     "flowers", "landscape", "mountains", "forest", "ocean",
     "sunset", "animals", "wildlife", "butterfly", "waterfall",
     "garden", "spring", "autumn", "winter", "summer"
 ]
 
-# Lesson Topics - 65 English learning topics for Arabic speakers
+# ===== LESSON TOPICS =====
 LESSON_TOPICS = [
     # Grammar Tips (25 topics)
     "🔍 Present Perfect vs Past Simple - Key Differences",
@@ -83,7 +93,7 @@ LESSON_TOPICS = [
     "🔈 Difficult Consonant Clusters"
 ]
 
-# Posting Styles
+# ===== POSTING STYLES =====
 POST_STYLES = {
     "Grammar Tips": {
         "hashtags": "#English_Grammar #Learn_English #English_Tips 🧠",
@@ -99,7 +109,7 @@ POST_STYLES = {
     }
 }
 
-# Engagement Messages
+# ===== ENGAGEMENT MESSAGES =====
 ENGAGEMENT_MSGS = [
     "💬 Practice in the comments - we'll correct you!",
     "🌟 Like if you found this helpful!",
@@ -107,15 +117,111 @@ ENGAGEMENT_MSGS = [
     "🔔 Turn on notifications for daily lessons!"
 ]
 
+# ===== CORE FUNCTIONS =====
+def ask_ai(prompt):
+    """Generate content using Gemini 1.5 Flash"""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    headers = {'Content-Type': 'application/json'}
+    data = {
+        "contents": [{
+            "parts": [{"text": prompt}]
+        }],
+        "generationConfig": {
+            "temperature": 0.7,
+            "topP": 0.9,
+            "maxOutputTokens": 2048
+        }
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=data, timeout=30)
+        response.raise_for_status()
+        return response.json()['candidates'][0]['content']['parts'][0]['text']
+    except Exception as e:
+        print(f"⚠️ Gemini Error: {e}")
+        return None
+
+def post_to_facebook(message, image_url=None):
+    """Post to Facebook Page"""
+    if image_url:
+        # Upload image first
+        upload_url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/photos"
+        upload_params = {
+            'access_token': FB_PAGE_TOKEN,
+            'url': image_url,
+            'published': 'false'
+        }
+        try:
+            upload_resp = requests.post(upload_url, params=upload_params)
+            upload_resp.raise_for_status()
+            photo_id = upload_resp.json()['id']
+            
+            # Create post with image
+            post_url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/feed"
+            post_params = {
+                'access_token': FB_PAGE_TOKEN,
+                'message': message,
+                'attached_media': json.dumps([{'media_fbid': photo_id}])
+            }
+            post_resp = requests.post(post_url, params=post_params)
+            post_resp.raise_for_status()
+            return True
+        except Exception as e:
+            print(f"⚠️ Facebook Post Error: {e}")
+            return False
+    else:
+        # Text-only post
+        try:
+            post_url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/feed"
+            post_params = {
+                'access_token': FB_PAGE_TOKEN,
+                'message': message
+            }
+            post_resp = requests.post(post_url, params=post_params)
+            post_resp.raise_for_status()
+            return True
+        except Exception as e:
+            print(f"⚠️ Facebook Post Error: {e}")
+            return False
+
+def get_pixabay_image_url(keyword):
+    """Get random image from Pixabay"""
+    try:
+        response = requests.get(
+            "https://pixabay.com/api/",
+            params={
+                'key': PIXABAY_KEY,
+                'q': keyword,
+                'image_type': 'photo',
+                'orientation': 'horizontal',
+                'per_page': 50,
+                'safesearch': 'true'
+            },
+            timeout=10
+        )
+        response.raise_for_status()
+        data = response.json()
+        return random.choice(data['hits'])['webformatURL'] if data['totalHits'] > 0 else None
+    except Exception as e:
+        print(f"⚠️ Pixabay Error: {e}")
+        return None
+
+def clean_ai_output(text):
+    """Clean AI-generated text"""
+    text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
+    text = re.sub(r'[\*\_]{2,}', '', text)
+    return text.strip()
+
+# ===== YOUR ORIGINAL FUNCTIONS =====
 def get_nature_image():
     """Get a random nature image"""
     return get_pixabay_image_url(random.choice(PIXABAY_KEYWORDS))
 
 def generate_english_post():
-    """Generate an English learning post for Arabic speakers"""
+    """Generate an English learning post"""
     topic = random.choice(LESSON_TOPICS)
     
-    # Choose style based on topic
+    # Determine post style
     if any(word in topic for word in ["Grammar", "Verb", "Tense", "Article"]):
         style_name, style = "Grammar Tips", POST_STYLES["Grammar Tips"]
     elif any(word in topic for word in ["Vocab", "Word", "Phrase", "Collocation"]):
@@ -153,34 +259,29 @@ def generate_english_post():
         
         # Format hashtags properly
         lines = content.split('\n')
-        main_content = []
-        final_hashtags = style['hashtags']
-        
-        for line in lines:
-            if not line.startswith('#'):
-                main_content.append(line)
-        
+        main_content = [line for line in lines if not line.startswith('#')]
         formatted_content = '\n'.join(main_content).strip()
-        formatted_content += '\n\n' + final_hashtags
+        formatted_content += '\n\n' + style['hashtags']
         
         return formatted_content, get_nature_image(), topic
     
     return None, None, None
 
+# ===== MAIN EXECUTION =====
 def main():
-    print("--- Generating English Learning Post ---")
+    print(f"\n=== English Post Generator [{datetime.now().strftime('%Y-%m-%d %H:%M')}] ===")
     post, image, topic = generate_english_post()
     
     if post:
-        print("\n--- Final Content ---")
+        print("\n=== Generated Content ===")
         print(post)
         
         if post_to_facebook(post, image):
-            print(f"\nPosted successfully: {topic}")
+            print(f"\n✅ Posted successfully: {topic}")
         else:
-            print("\nPosting failed")
+            print("\n❌ Facebook posting failed")
     else:
-        print("Failed to generate content")
+        print("\n⚠️ Failed to generate content")
 
 if __name__ == "__main__":
     main()
