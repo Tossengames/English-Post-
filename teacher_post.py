@@ -106,20 +106,20 @@ POST_STYLES = {
     },
     "Translation Challenge": {
         "hashtags": "#Translation_Challenge #English_Practice #Learn_English 🌟",
-        "structure": "📝 Short English text\n🎯 Challenge: Translate to Arabic\n💡 No translator apps allowed!\n🏆 Best translations will be featured"
+        "structure": "📝 نص إنجليزي قصير\n🎯 التحدي: الترجمة إلى العربية\n💡 ممنوع استخدام برامج الترجمة!\n🏆 شارك ترجمتك في التعليقات"
     },
     "Reading Comprehension": {
         "hashtags": "#Reading_Practice #English_Comprehension #Learn_English 📚",
-        "structure": "📖 Short English story/text\n❓ 2-3 comprehension questions\n💭 Answer in the comments"
+        "structure": "📖 قصة/نص إنجليزي قصير\n❓ 2-3 أسئلة فهم\n💭 اجب في التعليقات"
     }
 }
 
 # ===== ENGAGEMENT MESSAGES =====
 ENGAGEMENT_MSGS = [
-    "💬 share your thoughts in the comments!",
-    "🌟 click the Like button if you found this helpful!",
-    "📌 Share this to help others to learn English!",
-    "🔔 Follow our page for daily lessons!"
+    "💬 شاركنا رأيك في التعليقات!",
+    "🌟 اضغط على زر الإعجاب إذا وجدت هذا مفيدًا!",
+    "📌 شارك هذا المنشور لمساعدة الآخرين في تعلم الإنجليزية!",
+    "🔔 تابع صفحتنا لدروس يومية!"
 ]
 
 # ===== CORE FUNCTIONS =====
@@ -247,8 +247,8 @@ def generate_regular_english_post():
        - Add Arabic pronunciation guides in parentheses
     5. Include at the end:
        - "{random.choice(ENGAGEMENT_MSGS)}"
-       - "👍 Like and follow for daily English lessons"
-       - "🎓 Advanced lessons on Telegram: https://t.me/alleliteenglish"
+       - "👍 أعجبني وتابعنا لدروس إنجليزية يومية"
+       - "🎓 دروس متقدمة على التليجرام: https://t.me/alleliteenglish"
     6. Hashtags: {style['hashtags']}
     
     Important:
@@ -284,18 +284,20 @@ def generate_translation_challenge():
     2. The paragraph should be interesting and engaging
     3. Challenge users to translate it to Arabic in the comments
     4. Encourage them not to use translator apps
-    5. Write the post in Arabic with an engaging introduction
+    5. Write the entire post in Arabic with an engaging introduction
     6. Structure: {style['structure']}
     7. Include at the end:
-       - "📝 Write your translation in the comments!"
-       - "🏆 The best translations will be featured in our next post!"
-       - "👍 Like and follow for daily English challenges"
+       - "اكتب ترجمتك في التعليقات"
+       - "ممنوع استخدام برامج الترجمة الآلية"
+       - "👍 أعجبني وتابعنا لتحديات إنجليزية يومية"
     8. Hashtags: {style['hashtags']}
     
     Important:
     - The English text should be clear and well-written
     - Use 3-5 emojis in the post
     - Make it engaging and fun
+    - All instructions must be in Arabic
+    - Don't promise to feature any translations
     """
     
     response = ask_ai(prompt)
@@ -322,11 +324,11 @@ def generate_reading_comprehension():
     Requirements:
     1. Write a short English story or text (4-6 sentences) with intermediate-level vocabulary
     2. Create 2-3 comprehension questions about the text
-    3. Write the post in Arabic with an engaging introduction
+    3. Write the entire post in Arabic with an engaging introduction
     4. Structure: {style['structure']}
     5. Include at the end:
-       - "💭 Answer the questions in the comments!"
-       - "📚 Follow for daily English practice"
+       - "💭 اجب عن الأسئلة في التعليقات"
+       - "📚 تابعنا لممارسة اللغة الإنجليزية يومياً"
     6. Hashtags: {style['hashtags']}
     
     Important:
@@ -334,6 +336,7 @@ def generate_reading_comprehension():
     - Questions should be directly related to the text
     - Use 3-5 emojis in the post
     - Make it engaging and educational
+    - All instructions must be in Arabic
     """
     
     response = ask_ai(prompt)
