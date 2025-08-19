@@ -76,7 +76,6 @@ LESSON_TOPICS = [
     "⚖️ Law and Legal Vocabulary",
 
     # Pronunciation Focus (15 topics)
-
     "🗣️ Mastering the TH Sound",
     "🎙️ R vs L Pronunciation Guide",
     "👄 Commonly Mispronounced Words",
@@ -104,6 +103,14 @@ POST_STYLES = {
     "Pronunciation Guide": {
         "hashtags": "#English_Pronunciation #Speak_English #Learn_English 🗣️",
         "structure": "🔊 Sound/Rule Focus\n💡 Example Words\n🎯 Practice Exercise\n🔈 Pronunciation Tip"
+    },
+    "Translation Challenge": {
+        "hashtags": "#Translation_Challenge #English_Practice #Learn_English 🌟",
+        "structure": "📝 Short English text\n🎯 Challenge: Translate to Arabic\n💡 No translator apps allowed!\n🏆 Best translations will be featured"
+    },
+    "Reading Comprehension": {
+        "hashtags": "#Reading_Practice #English_Comprehension #Learn_English 📚",
+        "structure": "📖 Short English story/text\n❓ 2-3 comprehension questions\n💭 Answer in the comments"
     }
 }
 
@@ -210,13 +217,13 @@ def clean_ai_output(text):
     text = re.sub(r'[\*\_]{2,}', '', text)
     return text.strip()
 
-# ===== YOUR ORIGINAL FUNCTIONS =====
+# ===== POST GENERATION FUNCTIONS =====
 def get_nature_image():
     """Get a random nature image"""
     return get_pixabay_image_url(random.choice(PIXABAY_KEYWORDS))
 
-def generate_english_post():
-    """Generate an English learning post"""
+def generate_regular_english_post():
+    """Generate a regular English learning post"""
     topic = random.choice(LESSON_TOPICS)
     
     # Determine post style
@@ -265,13 +272,105 @@ def generate_english_post():
     
     return None, None, None
 
+def generate_translation_challenge():
+    """Generate a translation challenge post"""
+    style = POST_STYLES["Translation Challenge"]
+    
+    prompt = f"""
+    Create an English-to-Arabic translation challenge post for Arabic learners of English.
+    
+    Requirements:
+    1. Write a short English paragraph (3-5 sentences) with intermediate-level vocabulary
+    2. The paragraph should be interesting and engaging
+    3. Challenge users to translate it to Arabic in the comments
+    4. Encourage them not to use translator apps
+    5. Write the post in Arabic with an engaging introduction
+    6. Structure: {style['structure']}
+    7. Include at the end:
+       - "📝 Write your translation in the comments!"
+       - "🏆 The best translations will be featured in our next post!"
+       - "👍 Like and follow for daily English challenges"
+    8. Hashtags: {style['hashtags']}
+    
+    Important:
+    - The English text should be clear and well-written
+    - Use 3-5 emojis in the post
+    - Make it engaging and fun
+    """
+    
+    response = ask_ai(prompt)
+    if response:
+        content = clean_ai_output(response)
+        
+        # Format hashtags properly
+        lines = content.split('\n')
+        main_content = [line for line in lines if not line.startswith('#')]
+        formatted_content = '\n'.join(main_content).strip()
+        formatted_content += '\n\n' + style['hashtags']
+        
+        return formatted_content, get_nature_image(), "Translation Challenge"
+    
+    return None, None, None
+
+def generate_reading_comprehension():
+    """Generate a reading comprehension post"""
+    style = POST_STYLES["Reading Comprehension"]
+    
+    prompt = f"""
+    Create a reading comprehension post for Arabic learners of English.
+    
+    Requirements:
+    1. Write a short English story or text (4-6 sentences) with intermediate-level vocabulary
+    2. Create 2-3 comprehension questions about the text
+    3. Write the post in Arabic with an engaging introduction
+    4. Structure: {style['structure']}
+    5. Include at the end:
+       - "💭 Answer the questions in the comments!"
+       - "📚 Follow for daily English practice"
+    6. Hashtags: {style['hashtags']}
+    
+    Important:
+    - The English text should be clear and interesting
+    - Questions should be directly related to the text
+    - Use 3-5 emojis in the post
+    - Make it engaging and educational
+    """
+    
+    response = ask_ai(prompt)
+    if response:
+        content = clean_ai_output(response)
+        
+        # Format hashtags properly
+        lines = content.split('\n')
+        main_content = [line for line in lines if not line.startswith('#')]
+        formatted_content = '\n'.join(main_content).strip()
+        formatted_content += '\n\n' + style['hashtags']
+        
+        return formatted_content, get_nature_image(), "Reading Comprehension"
+    
+    return None, None, None
+
+def generate_english_post():
+    """Randomly select and generate a post type"""
+    post_types = [
+        generate_regular_english_post,
+        generate_translation_challenge,
+        generate_reading_comprehension
+    ]
+    
+    # Adjust weights if you want some types to appear more frequently
+    weights = [0.6, 0.2, 0.2]  # 60% regular, 20% translation, 20% comprehension
+    
+    selected_generator = random.choices(post_types, weights=weights, k=1)[0]
+    return selected_generator()
+
 # ===== MAIN EXECUTION =====
 def main():
     print(f"\n=== English Post Generator [{datetime.now().strftime('%Y-%m-%d %H:%M')}] ===")
     post, image, topic = generate_english_post()
     
     if post:
-        print("\n=== Generated Content ===")
+        print(f"\n=== Generated {topic} Content ===")
         print(post)
         
         if post_to_facebook(post, image):
