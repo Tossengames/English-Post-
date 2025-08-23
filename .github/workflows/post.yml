@@ -2,9 +2,9 @@ name: Automated Facebook Teacher Posts
 
 on:
   schedule:
-    # Optimized for Middle East (UTC+3)
-    # 8 AM, 12 PM, 5 PM, 9 PM EEST (peak engagement times)
-    - cron: '0 5,9,14,18 * * *'  # UTC times: 5:00, 9:00, 14:00, 18:00
+    # Run once daily at 12 PM Middle East time (UTC+3)
+    # This translates to 9:00 UTC
+    - cron: '0 9 * * *'  # 12:00 PM EEST (9:00 UTC)
   workflow_dispatch:
     # This allows manual triggering from the GitHub Actions tab.
 
