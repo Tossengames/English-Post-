@@ -155,7 +155,7 @@ def create_fallback_image():
     return image
 
 def add_challenge_to_image(image_data, challenge_data):
-    """Add challenge content to the image with proper formatting and full-width backgrounds"""
+    """Add challenge content to the image with proper formatting - normal width backgrounds"""
     try:
         # Open image
         if isinstance(image_data, bytes):
@@ -165,66 +165,72 @@ def add_challenge_to_image(image_data, challenge_data):
         
         # Enhance image brightness/contrast if needed
         enhancer = ImageEnhance.Brightness(image)
-        image = enhancer.enhance(0.9)  # Slightly darker for better text visibility
+        image = enhancer.enhance(0.9)
         enhancer = ImageEnhance.Contrast(image)
         image = enhancer.enhance(1.1)
         
         draw = ImageDraw.Draw(image)
         width, height = image.size
         
-        # Content to display
-        challenge = challenge_data['challenge']
+        # Extract just the sentence part (remove "Fill in the blank:" etc.)
+        full_challenge = challenge_data['challenge']
+        if ": " in full_challenge:
+            # Remove the instruction part, keep only the sentence
+            sentence = full_challenge.split(": ", 1)[1]
+        else:
+            sentence = full_challenge
+        
         options = challenge_data['options']
         
         # Use large fonts
         try:
-            challenge_font = ImageFont.truetype("arial.ttf", 70)
+            sentence_font = ImageFont.truetype("arial.ttf", 70)
             options_font = ImageFont.truetype("arial.ttf", 55)
             inst_font = ImageFont.truetype("arial.ttf", 40)
         except:
             try:
-                challenge_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 70)
+                sentence_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 70)
                 options_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 55)
                 inst_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 40)
             except:
-                challenge_font = ImageFont.load_default()
+                sentence_font = ImageFont.load_default()
                 options_font = ImageFont.load_default()
                 inst_font = ImageFont.load_default()
         
-        # Draw challenge (centered at top) with FULL-WIDTH background
-        c_bbox = draw.textbbox((0, 0), challenge, font=challenge_font)
-        c_width = c_bbox[2] - c_bbox[0]
-        c_height = c_bbox[3] - c_bbox[1]
-        c_x = (width - c_width) // 2
-        c_y = 80
+        # Draw sentence (centered at top) with normal width background
+        s_bbox = draw.textbbox((0, 0), sentence, font=sentence_font)
+        s_width = s_bbox[2] - s_bbox[0]
+        s_height = s_bbox[3] - s_bbox[1]
+        s_x = (width - s_width) // 2
+        s_y = 100
         
-        # Add full-width semi-transparent background for challenge
+        # Add normal width background for sentence (like original script)
         draw.rectangle([
-            50, c_y - 20,
-            width - 50, c_y + c_height + 20
-        ], fill=(0, 0, 0, 180))  # Semi-transparent black
+            s_x - 20, s_y - 20,
+            s_x + s_width + 20, s_y + s_height + 20
+        ], fill=(0, 0, 0, 180))
         
-        draw.text((c_x, c_y), challenge, fill=(255, 255, 255), font=challenge_font)
+        draw.text((s_x, s_y), sentence, fill=(255, 255, 255), font=sentence_font)
         
-        # Draw options (centered) with FULL-WIDTH backgrounds
+        # Draw options (centered) with normal width backgrounds
         option_y = 400
-        option_height = 70
         
         for i, option in enumerate(options):
             o_bbox = draw.textbbox((0, 0), option, font=options_font)
             o_width = o_bbox[2] - o_bbox[0]
+            o_height = o_bbox[3] - o_bbox[1]
             o_x = (width - o_width) // 2
             
-            # Add full-width background for each option
+            # Add normal width background for each option (like original script)
             draw.rectangle([
-                100, option_y - 15,
-                width - 100, option_y + option_height
-            ], fill=(0, 0, 0, 160))  # Semi-transparent black
+                o_x - 20, option_y - 15,
+                o_x + o_width + 20, option_y + o_height + 15
+            ], fill=(0, 0, 0, 160))
             
             draw.text((o_x, option_y), option, fill=(255, 255, 255), font=options_font)
             option_y += 100  # Space between options
         
-        # Add instruction at bottom with background
+        # Add instruction at bottom with normal width background
         instruction = "💡 Comment A, B, or C with your answer! 👇"
         i_bbox = draw.textbbox((0, 0), instruction, font=inst_font)
         i_width = i_bbox[2] - i_bbox[0]
@@ -232,28 +238,13 @@ def add_challenge_to_image(image_data, challenge_data):
         i_x = (width - i_width) // 2
         i_y = height - 120
         
-        # Background for instruction
+        # Normal width background for instruction
         draw.rectangle([
             i_x - 20, i_y - 15,
             i_x + i_width + 20, i_y + i_height + 15
         ], fill=(0, 0, 0, 200))
         
         draw.text((i_x, i_y), instruction, fill=(255, 255, 255), font=inst_font)
-        
-        # Add decorative footer
-        footer_text = "📚 Daily English Learning • Follow for more quizzes! 📚"
-        try:
-            footer_font = ImageFont.truetype("arial.ttf", 30)
-        except:
-            footer_font = ImageFont.load_default()
-        
-        f_bbox = draw.textbbox((0, 0), footer_text, font=footer_font)
-        f_width = f_bbox[2] - f_bbox[0]
-        f_x = (width - f_width) // 2
-        f_y = height - 60
-        
-        draw.rectangle([0, f_y - 10, width, height], fill=(0, 0, 0, 220))
-        draw.text((f_x, f_y), footer_text, fill=(200, 200, 200), font=footer_font)
         
         # Save to bytes
         output_buffer = BytesIO()
@@ -302,9 +293,15 @@ def post_to_facebook(image_data, challenge_data):
         else:
             starter = "🧠 English Quiz Time!"
         
+        # Extract just the sentence for the caption
+        if ": " in challenge_text:
+            sentence_part = challenge_text.split(": ", 1)[1]
+        else:
+            sentence_part = challenge_text
+        
         caption = f"""{starter}
 
-{challenge_data['challenge']}
+{sentence_part}
 
 {options_text}
 
@@ -339,7 +336,16 @@ def main():
     
     # Generate challenge content
     challenge_data = generate_grammar_challenge()
-    print(f"Challenge: {challenge_data['challenge']}")
+    print(f"Full Challenge: {challenge_data['challenge']}")
+    
+    # Extract just the sentence part for display
+    if ": " in challenge_data['challenge']:
+        sentence_part = challenge_data['challenge'].split(": ", 1)[1]
+        print(f"Sentence only: {sentence_part}")
+    else:
+        sentence_part = challenge_data['challenge']
+        print(f"Sentence only: {sentence_part}")
+    
     print(f"Options: {challenge_data['options']}")
     print(f"Correct answer: {challenge_data['correct_answer']}")
     
