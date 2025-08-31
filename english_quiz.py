@@ -1,0 +1,302 @@
+#!/usr/bin/env python3
+"""
+Simple script to generate grammar challenges with Gemini AI, create image with Pollinations,
+overlay big centered text, and post to Facebook Page.
+"""
+
+import os
+import requests
+import random
+import textwrap
+from PIL import Image, ImageDraw, ImageFont
+from google import genai
+from io import BytesIO
+
+def generate_grammar_challenge():
+    """Generate a grammar challenge with missing word and 3 options using Gemini 2.0 Flash"""
+    try:
+        client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        
+        prompt = """
+        Create a SHORT grammar exercise with one word missing, replaced by a blank (____).
+        Focus on: verb tenses, prepositions, articles. Keep the sentence UNDER 8 WORDS total.
+        Provide 3 multiple-choice options: one correct answer and two incorrect options.
+        
+        Rules:
+        1. Maximum 8 words total in the sentence
+        2. Must have exactly one blank (____)
+        3. Provide ONLY 3 options: A, B, C
+        4. Make options short (1-2 words each)
+        5. Format the response exactly like this:
+        
+        CHALLENGE: [Short sentence with ____]
+        OPTIONS:
+        A) [Option 1]
+        B) [Option 2]
+        C) [Option 3]
+        ANSWER: [Letter of correct option]
+        
+        Examples:
+        
+        CHALLENGE: She ____ to school.
+        OPTIONS:
+        A) walked
+        B) walking
+        C) walks
+        ANSWER: A
+        
+        CHALLENGE: I'm good ____ math.
+        OPTIONS:
+        A) at
+        B) in
+        C) on
+        ANSWER: A
+        
+        CHALLENGE: This is ____ book.
+        OPTIONS:
+        A) a
+        B) an
+        C) the
+        ANSWER: A
+        """
+        
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+        )
+        
+        response_text = response.text.strip()
+        print(f"Gemini response:\n{response_text}")
+        
+        # Parse the response
+        lines = response_text.split('\n')
+        challenge = ""
+        options = []
+        correct_answer = ""
+        
+        for line in lines:
+            if line.startswith('CHALLENGE:'):
+                challenge = line.replace('CHALLENGE:', '').strip()
+            elif line.startswith('A)') or line.startswith('B)') or line.startswith('C)'):
+                options.append(line.strip())
+            elif line.startswith('ANSWER:'):
+                correct_answer = line.replace('ANSWER:', '').strip()
+        
+        # Validate we got all components
+        if not challenge or len(options) != 3 or not correct_answer:
+            raise Exception("Invalid response format from Gemini")
+        
+        return {
+            'challenge': challenge,
+            'options': options,
+            'correct_answer': correct_answer
+        }
+        
+    except Exception as e:
+        print(f"Error generating grammar challenge: {e}")
+        # Fallback grammar challenges with VERY short sentences
+        fallback_challenges = [
+            {
+                'challenge': 'She ____ home.',
+                'options': ['A) ran', 'B) run', 'C) running'],
+                'correct_answer': 'A'
+            },
+            {
+                'challenge': 'I like ____.',
+                'options': ['A) pizza', 'B) run', 'C) blue'],
+                'correct_answer': 'A'
+            },
+            {
+                'challenge': 'He ____ fast.',
+                'options': ['A) runs', 'B) running', 'C) ran'],
+                'correct_answer': 'A'
+            },
+            {
+                'challenge': 'We ____ there.',
+                'options': ['A) went', 'B) go', 'C) going'],
+                'correct_answer': 'A'
+            },
+            {
+                'challenge': 'It is ____.',
+                'options': ['A) cold', 'B) colder', 'C) coldest'],
+                'correct_answer': 'A'
+            }
+        ]
+        return random.choice(fallback_challenges)
+
+def generate_image_with_pollinations(challenge):
+    """Generate image based on challenge text using Pollinations.AI"""
+    try:
+        # Remove the blank for image generation but keep the context
+        clean_prompt = challenge.replace('____', 'something').replace('"', '').replace("'", "")
+        pollinations_url = f"https://image.pollinations.ai/prompt/{clean_prompt}?width=1200&height=1200&nologo=true&quality=0.9"
+        
+        response = requests.get(pollinations_url, timeout=30)
+        if response.status_code == 200:
+            print("Image successfully generated with Pollinations")
+            return response.content
+        else:
+            raise Exception(f"Pollinations API returned status {response.status_code}")
+            
+    except Exception as e:
+        print(f"Error generating image with Pollinations: {e}")
+        return None
+
+def create_fallback_image():
+    """Create a simple fallback image with random color background"""
+    width, height = 1200, 1200
+    colors = ['#2E86AB', '#A23B72', '#F18F01', '#C73E1D', '#3C91E6', '#342E37']
+    bg_color = random.choice(colors)
+    
+    image = Image.new('RGB', (width, height), color=bg_color)
+    return image
+
+def add_challenge_to_image(image_data, challenge_data):
+    """Add challenge content to the image with proper formatting"""
+    try:
+        # Open image
+        if isinstance(image_data, bytes):
+            image = Image.open(BytesIO(image_data))
+        else:
+            image = image_data
+        
+        draw = ImageDraw.Draw(image)
+        width, height = image.size
+        
+        # Content to display
+        challenge = challenge_data['challenge']
+        options = challenge_data['options']
+        
+        # Use large fonts
+        try:
+            challenge_font = ImageFont.truetype("arial.ttf", 80)
+            options_font = ImageFont.truetype("arial.ttf", 60)
+        except:
+            try:
+                challenge_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 80)
+                options_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 60)
+            except:
+                challenge_font = ImageFont.load_default()
+                options_font = ImageFont.load_default()
+        
+        # Draw challenge (centered at top)
+        c_bbox = draw.textbbox((0, 0), challenge, font=challenge_font)
+        c_width = c_bbox[2] - c_bbox[0]
+        c_x = (width - c_width) // 2
+        c_y = 100
+        
+        # Add background for challenge
+        draw.rectangle([
+            c_x - 15, c_y - 15,
+            c_x + c_width + 15, c_y + 70
+        ], fill=(0, 0, 0, 220))
+        
+        draw.text((c_x, c_y), challenge, fill=(255, 255, 255), font=challenge_font)
+        
+        # Draw options (centered in middle) - SIMPLE layout
+        option_y = 400
+        for i, option in enumerate(options):
+            o_bbox = draw.textbbox((0, 0), option, font=options_font)
+            o_width = o_bbox[2] - o_bbox[0]
+            o_x = (width - o_width) // 2
+            
+            # Add background for each option
+            draw.rectangle([
+                o_x - 15, option_y - 15,
+                o_x + o_width + 15, option_y + 50
+            ], fill=(0, 0, 0, 220))
+            
+            draw.text((o_x, option_y), option, fill=(255, 255, 255), font=options_font)
+            option_y += 100  # Space between options
+        
+        # Add simple instruction at bottom
+        instruction = "Comment A, B, or C! 👇"
+        try:
+            inst_font = ImageFont.truetype("arial.ttf", 40)
+        except:
+            inst_font = ImageFont.load_default()
+        
+        i_bbox = draw.textbbox((0, 0), instruction, font=inst_font)
+        i_width = i_bbox[2] - i_bbox[0]
+        i_x = (width - i_width) // 2
+        i_y = height - 100
+        
+        draw.text((i_x, i_y), instruction, fill=(255, 255, 255), font=inst_font)
+        
+        # Save to bytes
+        output_buffer = BytesIO()
+        image.save(output_buffer, format="JPEG", quality=95)
+        return output_buffer.getvalue()
+        
+    except Exception as e:
+        print(f"Error adding challenge to image: {e}")
+        output_buffer = BytesIO()
+        image.save(output_buffer, format="JPEG", quality=95)
+        return output_buffer.getvalue()
+
+def process_image(challenge_data):
+    """Process image - generate or create fallback, then add challenge content"""
+    image_data = generate_image_with_pollinations(challenge_data['challenge'])
+    
+    if image_data:
+        print("Using Pollinations generated image")
+        return add_challenge_to_image(image_data, challenge_data)
+    else:
+        print("Using fallback image with colored background")
+        fallback_image = create_fallback_image()
+        return add_challenge_to_image(fallback_image, challenge_data)
+
+def post_to_facebook(image_data, challenge_data):
+    """Post the image to Facebook Page"""
+    try:
+        page_id = os.environ["FB_PAGE_ID"]
+        access_token = os.environ["FB_PAGE_TOKEN"]
+        
+        url = f"https://graph.facebook.com/v19.0/{page_id}/photos"
+        
+        # Create SHORT engaging caption
+        options_text = "\n".join(challenge_data['options'])
+        caption = f"🧠 Grammar Challenge! 🧠\n\n{challenge_data['challenge']}\n\n{options_text}\n\nComment your answer below! 👇\n\n#GrammarChallenge #BrainTeaser"
+        
+        files = {'source': ('image.jpg', image_data, 'image/jpeg')}
+        data = {'message': caption, 'access_token': access_token}
+        
+        response = requests.post(url, files=files, data=data, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"Successfully posted to Facebook! Post ID: {result.get('id')}")
+            print(f"Correct answer: {challenge_data['correct_answer']}")
+            return True
+        else:
+            print(f"Facebook API error: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"Error posting to Facebook: {e}")
+        return False
+
+def main():
+    """Main function to run the entire process"""
+    print("Starting grammar challenge generation and posting process...")
+    
+    # Generate challenge content
+    challenge_data = generate_grammar_challenge()
+    print(f"Challenge: {challenge_data['challenge']}")
+    print(f"Options: {challenge_data['options']}")
+    print(f"Correct answer: {challenge_data['correct_answer']}")
+    
+    # Process image with challenge content
+    final_image = process_image(challenge_data)
+    print("Image with challenge content created")
+    
+    # Post to Facebook
+    success = post_to_facebook(final_image, challenge_data)
+    
+    if success:
+        print("Process completed successfully!")
+    else:
+        print("Process completed with errors")
+
+if __name__ == "__main__":
+    main()
