@@ -12,6 +12,9 @@ from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 from google import genai
 from io import BytesIO
 
+# Your Facebook page link
+FB_PAGE_LINK = "https://www.facebook.com/engleasyapp"
+
 def generate_grammar_challenge():
     """Generate an English quiz with missing word and 3 options using Gemini 2.0 Flash"""
     try:
@@ -270,7 +273,7 @@ def process_image(challenge_data):
         return add_challenge_to_image(fallback_image, challenge_data)
 
 def post_to_facebook(image_data, challenge_data):
-    """Post the image to Facebook Page with improved caption"""
+    """Post the image to Facebook Page with improved caption including page links"""
     try:
         page_id = os.environ["FB_PAGE_ID"]
         access_token = os.environ["FB_PAGE_TOKEN"]
@@ -299,7 +302,10 @@ def post_to_facebook(image_data, challenge_data):
         else:
             sentence_part = challenge_text
         
-        caption = f"""{starter}
+        # Create caption with page links at beginning and end
+        caption = f"""📚 Follow for daily English quizzes: {FB_PAGE_LINK}
+
+{starter}
 
 {sentence_part}
 
@@ -307,7 +313,7 @@ def post_to_facebook(image_data, challenge_data):
 
 💬 Comment your answer below! We'll reveal the correct answer tomorrow! ⏳
 
-✨ Follow for daily English practice and tips! ✨
+✨ Follow for more English practice: {FB_PAGE_LINK} ✨
 
 #EnglishQuiz #LearnEnglish #GrammarPractice #FillInTheBlank 
 #LanguageLearning #ESL #EnglishPractice #DailyEnglish"""
