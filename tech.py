@@ -107,7 +107,7 @@ def get_google_trends():
     try:
         # Use a more reliable approach for trend discovery - TECH FOCUSED
         trending_keywords = [
-            "smartphone 2024", "PC gaming", "laptop reviews", "tech gadgets", 
+            "smartphone", "PC gaming", "laptop reviews", "tech gadgets", 
             "AI technology", "mobile apps", "wireless earbuds", "smart home",
             "gaming PC", "tech news", "Android tips", "iOS features",
             "computer hardware", "software updates", "cybersecurity tips",
