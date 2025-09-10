@@ -248,7 +248,7 @@ def generate_tech_post():
             TOPIC/TREND: "{selected_trend}"
             CONTEXT: "{web_content}"
 
-            TASK: Create a social media post in ARABIC with TWO distinct parts:
+            TASK: Create a social media post in ARABIC without any greeting with TWO distinct parts:
 
             PART 1: IMAGE_HOOK
             - This is a SHORT, punchy, and compelling one-line statement in ARABIC.
