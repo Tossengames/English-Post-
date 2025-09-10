@@ -141,7 +141,7 @@ def get_google_trends():
     """Get trending tech topics"""
     try:
         trending_keywords = [
-            "smartphone 2024", "PC gaming", "laptop reviews", "tech gadgets", 
+            "smartphone", "PC gaming", "laptop reviews", "tech gadgets", 
             "AI technology", "mobile apps", "wireless earbuds", "smart home",
             "gaming PC", "tech news", "Android tips", "iOS features",
             "computer hardware", "software updates", "cybersecurity",
