@@ -1,4 +1,4 @@
-name: Post finance tip
+name: Post tech
 on:
   schedule:
     - cron: '0 12 * * *'  # Runs daily at 12 PM UTC
