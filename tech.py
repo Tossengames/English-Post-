@@ -11,7 +11,7 @@ import textwrap
 import json
 import hashlib
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageOps
 from io import BytesIO
 import time
 from urllib.parse import quote_plus
@@ -46,6 +46,49 @@ except ImportError:
 
 # File to store posted content for duplication check
 POST_HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "posted_content.json")
+
+def load_arabic_font(font_size=56):
+    """Try to load an Arabic-supported font with fallbacks"""
+    arabic_font_paths = [
+        # Common Arabic font paths on different systems
+        "/usr/share/fonts/truetype/arabic_fonts/NotoNaskhArabic-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+        "/usr/share/fonts/truetype/fonts-arabeyes/ae_AlMateen.ttf",
+        "C:/Windows/Fonts/arabtype.ttf",  # Windows Arabic font
+        "C:/Windows/Fonts/trado.ttf",     # Windows Traditional Arabic
+        "C:/Windows/Fonts/simplarab.ttf", # Windows Simplified Arabic
+        "/System/Library/Fonts/GeezaPro.ttc",  # macOS Arabic font
+        "/Library/Fonts/Arial Unicode MS.ttf", # macOS - has Arabic support
+        "/Library/Fonts/Times New Roman.ttf",  # macOS - sometimes has Arabic
+    ]
+    
+    for font_path in arabic_font_paths:
+        try:
+            if os.path.exists(font_path):
+                return ImageFont.truetype(font_path, font_size)
+        except (IOError, OSError):
+            continue
+    
+    # Try to download a fallback Arabic font if none are available locally
+    try:
+        # Download Noto Sans Arabic font as fallback
+        font_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansArabic/NotoSansArabic-Regular.ttf"
+        response = requests.get(font_url, timeout=10)
+        if response.status_code == 200:
+            font_file = BytesIO(response.content)
+            return ImageFont.truetype(font_file, font_size)
+    except:
+        pass
+    
+    # Ultimate fallback - try default fonts that might support Arabic
+    try:
+        return ImageFont.truetype("arial.ttf", font_size)
+    except:
+        try:
+            return ImageFont.truetype("arialuni.ttf", font_size)  # Arial Unicode
+        except:
+            return ImageFont.load_default()
 
 def load_posted_content():
     """Load history of posted content to avoid duplicates"""
@@ -98,7 +141,7 @@ def get_google_trends():
     """Get trending tech topics"""
     try:
         trending_keywords = [
-            "smartphone", "PC gaming", "laptop reviews", "tech gadgets", 
+            "smartphone 2024", "PC gaming", "laptop reviews", "tech gadgets", 
             "AI technology", "mobile apps", "wireless earbuds", "smart home",
             "gaming PC", "tech news", "Android tips", "iOS features",
             "computer hardware", "software updates", "cybersecurity",
@@ -348,70 +391,67 @@ def get_pixabay_image():
         return None
 
 def create_tech_image(image_text):
-    """Create tech-themed image with custom Arabic font"""
+    """Create tech-themed image with proper Arabic text rendering"""
     width, height = 1200, 1200
     
+    # Get background image
     image_bytes = get_pixabay_image()
     
     if image_bytes:
         try:
             background = Image.open(image_bytes)
             background = background.resize((width, height), Image.LANCZOS)
+            # Apply a slight darkening filter for better text readability
             enhancer = ImageEnhance.Brightness(background)
             background = enhancer.enhance(0.7)
         except Exception as e:
+            # Fallback to solid color background
             tech_colors = ['#0066cc', '#0077dd', '#0088ee', '#0099ff', '#00aaff']
             bg_color = random.choice(tech_colors)
             background = Image.new('RGB', (width, height), color=bg_color)
     else:
+        # Fallback to solid color background
         tech_colors = ['#0066cc', '#0077dd', '#0088ee', '#0099ff', '#00aaff']
         bg_color = random.choice(tech_colors)
         background = Image.new('RGB', (width, height), color=bg_color)
     
     draw = ImageDraw.Draw(background)
     
-    # Try to load Arabic-friendly fonts
-    font_paths = [
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        "/System/Library/Fonts/Arial.ttf",
-        "C:/Windows/Fonts/arial.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-    ]
+    # Load Arabic-supported font
+    font = load_arabic_font(56)
     
-    font_size = 56
-    tip_font = None
-    
-    for font_path in font_paths:
-        try:
-            tip_font = ImageFont.truetype(font_path, font_size)
-            break
-        except (IOError, OSError):
-            continue
-    
-    if tip_font is None:
-        tip_font = ImageFont.load_default()
-    
-    # Adjust text wrapping for Arabic
-    max_chars_per_line = 20
+    # Adjust text wrapping for Arabic - fewer characters per line
+    max_chars_per_line = 18
     wrapped_text = textwrap.fill(image_text, width=max_chars_per_line)
     
     # Calculate text position
-    bbox = draw.textbbox((0, 0), wrapped_text, font=tip_font)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
+    try:
+        # Use textbbox for newer Pillow versions
+        bbox = draw.textbbox((0, 0), wrapped_text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+    except:
+        # Fallback for older Pillow versions
+        try:
+            text_width, text_height = draw.textsize(wrapped_text, font=font)
+        except:
+            # Ultimate fallback
+            text_width, text_height = 800, 200
+    
     x = (width - text_width) // 2
     y = (height - text_height) // 2
     
-    # Semi-transparent background
+    # Add semi-transparent background for better text readability
     padding = 40
     draw.rectangle([
         x - padding, y - padding,
         x + text_width + padding, y + text_height + padding
-    ], fill=(0, 0, 0, 180))
+    ], fill=(0, 0, 0, 180))  # Semi-transparent black background
     
-    # Draw text
-    draw.text((x, y), wrapped_text, fill=(255, 255, 255), font=tip_font, align='center')
+    # Draw Arabic text
+    draw.text((x, y), wrapped_text, fill=(255, 255, 255), font=font, align='center')
     
+    # Convert to bytes
     output_buffer = BytesIO()
     background.save(output_buffer, format="JPEG", quality=95)
     return output_buffer.getvalue()
@@ -423,6 +463,7 @@ def post_to_facebook(image_data, post_data):
         access_token = os.environ.get("FB_PAGE_TOKEN")
         
         if not page_id or not access_token:
+            print("Missing Facebook credentials")
             return False
         
         url = f"https://graph.facebook.com/v19.0/{page_id}/photos"
@@ -437,11 +478,15 @@ def post_to_facebook(image_data, post_data):
         if response.status_code == 200:
             result = response.json()
             save_posted_content(post_data['image_text'])
+            print("Successfully posted to Facebook")
             return True
         else:
+            print(f"Facebook API error: {response.status_code}")
+            print(f"Response: {response.text}")
             return False
             
     except Exception as e:
+        print(f"Error posting to Facebook: {e}")
         return False
 
 def main():
@@ -451,16 +496,25 @@ def main():
     missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
     
     if missing_vars:
+        print(f"Missing environment variables: {', '.join(missing_vars)}")
         return
     
     # Generate tech content
     post_data = generate_tech_content()
+    print("Generated tech content")
+    print(f"Image text: {post_data['image_text']}")
     
     # Create image
     final_image = create_tech_image(post_data['image_text'])
+    print("Created tech image")
     
     # Post to Facebook
     success = post_to_facebook(final_image, post_data)
+    
+    if success:
+        print("Process completed successfully")
+    else:
+        print("Process completed with errors")
 
 if __name__ == "__main__":
     main()
