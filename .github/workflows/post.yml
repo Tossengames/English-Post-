@@ -4,7 +4,16 @@ on:
   schedule:
     # Run once daily at 12 PM Middle East time (UTC+3)
     # This translates to 9:00 UTC
-    - cron: '0 9 * * *'  # 12:00 PM EEST (9:00 UTC)
+   # - cron: '0 9 * * *'  # 12:00 PM EEST (9:00 UTC)
+
+   # Middle East Times (UTC+3): 9 AM, 12 PM, 5 PM
+    # Converted to UTC: 6 AM, 9 AM, 2 PM
+  - cron: '0 6 * * *'  # 9 AM EEST (6 AM UTC)
+  - cron: '0 9 * * *'  # 12 PM EEST (9 AM UTC)
+  - cron: '0 14 * * *' # 5 PM EEST (2 PM UTC)
+
+
+
   workflow_dispatch:
     # This allows manual triggering from the GitHub Actions tab.
 
