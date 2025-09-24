@@ -362,7 +362,7 @@ def generate_english_post():
     ]
     
     # Adjust weights if you want some types to appear more frequently
-    weights = [0.6, 0.2, 0.2]  # 60% regular, 20% translation, 20% comprehension
+    weights = [0.10, 0.0, 0.0]  # 60% regular, 20% translation, 20% comprehension
     
     selected_generator = random.choices(post_types, weights=weights, k=1)[0]
     return selected_generator()
