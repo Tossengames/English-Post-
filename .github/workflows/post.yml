@@ -3,7 +3,7 @@ name: Automated Facebook Teacher Posts
 on:
    schedule:
     # Posts at 8AM, 12PM, 4PM, 8PM UTC
-   - cron: '0 8,12,16,20 * * *'
+   - cron: '0 5,8,13,17 * * *'
 
 
   workflow_dispatch:
