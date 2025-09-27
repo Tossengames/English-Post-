@@ -1,13 +1,10 @@
 name: Automated Facebook Teacher Posts
 
 on:
-   schedule:
+  schedule:
     # Posts at 8AM, 12PM, 4PM, 8PM UTC
-   - cron: '0 5,8,13,17 * * *'
-
-
-  workflow_dispatch:
-    # This allows manual triggering from the GitHub Actions tab.
+    - cron: '0 8,12,16,20 * * *' # Corrected times for 8AM, 12PM, 4PM, 8PM UTC
+  workflow_dispatch: # Moved to the same level as 'schedule'
 
 jobs:
   post:
