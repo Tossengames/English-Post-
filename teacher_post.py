@@ -139,7 +139,7 @@ def ask_ai(prompt):
     }
     
     try:
-        response = requests.post(url, headers=headers, json=data, timeout=30)
+        response = requests.post(url, headers=headers, json=data, timeout=90)
         response.raise_for_status()
         return response.json()['candidates'][0]['content']['parts'][0]['text']
     except Exception as e:
