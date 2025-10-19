@@ -235,7 +235,7 @@ def generate_regular_english_post():
         style_name, style = "Pronunciation Guide", POST_STYLES["Pronunciation Guide"]
     
     prompt = f"""
-    Create an English learning post in Arabic about:
+    Create an English learning post without greetings or an opening in Arabic about:
     {topic}
     
     Requirements:
