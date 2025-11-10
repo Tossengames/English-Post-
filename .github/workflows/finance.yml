@@ -1,4 +1,4 @@
-name: Post finance tip
+name: Post finance tip (actually it's posting the tech.py, it's posting lessons on jmages arabic
 on:
   schedule:
    - cron: '0 12 * * *'  # Runs daily at 12 PM UTC
