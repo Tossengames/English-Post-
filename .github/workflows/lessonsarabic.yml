@@ -29,4 +29,4 @@ jobs:
         FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
         FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
       run: |
-        python tech.py
+        python lessonsarabic.py
