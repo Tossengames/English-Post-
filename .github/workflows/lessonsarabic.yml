@@ -1,7 +1,7 @@
 name: post lessons on jmages arabic
 on:
   schedule:
-   - cron: '0 12 * * *'  # Runs daily at 12 PM UTC
+   - cron: '0 8,10,12,15,18,22 * * *'  # Runs daily at 12 PM UTC
   workflow_dispatch:       # Allows manual triggering
 
 jobs:
