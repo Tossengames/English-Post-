@@ -35,8 +35,8 @@ except ImportError:
         print("   pip install google-generativeai  # For old SDK")
         exit(1)
 
-# File to store posted content for duplication check
-POST_HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "posted_content.json")
+# File to store posted content for duplication check - Use current working directory
+POST_HISTORY_FILE = os.path.join(os.getcwd(), "posted_content.json")
 
 # Content parameters for variety
 TOPICS = [
@@ -125,16 +125,25 @@ def load_arabic_font(font_size=56):
 def load_posted_content():
     """Load history of posted content to avoid duplicates"""
     try:
+        print(f"Looking for history file at: {POST_HISTORY_FILE}")
         if os.path.exists(POST_HISTORY_FILE):
             with open(POST_HISTORY_FILE, 'r', encoding='utf-8') as f:
                 content = f.read().strip()
                 if content:
-                    return json.loads(content)
+                    data = json.loads(content)
+                    print(f"Loaded {len(data)} items from history")
+                    return data
                 else:
+                    print("History file is empty")
                     return []
-        return []
+        else:
+            print("History file does not exist, starting fresh")
+            return []
     except (json.JSONDecodeError, FileNotFoundError) as e:
         print(f"Error loading history file: {e}")
+        return []
+    except Exception as e:
+        print(f"Unexpected error loading history: {e}")
         return []
 
 def save_posted_content(content_text):
@@ -147,6 +156,7 @@ def save_posted_content(content_text):
         
         if content_hash not in posted_content:
             posted_content.append(content_hash)
+            # Ensure directory exists
             os.makedirs(os.path.dirname(POST_HISTORY_FILE), exist_ok=True)
             with open(POST_HISTORY_FILE, 'w', encoding='utf-8') as f:
                 json.dump(posted_content, f)
@@ -164,7 +174,10 @@ def is_duplicate_content(content_text):
     try:
         posted_content = load_posted_content()
         content_hash = hashlib.md5(content_text.encode()).hexdigest()
-        return content_hash in posted_content
+        is_duplicate = content_hash in posted_content
+        if is_duplicate:
+            print(f"Duplicate content detected: {content_text[:30]}...")
+        return is_duplicate
     except Exception as e:
         print(f"Error checking duplicate: {e}")
         return False
@@ -188,6 +201,7 @@ def generate_content_combination():
         # Check if this combination was used before
         posted_content = load_posted_content()
         if content_hash not in posted_content:
+            print(f"Generated new content combination: {content_id}")
             return {
                 'topic': topic,
                 'issue': issue,
@@ -196,8 +210,11 @@ def generate_content_combination():
                 'tip_type': tip_type,
                 'content_id': content_id
             }
+        else:
+            print(f"Combination already used, trying again... (attempt {attempt + 1})")
     
     # If all combinations are exhausted, return a random one
+    print("All combinations exhausted, using fallback")
     return {
         'topic': random.choice(TOPICS),
         'issue': random.choice(ISSUES),
@@ -216,6 +233,8 @@ def generate_english_content():
         try:
             # Get unique content combination
             content_combo = generate_content_combination()
+            
+            print(f"Generating content with Gemini API...")
             
             if SDK_TYPE == "new":
                 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
@@ -265,6 +284,7 @@ def generate_english_content():
                 response_text = response.text
             
             response_text = response_text.strip()
+            print("Received response from Gemini")
             
             post_data = {}
             lines = response_text.split('\n')
@@ -276,6 +296,7 @@ def generate_english_content():
                 if line.startswith('IMAGE_TEXT:'):
                     post_data['image_text'] = line.replace('IMAGE_TEXT:', '').strip()
                     image_text_found = True
+                    print(f"Found image text: {post_data['image_text']}")
                 elif line.startswith('DETAILED_CONTENT:'):
                     content_start = line.replace('DETAILED_CONTENT:', '').strip()
                     if content_start:
@@ -301,15 +322,18 @@ def generate_english_content():
                 
                 return post_data
             else:
+                print("Invalid response format from Gemini")
                 raise Exception("Invalid response format from Gemini")
             
         except Exception as e:
+            print(f"Error generating content (attempt {retry_count + 1}): {e}")
             retry_count += 1
             if retry_count >= max_retries:
                 break
             time.sleep(2)
     
     # Fallback content with parameter combinations
+    print("Using fallback content")
     fallback_combinations = [
         {
             'image_text': "الممارسة اليومية تحسن الطلاقة بشكل ملحوظ",
@@ -321,7 +345,7 @@ def generate_english_content():
         },
         {
             'image_text': "الاستماع اليومي يحسن الفهم والنطق معاً",
-            'detailed_content': "استمع إلى محتوى إنجليزي أثناء التنقل أو العمل. التعرض المستعار أساسي.\n\nابدأ بمحتوى بطيء ثم تدرج إلى السرعة الطبيعية.\n\n#استماع #نطق #فهم"
+            'detailed_content': "استمع إلى محتوى إنجليزي أثناء التنقل أو العمل. التعرض المستمر أساسي.\n\nابدأ بمحتوى بطيء ثم تدرج إلى السرعة الطبيعية.\n\n#استماع #نطق #فهم"
         },
         {
             'image_text': "الأخطاء جزء من عملية التعلم الناجح",
@@ -343,11 +367,13 @@ def generate_english_content():
         selected_post = random.choice(non_duplicate_posts)
         # Mark as used
         save_posted_content(selected_post['image_text'])
+        print("Using non-duplicate fallback content")
         return selected_post
     else:
         # If all fallbacks are used, use one but mark it
         selected_post = random.choice(fallback_combinations)
         save_posted_content(selected_post['image_text'])
+        print("Using duplicate fallback content (all options exhausted)")
         return selected_post
 
 def get_pixabay_image():
@@ -355,12 +381,15 @@ def get_pixabay_image():
     try:
         api_key = os.environ.get("PIXABAY_KEY")
         if not api_key:
+            print("Pixabay API key not found")
             return None
             
         categories = ["education", "learning", "study", "books", "school",
                      "university", "reading", "writing", "language", "english",
                      "classroom", "student", "teacher", "notebook", "knowledge"]
         category = random.choice(categories)
+        
+        print(f"Searching Pixabay for: {category}")
         
         url = "https://pixabay.com/api/"
         params = {
@@ -379,11 +408,18 @@ def get_pixabay_image():
             if data['hits']:
                 image_data = random.choice(data['hits'])
                 image_url = image_data["largeImageURL"]
+                print(f"Downloading image from: {image_url}")
                 img_response = requests.get(image_url, timeout=15)
+                print("Successfully downloaded Pixabay image")
                 return BytesIO(img_response.content)
+            else:
+                print("No images found on Pixabay")
+        else:
+            print(f"Pixabay API error: {response.status_code}")
         return None
             
     except Exception as e:
+        print(f"Error getting Pixabay image: {e}")
         return None
 
 def get_random_box_color():
@@ -400,7 +436,9 @@ def get_random_box_color():
         (139, 69, 19, 180),    # Saddle Brown
         (47, 79, 79, 180),     # Dark Slate Gray
     ]
-    return random.choice(colors)
+    color = random.choice(colors)
+    print(f"Using box color: {color}")
+    return color
 
 def create_english_learning_image(image_text):
     """Create education-themed image with proper Arabic text rendering"""
@@ -416,16 +454,19 @@ def create_english_learning_image(image_text):
             # Apply a slight darkening filter for better text readability
             enhancer = ImageEnhance.Brightness(background)
             background = enhancer.enhance(0.7)
+            print("Using Pixabay background image")
         except Exception as e:
             # Fallback to solid color background
             education_colors = ['#2E8B57', '#4682B4', '#5F9EA0', '#DA70D6', '#20B2AA']
             bg_color = random.choice(education_colors)
             background = Image.new('RGB', (width, height), color=bg_color)
+            print(f"Using solid color background: {bg_color}")
     else:
         # Fallback to solid color background
         education_colors = ['#2E8B57', '#4682B4', '#5F9EA0', '#DA70D6', '#20B2AA']
         bg_color = random.choice(education_colors)
         background = Image.new('RGB', (width, height), color=bg_color)
+        print(f"Using solid color background: {bg_color}")
     
     # Convert to RGBA for transparency support
     background = background.convert('RGBA')
@@ -480,6 +521,7 @@ def create_english_learning_image(image_text):
     # Convert to bytes
     output_buffer = BytesIO()
     background.save(output_buffer, format="JPEG", quality=95)
+    print("Image created successfully")
     return output_buffer.getvalue()
 
 def post_to_facebook(image_data, post_data):
@@ -499,6 +541,7 @@ def post_to_facebook(image_data, post_data):
         files = {'source': ('english_learning.jpg', image_data, 'image/jpeg')}
         data = {'message': caption, 'access_token': access_token}
         
+        print("Posting to Facebook...")
         response = requests.post(url, files=files, data=data, timeout=30)
         
         if response.status_code == 200:
@@ -516,6 +559,9 @@ def post_to_facebook(image_data, post_data):
 
 def main():
     """Main function to run the entire process"""
+    print("Starting English Learning Content Generator...")
+    print(f"Current working directory: {os.getcwd()}")
+    
     # Check environment variables
     required_env_vars = ["GEMINI_API_KEY", "PIXABAY_KEY", "FB_PAGE_ID", "FB_PAGE_TOKEN"]
     missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
@@ -524,17 +570,22 @@ def main():
         print(f"Missing environment variables: {', '.join(missing_vars)}")
         return
     
+    print("All environment variables are set")
+    
     # Generate English learning content
+    print("Generating English learning content...")
     post_data = generate_english_content()
     print("Generated English learning content")
     print(f"Image text: {post_data['image_text']}")
     print(f"Content preview: {post_data['detailed_content'][:100]}...")
     
     # Create image
+    print("Creating image...")
     final_image = create_english_learning_image(post_data['image_text'])
     print("Created English learning image")
     
     # Post to Facebook
+    print("Posting to Facebook...")
     success = post_to_facebook(final_image, post_data)
     
     if success:
