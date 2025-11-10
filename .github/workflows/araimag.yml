@@ -1,0 +1,33 @@
+name: English Learning Post
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Run every 6 hours
+  workflow_dispatch:  # Allow manual triggers
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pillow requests google-generativeai googlesearch-python
+        
+    - name: List files for debugging
+      run: ls -la
+      
+    - name: Run English Learning Script
+      run: python lessonsarabic.py
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
+        FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+        FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
