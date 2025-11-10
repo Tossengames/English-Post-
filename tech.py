@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Tech Information Generator: Generate informative Arabic content about technology, PCs, mobile, and gadgets.
+English Learning Generator: Generate informative Arabic content about English learning, tips, and resources.
 Creates images with text overlay and posts to Facebook Page.
 """
 
@@ -137,15 +137,16 @@ def is_duplicate_content(content_text):
         print(f"Error checking duplicate: {e}")
         return False
 
-def get_google_trends():
-    """Get trending tech topics"""
+def get_english_learning_trends():
+    """Get trending English learning topics"""
     try:
         trending_keywords = [
-            "smartphone", "PC gaming", "laptop reviews", "tech gadgets", 
-            "AI technology", "mobile apps", "wireless earbuds", "smart home",
-            "gaming PC", "tech news", "Android tips", "iOS features",
-            "computer hardware", "software updates", "cybersecurity",
-            "productivity apps", "tech reviews", "wearable technology"
+            "English grammar", "vocabulary building", "speaking practice", 
+            "listening skills", "English pronunciation", "writing skills",
+            "IELTS preparation", "TOEFL tips", "business English", 
+            "conversational English", "English idioms", "phrasal verbs",
+            "English for beginners", "advanced English", "daily English",
+            "English fluency", "learning methods", "study techniques"
         ]
         
         all_trends = []
@@ -159,7 +160,7 @@ def get_google_trends():
                 ))
                 
                 for url in results:
-                    if any(x in url for x in ['trend', 'news', 'blog', 'article', 'report', 'review']):
+                    if any(x in url for x in ['learn', 'study', 'english', 'language', 'tips', 'method', 'technique']):
                         url_parts = url.split('/')
                         for part in url_parts:
                             if len(part) > 3 and '-' in part and any(c.isalpha() for c in part):
@@ -178,30 +179,30 @@ def get_google_trends():
         if unique_trends:
             return unique_trends[:10]
         
-        return get_fallback_trends()
+        return get_fallback_english_trends()
             
     except Exception as e:
-        return get_fallback_trends()
+        return get_fallback_english_trends()
 
-def get_fallback_trends():
-    """Get reliable fallback trending topics"""
+def get_fallback_english_trends():
+    """Get reliable fallback English learning topics"""
     fallback_trends = [
-        "gaming PC", "processor comparison", "graphics cards", "RAM upgrade",
-        "SSD vs HDD", "PC building", "laptop specs", "motherboard",
-        "cooling systems", "PC performance", "smartphone camera", "battery life",
-        "mobile gaming", "app recommendations", "iOS vs Android", "phone security",
-        "mobile photography", "AI technology", "smart home", "wireless charging",
-        "tech gadgets", "cybersecurity", "data privacy", "cloud storage"
+        "grammar rules", "vocabulary expansion", "speaking confidence",
+        "listening comprehension", "pronunciation practice", "writing improvement",
+        "IELTS strategies", "TOEFL preparation", "business communication",
+        "daily conversation", "common idioms", "phrasal verbs usage",
+        "beginner English", "advanced vocabulary", "fluency development",
+        "study planning", "learning resources", "practice techniques"
     ]
     return random.sample(fallback_trends, min(8, len(fallback_trends)))
 
-def search_web_content(topic):
-    """Perform web search for the topic"""
+def search_english_content(topic):
+    """Perform web search for English learning topic"""
     try:
         if not GOOGLE_SEARCH_AVAILABLE:
-            return f"Technology experts are discussing {topic} as an important development in the tech industry."
+            return f"Language experts are discussing {topic} as an important aspect of English learning."
         
-        search_query = f"{topic} technology innovation 2024"
+        search_query = f"{topic} English learning tips methods 2024"
         results = list(google_search(
             search_query, 
             num_results=3,
@@ -210,36 +211,36 @@ def search_web_content(topic):
         ))
         
         content_parts = []
-        content_parts.append(f"Recent technology discussions indicate that {topic} is currently a significant focus area.")
+        content_parts.append(f"Recent discussions in English learning indicate that {topic} is currently a significant focus area.")
         
         if results:
-            content_parts.append("Industry analysis shows several key developments:")
-            content_parts.append(f"- {topic} represents important technological advancement")
-            content_parts.append(f"- This area connects to broader innovation trends in the tech sector")
+            content_parts.append("Language learning research shows several key insights:")
+            content_parts.append(f"- {topic} represents important language acquisition strategy")
+            content_parts.append(f"- This area connects to broader effective learning methods")
             
             domain_count = len(set(url.split('/')[2] for url in results if len(url.split('/')) > 2))
-            content_parts.append(f"Based on review of {domain_count} sources, this represents valuable technological insight.")
+            content_parts.append(f"Based on review of {domain_count} educational sources, this represents valuable learning insight.")
         else:
-            content_parts.append("This technology area is receiving significant attention across industry discussions.")
+            content_parts.append("This learning area is receiving significant attention across educational discussions.")
         
-        content_parts.append("Technology analysts and experts are highlighting the importance of these developments.")
+        content_parts.append("Language teachers and learning experts are highlighting the importance of these methods.")
         
         return " ".join(content_parts)
         
     except Exception as e:
-        return f"Current discussions about {topic} indicate it represents significant technological progress. Experts are emphasizing its relevance for the technology landscape."
+        return f"Current discussions about {topic} indicate it represents effective English learning approach. Experts are emphasizing its relevance for language acquisition."
 
-def generate_tech_content():
-    """Generate informative tech content using Gemini"""
+def generate_english_content():
+    """Generate informative English learning content using Gemini"""
     max_retries = 3
     retry_count = 0
     
     while retry_count < max_retries:
         try:
-            trends = get_google_trends()
-            selected_trend = random.choice(trends) if trends else "technology innovation"
+            trends = get_english_learning_trends()
+            selected_trend = random.choice(trends) if trends else "English learning methods"
             
-            web_content = search_web_content(selected_trend)
+            web_content = search_english_content(selected_trend)
             
             if SDK_TYPE == "new":
                 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
@@ -247,30 +248,30 @@ def generate_tech_content():
                 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
             
             prompt = f"""
-            ACT AS: An expert technology analyst creating informative content for Arabic-speaking audience.
+            ACT AS: An expert English teacher and language learning specialist creating informative content for Arabic-speaking audience.
 
             TOPIC: "{selected_trend}"
             CONTEXT: "{web_content}"
 
-            TASK: Create informative technology content in ARABIC with TWO parts:
+            TASK: Create informative English learning content in ARABIC with TWO parts:
 
             PART 1: IMAGE_TEXT
-            - A concise, factual statement in Arabic (under 12 words)
-            - Should present valuable information, not advice
+            - A concise, factual statement in Arabic about English learning (under 12 words)
+            - Should present valuable learning information, not advice
             - No emojis, just clear factual text
-            - Examples: "معالجات الجيل الجديد تستهلك طاقة أقل بنسبة 40%" | "شاشات OLED توفر تبايناً أفضل من LCD"
+            - Examples: "الممارسة اليومية تحسن الطلاقة بنسبة 70%" | "تعلم 10 كلمات يومياً يوسع المفردات بشكل فعال"
 
             PART 2: DETAILED_CONTENT
-            - Direct, informative explanation in Arabic (no greetings)
-            - Present facts, specifications, or technical information
+            - Direct, informative explanation in Arabic about English learning
+            - Present facts, learning strategies, or educational information
             - Use clear paragraph breaks for readability
-            - Include 5-7 relevant Arabic hashtags at the end
-            - Entirely in Arabic, professional tone
+            - Include 5-7 relevant Arabic hashtags about English learning at the end
+            - Entirely in Arabic, professional educational tone
 
             FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
 
-            IMAGE_TEXT: [Your factual statement in Arabic here]
-            DETAILED_CONTENT: [Your detailed informative content in Arabic here]
+            IMAGE_TEXT: [Your factual statement about English learning in Arabic here]
+            DETAILED_CONTENT: [Your detailed informative content about English learning in Arabic here]
 
             Create content about {selected_trend}:
             """
@@ -331,16 +332,16 @@ def generate_tech_content():
     
     fallback_posts = [
         {
-            'image_text': "معالجات الجيل الخامس توفر أداءً أفضل باستهلاك طاقة أقل",
-            'detailed_content': "معالجات الجيل الخامس من Intel و AMD تقدم تحسينات كبيرة في الأداء مع تقليل استهلاك الطاقة بنسبة تصل إلى 40% مقارنة بالجيل السابق.\n\nهذه المعالجات تدعم تقنيات الذكاء الاصطناعي المتقدمة وتوفر أداءً ممتازاً في الألعاب والمهام الإنتاجية.\n\nالتطور المستمر في هندسة المعالجات يمثل قفزة تقنية مهمة في عالم الحواسيب.\n\n#تقنية #معالجات #حواسيب #تكنولوجيا #أداء"
+            'image_text': "الممارسة اليومية تحسن الطلاقة اللغوية بشكل ملحوظ",
+            'detailed_content': "الدراسات تظهر أن الممارسة اليومية للغة الإنجليزية لمدة 30 دقيقة تحسن الطلاقة بنسبة تصل إلى 70% خلال 3 أشهر.\n\nالتكرار المنتظم يساعد في ترسيخ المفردات والقواعد في الذاكرة طويلة المدى، مما يسهل عملية التحدث التلقائي.\n\nالاستماع والمحادثة اليومية أكثر فعالية من الدراسة المكثفة غير المنتظمة.\n\n#تعلم_الإنجليزية #طلاقة #ممارسة #لغة #إنجليزية"
         },
         {
-            'image_text': "شاشات OLED تتفوق على LCD في التباين ودقة الألوان",
-            'detailed_content': "شاشات OLED توفر تبايناً لا نهائياً ودقة ألوان ممتازة نظراً لقدرة كل بكسل على الإنارة بشكل مستقل.\n\nهذه التقنية تستهلك طاقة أقل عندما تعرض محتوى داكن، وتوفر زوايا مشاهدة أوسع من شاشات LCD التقليدية.\n\nالتطور في تقنيات العرض continues to provide better viewing experiences for users.\n\n#شاشات #OLED #تكنولوجيا #عرض #ألوان"
+            'image_text': "تعلم 10 كلمات يومياً يوسع المفردات بشكل فعال",
+            'detailed_content': "تعلم 10 كلمات إنجليزية جديدة يومياً يمكن أن يضيف أكثر من 3000 كلمة إلى مفرداتك خلال سنة واحدة.\n\nاستخدام الكلمات في جمل عملية ومراجعتها بشكل منتظم يساعد على تذكرها بشكل أفضل.\n\nتنوع المفردات يحسن الفهم والكتابة والتحدث باللغة الإنجليزية.\n\n#مفردات #كلمات #إنجليزية #تعلم #لغة"
         },
         {
-            'image_text': "التخزين SSD أسرع 10 مرات من الأقراص الصلبة التقليدية",
-            'detailed_content': "وحدات التخزين SSD توفر سرعات قراءة وكتابة تصل إلى 10 أضعاف速度 الأقراص الصلبة التقليدية، مما يقلل أوقات التحميل بشكل كبير.\n\nهذه التقنية لا تحتوي على أجزاء متحركة، مما يجعلها أكثر موثوقية واستهلاكاً أقل للطاقة.\n\nالتحول إلى التخزين SSD يمثل واحدة من أهم ترقيات الأداء لأي حاسوب.\n\n#تخزين #SSD #أداء #تقنية #ترقيات"
+            'image_text': "الاستماع اليومي يحسن الفهم والنطق معاً",
+            'detailed_content': "الاستماع اليومي للمحتوى الإنجليزي لمدة 20 دقيقة يحسن مهارات الفهم السمعي والنطق بشكل متوازي.\n\nالتعرض المستمر للهجات المختلفة يساعد الدماغ على التعرف على الأنماط الصوتية وتحسين النطق.\n\nالبودكاست والأفلام والبرامج وسائل فعالة للاستماع اليومي.\n\n#استماع #نطق #فهم #إنجليزية #لغة"
         }
     ]
     
@@ -355,15 +356,16 @@ def generate_tech_content():
         return random.choice(fallback_posts)
 
 def get_pixabay_image():
-    """Get a random tech-related image from Pixabay"""
+    """Get a random education/learning-related image from Pixabay"""
     try:
         api_key = os.environ.get("PIXABAY_KEY")
         if not api_key:
             return None
             
-        categories = ["technology", "computer", "laptop", "smartphone", "gadgets",
-                     "electronics", "pc gaming", "mobile", "tech", "innovation",
-                     "coding", "programming", "digital", "cyber", "network"]
+        categories = ["education", "learning", "study", "books", "school",
+                     "university", "reading", "writing", "language", "english",
+                     "classroom", "student", "teacher", "notebook", "knowledge",
+                     "literature", "grammar", "vocabulary", "communication"]
         category = random.choice(categories)
         
         url = "https://pixabay.com/api/"
@@ -390,8 +392,8 @@ def get_pixabay_image():
     except Exception as e:
         return None
 
-def create_tech_image(image_text):
-    """Create tech-themed image with proper Arabic text rendering"""
+def create_english_learning_image(image_text):
+    """Create education-themed image with proper Arabic text rendering"""
     width, height = 1200, 1200
     
     # Get background image
@@ -406,13 +408,13 @@ def create_tech_image(image_text):
             background = enhancer.enhance(0.7)
         except Exception as e:
             # Fallback to solid color background
-            tech_colors = ['#0066cc', '#0077dd', '#0088ee', '#0099ff', '#00aaff']
-            bg_color = random.choice(tech_colors)
+            education_colors = ['#2E8B57', '#4682B4', '#5F9EA0', '#DA70D6', '#20B2AA']
+            bg_color = random.choice(education_colors)
             background = Image.new('RGB', (width, height), color=bg_color)
     else:
         # Fallback to solid color background
-        tech_colors = ['#0066cc', '#0077dd', '#0088ee', '#0099ff', '#00aaff']
-        bg_color = random.choice(tech_colors)
+        education_colors = ['#2E8B57', '#4682B4', '#5F9EA0', '#DA70D6', '#20B2AA']
+        bg_color = random.choice(education_colors)
         background = Image.new('RGB', (width, height), color=bg_color)
     
     draw = ImageDraw.Draw(background)
@@ -470,7 +472,7 @@ def post_to_facebook(image_data, post_data):
         
         caption = post_data['detailed_content']
         
-        files = {'source': ('tech_info.jpg', image_data, 'image/jpeg')}
+        files = {'source': ('english_learning.jpg', image_data, 'image/jpeg')}
         data = {'message': caption, 'access_token': access_token}
         
         response = requests.post(url, files=files, data=data, timeout=30)
@@ -499,14 +501,14 @@ def main():
         print(f"Missing environment variables: {', '.join(missing_vars)}")
         return
     
-    # Generate tech content
-    post_data = generate_tech_content()
-    print("Generated tech content")
+    # Generate English learning content
+    post_data = generate_english_content()
+    print("Generated English learning content")
     print(f"Image text: {post_data['image_text']}")
     
     # Create image
-    final_image = create_tech_image(post_data['image_text'])
-    print("Created tech image")
+    final_image = create_english_learning_image(post_data['image_text'])
+    print("Created English learning image")
     
     # Post to Facebook
     success = post_to_facebook(final_image, post_data)
