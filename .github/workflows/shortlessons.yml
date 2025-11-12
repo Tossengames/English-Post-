@@ -1,4 +1,4 @@
-name: English lessons English/Arabic 
+name: English Coach Daily Post
 
 on:
   schedule:
@@ -25,7 +25,7 @@ jobs:
       with:
         python-version: '3.10'
         
-    - name: Install system dependencies for Arabic fonts
+    - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -33,8 +33,63 @@ jobs:
           libraqm-dev \
           pkg-config \
           python3-dev \
-          build-essential
+          build-essential \
+          fontconfig
           
+    - name: Install Arabic and Unicode fonts
+      run: |
+        sudo apt-get install -y \
+          fonts-sil-harmattan \
+          fonts-noto \
+          fonts-noto-cjk \
+          fonts-noto-color-emoji \
+          fonts-dejavu \
+          fonts-liberation \
+          fonts-freefont-ttf
+          
+    - name: Configure font aliases for Arabic
+      run: |
+        mkdir -p ~/.config/fontconfig
+        cat > ~/.config/fontconfig/fonts.conf << 'EOF'
+        <?xml version='1.0'?>
+        <!DOCTYPE fontconfig SYSTEM 'fonts.dtd'>
+        <fontconfig>
+          <alias>
+            <family>sans-serif</family>
+            <prefer>
+              <family>Noto Sans Arabic</family>
+              <family>Harmattan</family>
+              <family>DejaVu Sans</family>
+              <family>FreeSans</family>
+            </prefer>
+          </alias>
+          <alias>
+            <family>serif</family>
+            <prefer>
+              <family>Noto Serif Arabic</family>
+              <family>DejaVu Serif</family>
+              <family>FreeSerif</family>
+            </prefer>
+          </alias>
+          <alias>
+            <family>monospace</family>
+            <prefer>
+              <family>Noto Sans Mono</family>
+              <family>DejaVu Sans Mono</family>
+              <family>FreeMono</family>
+            </prefer>
+          </alias>
+        </fontconfig>
+        EOF
+        sudo fc-cache -fv
+        
+    - name: Verify Arabic font installation
+      run: |
+        echo "Available Arabic fonts:"
+        fc-list :lang=ar | head -10
+        echo "Font matching test:"
+        fc-match -s ':charset=0620' | head -5
+        
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
@@ -45,17 +100,9 @@ jobs:
           arabic-reshaper \
           python-bidi
           
-    - name: Install Arabic fonts
-      run: |
-        sudo apt-get install -y \
-          fonts-arabic \
-          fonts-noto \
-          fonts-dejavu \
-          fonts-liberation
-          
     - name: Run English Coach Script
       run: |
-        python shortlessons.py
+        python english_coach.py
           
     - name: Upload generated image as artifact
       uses: actions/upload-artifact@v4
