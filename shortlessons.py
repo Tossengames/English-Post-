@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 English Coach: Generate practical English learning tips and lessons with Gemini AI,
-create images with text overlay using Pixabay backgrounds, and post to Facebook Page.
+create images with text overlay in both English and Arabic, and post to Facebook Page.
 """
 
 import os
@@ -33,6 +33,16 @@ except ImportError:
         print("   or")
         print("   pip install google-generativeai  # For old SDK")
         exit(1)
+
+# Try to import Arabic text processing libraries
+try:
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+    ARABIC_SUPPORT = True
+    print("✅ Arabic text support enabled")
+except ImportError:
+    ARABIC_SUPPORT = False
+    print("⚠️ Arabic text support disabled - install arabic-reshaper and python-bidi")
 
 # File to store posted tips for duplication check - using absolute path
 POST_HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "posted_english_tips.json")
@@ -93,7 +103,7 @@ def is_duplicate_tip(tip_data):
         return False
 
 def generate_english_tip():
-    """Generate a practical English learning tip using Gemini"""
+    """Generate a practical English learning tip using Gemini with Arabic translation"""
     max_retries = 3
     retry_count = 0
     
@@ -111,7 +121,9 @@ def generate_english_tip():
             MAIN_TIP: [A short, practical, actionable English learning tip - under 15 words]
             EXPLANATION: [1-2 sentences explaining why this tip works or how to implement it]
             EXAMPLE: [A clear example showing the tip in action]
-            HASHTAGS: [3-4 relevant hashtags]
+            ARABIC_TIP: [Arabic translation of the main tip - نص عربي]
+            ARABIC_EXPLANATION: [Arabic translation of the explanation - شرح عربي]
+            HASHTAGS: [3-4 relevant hashtags in English]
 
             Focus on practical advice for:
             - Grammar rules and common mistakes
@@ -125,14 +137,15 @@ def generate_english_tip():
             - Business English
             - Conversation skills
 
-            IMPORTANT: Avoid overused tips like "watch movies with subtitles" or "practice every day".
-            Focus on fresh, specific, actionable English learning advice.
+            IMPORTANT: Provide accurate Arabic translations that are natural and educational.
 
             Format the response exactly like this:
 
             MAIN_TIP: Learn collocations - words that naturally go together.
             EXPLANATION: This makes your English sound more natural and fluent instead of translated.
             EXAMPLE: Instead of "make a photo", say "take a photo". Instead of "strong rain", say "heavy rain".
+            ARABIC_TIP: تعلم المتلازمات اللفظية - الكلمات التي تترافق معًا بشكل طبيعي
+            ARABIC_EXPLANATION: هذا يجعل لغتك الإنجليزية تبدو أكثر طلاقة وطبيعية بدلاً من أن تبدو مترجمة
             HASHTAGS: #EnglishTips #Vocabulary #LearnEnglish #ESL
 
             Return only ONE post in this exact format.
@@ -164,10 +177,14 @@ def generate_english_tip():
                     tip_data['explanation'] = line.replace('EXPLANATION:', '').strip()
                 elif line.startswith('EXAMPLE:'):
                     tip_data['example'] = line.replace('EXAMPLE:', '').strip()
+                elif line.startswith('ARABIC_TIP:'):
+                    tip_data['arabic_tip'] = line.replace('ARABIC_TIP:', '').strip()
+                elif line.startswith('ARABIC_EXPLANATION:'):
+                    tip_data['arabic_explanation'] = line.replace('ARABIC_EXPLANATION:', '').strip()
                 elif line.startswith('HASHTAGS:'):
                     tip_data['hashtags'] = line.replace('HASHTAGS:', '').strip()
             
-            if 'main_tip' in tip_data:
+            if 'main_tip' in tip_data and 'arabic_tip' in tip_data:
                 # Check if this is a duplicate before returning
                 if is_duplicate_tip(tip_data):
                     print(f"🔄 Generated tip is a duplicate, trying again... (Attempt {retry_count + 1}/{max_retries})")
@@ -176,7 +193,7 @@ def generate_english_tip():
                 
                 return tip_data
             else:
-                raise Exception("Invalid response format from Gemini")
+                raise Exception("Invalid response format from Gemini - missing required fields")
             
         except Exception as e:
             print(f"❌ Error generating English tip: {e}")
@@ -185,56 +202,40 @@ def generate_english_tip():
                 break
             time.sleep(2)  # Wait before retrying
     
-    # Fallback practical English tips
+    # Fallback practical English tips with Arabic translations
     print("🔄 Using fallback tips after Gemini failures...")
     fallback_tips = [
         {
             'main_tip': 'Learn collocations - words that naturally go together.',
             'explanation': 'This makes your English sound more natural and fluent instead of translated.',
             'example': 'Instead of "make a photo", say "take a photo". Instead of "strong rain", say "heavy rain".',
+            'arabic_tip': 'تعلم المتلازمات اللفظية - الكلمات التي تترافق معًا بشكل طبيعي',
+            'arabic_explanation': 'هذا يجعل لغتك الإنجليزية تبدو أكثر طلاقة وطبيعية بدلاً من أن تبدو مترجمة',
             'hashtags': '#EnglishTips #Vocabulary #LearnEnglish #ESL'
         },
         {
             'main_tip': 'Use the present perfect for experiences and recent actions.',
             'explanation': 'This tense connects past actions to the present moment, which is common in English.',
             'example': '"I have visited Paris" (experience), "She has just finished her work" (recent action).',
+            'arabic_tip': 'استخدم المضارع التام للتجارب والأحداث الحديثة',
+            'arabic_explanation': 'هذا الزمن يربط بين الأفعال الماضية واللحظة الحالية، وهو شائع في اللغة الإنجليزية',
             'hashtags': '#Grammar #EnglishTenses #LearnEnglish #ESL'
         },
         {
             'main_tip': 'Practice sentence stress to sound more natural.',
             'explanation': 'English is a stress-timed language, so emphasizing key words improves rhythm and clarity.',
             'example': 'In "I WANT to GO to the STORE", stress the capitalized words for natural rhythm.',
+            'arabic_tip': 'تدرب على نبرة الجملة لتظهر أكثر طلاقة',
+            'arabic_explanation': 'اللغة الإنجليزية تعتمد على النبرة، لذا فإن التركيز على الكلمات المهمة يحسن الإيقاع والوضوح',
             'hashtags': '#Pronunciation #Speaking #EnglishRhythm #LearnEnglish'
         },
         {
             'main_tip': 'Learn phrasal verbs in context, not just memorizing lists.',
             'explanation': 'Understanding how they work in sentences helps you use them correctly in conversation.',
             'example': '"Look up" means search for information: "I need to look up that word in the dictionary."',
+            'arabic_tip': 'تعلم الأفعال المركبة في السياق وليس فقط حفظ القوائم',
+            'arabic_explanation': 'فهم كيفية عملها في الجمل يساعدك على استخدامها بشكل صحيح في المحادثة',
             'hashtags': '#PhrasalVerbs #Vocabulary #EnglishGrammar #LearnEnglish'
-        },
-        {
-            'main_tip': 'Use linking words to connect your ideas smoothly.',
-            'explanation': 'Transition words make your speech and writing flow better and sound more professional.',
-            'example': 'Use "however" for contrast, "therefore" for results, "furthermore" for adding information.',
-            'hashtags': '#WritingSkills #Speaking #EnglishFluency #LearnEnglish'
-        },
-        {
-            'main_tip': 'Learn the difference between similar prepositions.',
-            'explanation': 'Small preposition changes can completely alter meaning in English.',
-            'example': '"Arrive in" a country/city, "arrive at" a building, "arrive on" a specific day.',
-            'hashtags': '#Grammar #Prepositions #EnglishTips #LearnEnglish'
-        },
-        {
-            'main_tip': 'Practice minimal pairs to improve pronunciation.',
-            'explanation': 'Distinguishing similar sounds helps you speak more clearly and understand better.',
-            'example': 'Practice: ship/sheep, live/leave, beach/bitch, work/walk.',
-            'hashtags': '#Pronunciation #Speaking #EnglishSounds #LearnEnglish'
-        },
-        {
-            'main_tip': 'Use the active voice more often than passive.',
-            'explanation': 'Active voice is more direct, clear, and common in everyday English conversation.',
-            'example': 'Active: "The team completed the project." Passive: "The project was completed by the team."',
-            'hashtags': '#Grammar #WritingTips #Speaking #LearnEnglish'
         }
     ]
     
@@ -300,8 +301,34 @@ def get_pixabay_image():
         print(f"❌ Error fetching image from Pixabay: {e}")
         return None
 
+def get_arabic_font():
+    """Try to load an Arabic-compatible font"""
+    font_paths = [
+        # Common Arabic fonts on Linux
+        "/usr/share/fonts/truetype/arabic/arial.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        # Windows fonts (if running on Windows)
+        "C:/Windows/Fonts/arial.ttf",
+        "C:/Windows/Fonts/tahoma.ttf",
+        # macOS fonts
+        "/Library/Fonts/Arial.ttf",
+        "/System/Library/Fonts/Supplemental/Arial.ttf"
+    ]
+    
+    for font_path in font_paths:
+        try:
+            if os.path.exists(font_path):
+                return ImageFont.truetype(font_path, 42)
+        except Exception:
+            continue
+    
+    # Fallback to default font
+    print("⚠️ No Arabic font found, using default")
+    return ImageFont.load_default()
+
 def create_english_image(tip_data):
-    """Create English learning themed image with Pixabay background and text overlay"""
+    """Create English learning themed image with dual language text overlay"""
     width, height = 1200, 1200
     
     # Try to get a Pixabay image first
@@ -344,44 +371,101 @@ def create_english_image(tip_data):
     # Create drawing context
     draw = ImageDraw.Draw(background)
     
-    # Try to load font
+    # Load fonts
     try:
-        font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-        tip_font = ImageFont.truetype(font_path, 62)
+        english_font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+        english_font = ImageFont.truetype(english_font_path, 48)
     except (IOError, OSError):
         try:
-            tip_font = ImageFont.truetype("arial.ttf", 62)
+            english_font = ImageFont.truetype("arial.ttf", 48)
         except (IOError, OSError):
-            tip_font = ImageFont.load_default()
+            english_font = ImageFont.load_default()
     
-    # Wrap the main tip text
-    max_chars_per_line = 22
-    wrapped_tip = textwrap.fill(tip_data['main_tip'], width=max_chars_per_line)
+    # Load Arabic font
+    arabic_font = get_arabic_font()
     
-    # Calculate text position
-    bbox = draw.textbbox((0, 0), wrapped_tip, font=tip_font)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-    x = (width - text_width) // 2
-    y = (height - text_height) // 2
+    # Prepare Arabic text with reshaping and bidirectional algorithm
+    if ARABIC_SUPPORT:
+        try:
+            arabic_tip_reshaped = arabic_reshaper.reshape(tip_data['arabic_tip'])
+            arabic_tip_display = get_display(arabic_tip_reshaped)
+        except Exception as e:
+            print(f"❌ Error processing Arabic text: {e}")
+            arabic_tip_display = tip_data['arabic_tip']  # Fallback to original text
+    else:
+        arabic_tip_display = tip_data['arabic_tip']
+        print("⚠️ Arabic text processing disabled - text may not display correctly")
     
-    # Generate random background color for text box 
-    random_bg_color = (
-        random.randint(0, 255),
-        random.randint(0, 255),
-        random.randint(0, 255),
-        180  # Alpha value for transparency
-    )
+    # Wrap the main tip text (English)
+    max_chars_per_line = 25
+    wrapped_english_tip = textwrap.fill(tip_data['main_tip'], width=max_chars_per_line)
     
-    # Add semi-transparent background with random color for better readability
-    padding = 40
+    # Wrap Arabic text (approximate)
+    arabic_lines = []
+    current_line = ""
+    for word in tip_data['arabic_tip'].split():
+        if len(current_line + word) <= 15:  # Arabic characters are wider
+            current_line += " " + word
+        else:
+            arabic_lines.append(current_line.strip())
+            current_line = word
+    if current_line:
+        arabic_lines.append(current_line.strip())
+    
+    wrapped_arabic_tip = "\n".join(arabic_lines)
+    
+    # Prepare Arabic lines for display
+    if ARABIC_SUPPORT:
+        try:
+            arabic_lines_reshaped = []
+            for line in wrapped_arabic_tip.split('\n'):
+                reshaped_line = arabic_reshaper.reshape(line)
+                displayed_line = get_display(reshaped_line)
+                arabic_lines_reshaped.append(displayed_line)
+            wrapped_arabic_tip_display = "\n".join(arabic_lines_reshaped)
+        except Exception as e:
+            print(f"❌ Error processing wrapped Arabic text: {e}")
+            wrapped_arabic_tip_display = wrapped_arabic_tip
+    else:
+        wrapped_arabic_tip_display = wrapped_arabic_tip
+    
+    # Calculate text positions
+    # English text at top
+    english_bbox = draw.textbbox((0, 0), wrapped_english_tip, font=english_font)
+    english_width = english_bbox[2] - english_bbox[0]
+    english_height = english_bbox[3] - english_bbox[1]
+    english_x = (width - english_width) // 2
+    english_y = height // 4 - english_height // 2
+    
+    # Arabic text at bottom
+    arabic_bbox = draw.textbbox((0, 0), wrapped_arabic_tip_display, font=arabic_font)
+    arabic_width = arabic_bbox[2] - arabic_bbox[0]
+    arabic_height = arabic_bbox[3] - arabic_bbox[1]
+    arabic_x = (width - arabic_width) // 2
+    arabic_y = 3 * height // 4 - arabic_height // 2
+    
+    # Generate background color for text boxes
+    text_bg_color = (0, 0, 0, 160)  # Semi-transparent black
+    
+    # Add semi-transparent background for English text
+    english_padding = 30
     draw.rectangle([
-        x - padding, y - padding,
-        x + text_width + padding, y + text_height + padding
-    ], fill=random_bg_color)
+        english_x - english_padding, english_y - english_padding,
+        english_x + english_width + english_padding, english_y + english_height + english_padding
+    ], fill=text_bg_color)
     
-    # Draw main tip text
-    draw.text((x, y), wrapped_tip, fill=(255, 255, 255), font=tip_font, align='center')
+    # Add semi-transparent background for Arabic text
+    arabic_padding = 30
+    draw.rectangle([
+        arabic_x - arabic_padding, arabic_y - arabic_padding,
+        arabic_x + arabic_width + arabic_padding, arabic_y + arabic_height + arabic_padding
+    ], fill=text_bg_color)
+    
+    # Draw English text
+    draw.text((english_x, english_y), wrapped_english_tip, fill=(255, 255, 255), font=english_font, align='center')
+    
+    # Draw Arabic text
+    draw.text((arabic_x, arabic_y), wrapped_arabic_tip_display, fill=(255, 255, 255), font=arabic_font, align='center')
     
     # Convert to bytes
     output_buffer = BytesIO()
@@ -389,17 +473,14 @@ def create_english_image(tip_data):
     return output_buffer.getvalue()
 
 def create_facebook_caption(tip_data):
-    """Create Facebook caption with English learning advice and CTA"""
+    """Create Facebook caption with dual language English learning advice"""
     # Random header options
     headers = [
-        "English Learning Tip",
-        "Grammar Quick Tip",
-        "Vocabulary Builder",
-        "Pronunciation Help",
-        "English Speaking Tip",
-        "Writing Skills",
-        "English Fluency",
-        "Language Learning"
+        "English Learning Tip 📚",
+        "Grammar Quick Tip ✨",
+        "Vocabulary Builder 🗣️",
+        "Pronunciation Help 🎯",
+        "English Speaking Tip 💬"
     ]
     
     header = random.choice(headers)
@@ -415,26 +496,31 @@ def create_facebook_caption(tip_data):
     
     cta = random.choice(cta_options)
     
-    caption = f"""{header}:
+    caption = f"""{header}
 
+🇬🇧 English:
 {tip_data['main_tip']}
 
 💡 {tip_data['explanation']}
 
 📝 Example: {tip_data.get('example', 'Practice makes perfect!')}
 
+🇸🇦 العربية:
+{tip_data['arabic_tip']}
+
+💡 {tip_data['arabic_explanation']}
+
 💬 What's your biggest English challenge? Share in the comments!
 
 {cta}
 
 {tip_data['hashtags']}
+#EnglishLearning #تعلم_الإنجليزية #LanguageTips #ESL #EnglishGrammar #SpeakEnglish"""
 
-#EnglishLearning #LanguageTips #ESL #EnglishGrammar #SpeakEnglish"""
-    
     return caption
 
 def post_to_facebook(image_data, tip_data):
-    """Post the image to Facebook Page with English learning caption"""
+    """Post the image to Facebook Page with dual language caption"""
     try:
         page_id = os.environ.get("FB_PAGE_ID")
         access_token = os.environ.get("FB_PAGE_TOKEN")
@@ -489,23 +575,25 @@ def main():
     posted_tips = load_posted_tips()
     print(f"📊 Existing tips in history: {len(posted_tips)}")
     
-    # Generate practical English learning tip
+    # Generate practical English learning tip with Arabic translation
     tip_data = generate_english_tip()
-    print(f"💡 Main Tip: {tip_data['main_tip']}")
+    print(f"💡 English Tip: {tip_data['main_tip']}")
+    print(f"💡 Arabic Tip: {tip_data['arabic_tip']}")
     print(f"📝 Explanation: {tip_data['explanation']}")
+    print(f"📝 Arabic Explanation: {tip_data['arabic_explanation']}")
     if 'example' in tip_data:
         print(f"📚 Example: {tip_data['example']}")
     print(f"🏷️ Hashtags: {tip_data['hashtags']}")
     
-    # Create image with main tip text only
+    # Create image with dual language text
     final_image = create_english_image(tip_data)
-    print("🎨 English learning image created")
+    print("🎨 Dual language English learning image created")
     
     # Post to Facebook
     success = post_to_facebook(final_image, tip_data)
     
     if success:
-        print("✅ Process completed successfully! The English learning tip has been shared.")
+        print("✅ Process completed successfully! The dual language English tip has been shared.")
     else:
         print("❌ Process completed with errors")
 
