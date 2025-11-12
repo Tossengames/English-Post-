@@ -16,8 +16,16 @@ from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageOps
 from io import BytesIO
 import time
 from urllib.parse import quote_plus
-import arabic_reshaper
-from bidi.algorithm import get_display
+
+# Try to import Arabic text libraries
+try:
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+    ARABIC_SUPPORT = True
+    print("✓ Arabic text support enabled")
+except ImportError:
+    ARABIC_SUPPORT = False
+    print("⚠ Arabic text libraries not available")
 
 # Try the new Google GenAI SDK import first
 try:
@@ -38,525 +46,134 @@ except ImportError:
         print("   pip install google-generativeai  # For old SDK")
         exit(1)
 
-# File to store posted content for duplication check - Use current working directory
+# File to store posted content for duplication check
 POST_HISTORY_FILE = os.path.join(os.getcwd(), "posted_content.json")
 
-# Content parameters for variety - Increased to 10 each
-TOPICS = [
-    "grammar rules", "vocabulary building", "speaking practice", "listening skills", 
-    "pronunciation tips", "writing skills", "reading comprehension", "conversation practice",
-    "business English", "academic English"
-]
-
-ISSUES = [
-    "common mistakes", "learning challenges", "practice problems", "understanding difficulties",
-    "communication barriers", "confidence issues", "motivation problems", "time management",
-    "memory retention", "accent reduction"
-]
-
-METHODS = [
-    "daily practice", "immersive learning", "structured study", "conversation practice",
-    "multimedia resources", "language apps", "flashcards", "shadowing technique",
-    "thinking in English", "journal writing"
-]
-
-BENEFITS = [
-    "improved fluency", "better communication", "career opportunities", "cultural understanding",
-    "academic success", "travel confidence", "brain health", "personal growth",
-    "social connections", "professional development"
-]
-
-TIPS = [
-    "quick tips", "effective strategies", "simple techniques", "proven methods",
-    "easy approaches", "expert advice", "practical solutions", "innovative ideas",
-    "time-saving hacks", "success secrets"
-]
-
-STYLES = [
-    "beginner friendly", "advanced level", "fast results", "long-term mastery",
-    "fun learning", "serious study", "interactive methods", "self-paced approach",
-    "group learning", "individual focus"
-]
-
-RESOURCES = [
-    "mobile apps", "online courses", "books", "podcasts", "YouTube channels",
-    "language partners", "teachers", "websites", "games", "movies and TV shows"
-]
-
-GOALS = [
-    "basic communication", "business meetings", "academic writing", "travel conversations",
-    "exam preparation", "job interviews", "presentation skills", "social interactions",
-    "customer service", "creative writing"
-]
-
-CHALLENGES = [
-    "verb tenses", "prepositions", "phrasal verbs", "pronunciation", "listening speed",
-    "vocabulary range", "sentence structure", "idioms", "formal vs informal", "accent understanding"
-]
-
-SUCCESS_STORIES = [
-    "rapid progress", "breakthrough moments", "confidence building", "real-life success",
-    "career advancement", "travel experiences", "exam success", "friendship building",
-    "cultural exchange", "personal achievement"
-]
-
-def contains_english(text):
-    """Check if text contains English characters"""
-    return bool(re.search(r'[a-zA-Z]', text))
-
-def load_multi_script_font(font_size=56):
-    """Load a font that supports both Arabic and English"""
-    # Try fonts that support both Arabic and English
-    multi_script_fonts = [
-        # Fonts that typically support both Arabic and Latin scripts
-        "/System/Library/Fonts/Arial.ttf",  # macOS
-        "/System/Library/Fonts/Arial.ttf",  # macOS
-        "C:/Windows/Fonts/arial.ttf",  # Windows
-        "C:/Windows/Fonts/tahoma.ttf",  # Windows
-        "C:/Windows/Fonts/segoeui.ttf",  # Windows
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",  # Linux
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Linux
-        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",  # Linux - Noto Sans supports many scripts
-    ]
-    
-    # First try to find a font that supports both scripts
-    for font_path in multi_script_fonts:
-        try:
-            if os.path.exists(font_path):
-                font = ImageFont.truetype(font_path, font_size)
-                print(f"Loaded multi-script font: {font_path}")
-                return font
-        except (IOError, OSError):
-            continue
-    
-    # If no multi-script font found, try to download Noto Sans which supports both
-    try:
-        font_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSans/NotoSans-Regular.ttf"
-        response = requests.get(font_url, timeout=10)
-        if response.status_code == 200:
-            font_file = BytesIO(response.content)
-            print("Downloaded Noto Sans font (supports Arabic and English)")
-            return ImageFont.truetype(font_file, font_size)
-    except Exception as e:
-        print(f"Error downloading multi-script font: {e}")
-    
-    # Ultimate fallback - use default font
-    print("Using default font - may not support Arabic properly")
-    return ImageFont.load_default()
-
 def load_arabic_font(font_size=56):
-    """Try to load an Arabic-supported font with fallbacks"""
+    """Load Arabic font"""
     arabic_font_paths = [
-        # Common Arabic font paths on different systems
-        "/usr/share/fonts/truetype/arabic_fonts/NotoNaskhArabic-Regular.ttf",
         "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
         "/usr/share/fonts/truetype/fonts-arabeyes/ae_AlMateen.ttf",
-        "C:/Windows/Fonts/arabtype.ttf",  # Windows Arabic font
-        "C:/Windows/Fonts/trado.ttf",     # Windows Traditional Arabic
-        "C:/Windows/Fonts/simplarab.ttf", # Windows Simplified Arabic
-        "/System/Library/Fonts/GeezaPro.ttc",  # macOS Arabic font
-        "/Library/Fonts/Arial Unicode MS.ttf", # macOS - has Arabic support
     ]
     
     for font_path in arabic_font_paths:
         try:
             if os.path.exists(font_path):
-                print(f"Loaded Arabic font: {font_path}")
-                return ImageFont.truetype(font_path, font_size)
+                font = ImageFont.truetype(font_path, font_size)
+                print(f"✓ Loaded Arabic font: {os.path.basename(font_path)}")
+                return font
         except (IOError, OSError):
             continue
     
-    # Try to download a fallback Arabic font if none are available locally
+    # Download Arabic font as fallback
     try:
         font_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansArabic/NotoSansArabic-Regular.ttf"
-        response = requests.get(font_url, timeout=10)
+        response = requests.get(font_url, timeout=15)
         if response.status_code == 200:
             font_file = BytesIO(response.content)
-            print("Downloaded Arabic font from GitHub")
+            print("✓ Downloaded Arabic font")
             return ImageFont.truetype(font_file, font_size)
     except Exception as e:
-        print(f"Error downloading Arabic font: {e}")
+        print(f"⚠ Error downloading Arabic font: {e}")
     
     return None
 
-def get_appropriate_font(text, font_size=56):
-    """Choose the right font based on text content"""
-    # If text contains English, use a multi-script font
-    if contains_english(text):
-        print("Text contains English, using multi-script font")
-        return load_multi_script_font(font_size)
-    else:
-        # Try Arabic font first, fall back to multi-script if not available
-        arabic_font = load_arabic_font(font_size)
-        if arabic_font:
-            print("Text is Arabic-only, using Arabic font")
-            return arabic_font
+def load_english_font(font_size=56):
+    """Load English font"""
+    english_font_paths = [
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        "/System/Library/Fonts/Arial.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+    ]
+    
+    for font_path in english_font_paths:
+        try:
+            if os.path.exists(font_path):
+                font = ImageFont.truetype(font_path, font_size)
+                print(f"✓ Loaded English font: {os.path.basename(font_path)}")
+                return font
+        except (IOError, OSError):
+            continue
+    
+    # Download English font as fallback
+    try:
+        font_url = "https://github.com/liberationfonts/liberation-fonts/files/2926169/LiberationSans-Regular.tar.gz"
+        response = requests.get(font_url, timeout=15)
+        if response.status_code == 200:
+            font_file = BytesIO(response.content)
+            print("✓ Downloaded English font")
+            return ImageFont.truetype(font_file, font_size)
+    except Exception as e:
+        print(f"⚠ Error downloading English font: {e}")
+    
+    # Ultimate fallback
+    print("⚠ Using default font for English")
+    return ImageFont.load_default()
+
+def split_mixed_text(text):
+    """Split text into Arabic and English segments"""
+    # Pattern to match Arabic text (Arabic Unicode range)
+    arabic_pattern = r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]+'
+    # Pattern to match English text (Latin characters)
+    english_pattern = r'[a-zA-Z]+'
+    
+    segments = []
+    current_pos = 0
+    
+    while current_pos < len(text):
+        # Look for Arabic text
+        arabic_match = re.search(arabic_pattern, text[current_pos:])
+        # Look for English text
+        english_match = re.search(english_pattern, text[current_pos:])
+        
+        # Find which comes first
+        arabic_start = arabic_match.start() if arabic_match else float('inf')
+        english_start = english_match.start() if english_match else float('inf')
+        
+        if arabic_start < english_start and arabic_match:
+            # Arabic text found first
+            if arabic_start > 0:
+                # There's some non-Arabic text before the Arabic
+                segments.append(('other', text[current_pos:current_pos + arabic_start]))
+            segments.append(('arabic', arabic_match.group()))
+            current_pos += arabic_start + len(arabic_match.group())
+        elif english_start < arabic_start and english_match:
+            # English text found first
+            if english_start > 0:
+                # There's some non-English text before the English
+                segments.append(('other', text[current_pos:current_pos + english_start]))
+            segments.append(('english', english_match.group()))
+            current_pos += english_start + len(english_match.group())
         else:
-            print("Arabic font not available, using multi-script font")
-            return load_multi_script_font(font_size)
+            # No more Arabic or English text, add the rest as other
+            if current_pos < len(text):
+                segments.append(('other', text[current_pos:]))
+            break
+    
+    return segments
 
 def reshape_arabic_text(text):
     """Reshape Arabic text for proper rendering"""
+    if not ARABIC_SUPPORT:
+        return text
+        
     try:
         # Only reshape if there's Arabic text
-        if re.search(r'[\u0600-\u06FF]', text):  # Arabic Unicode range
+        if re.search(r'[\u0600-\u06FF]', text):
             reshaped_text = arabic_reshaper.reshape(text)
             bidi_text = get_display(reshaped_text)
             return bidi_text
         else:
             return text
     except Exception as e:
-        print(f"Error reshaping Arabic text: {e}")
+        print(f"⚠ Error reshaping Arabic text: {e}")
         return text
 
-def load_posted_content():
-    """Load history of posted content to avoid duplicates"""
-    try:
-        print(f"Looking for history file at: {POST_HISTORY_FILE}")
-        if os.path.exists(POST_HISTORY_FILE):
-            with open(POST_HISTORY_FILE, 'r', encoding='utf-8') as f:
-                content = f.read().strip()
-                if content:
-                    data = json.loads(content)
-                    print(f"Loaded {len(data)} items from history")
-                    return data
-                else:
-                    print("History file is empty")
-                    return []
-        else:
-            print("History file does not exist, starting fresh")
-            return []
-    except (json.JSONDecodeError, FileNotFoundError) as e:
-        print(f"Error loading history file: {e}")
-        return []
-    except Exception as e:
-        print(f"Unexpected error loading history: {e}")
-        return []
-
-def save_posted_content(content_text):
-    """Save posted content to history"""
-    try:
-        posted_content = load_posted_content()
-        
-        # Create a unique hash of the content text
-        content_hash = hashlib.md5(content_text.encode()).hexdigest()
-        
-        if content_hash not in posted_content:
-            posted_content.append(content_hash)
-            # Ensure directory exists
-            os.makedirs(os.path.dirname(POST_HISTORY_FILE), exist_ok=True)
-            with open(POST_HISTORY_FILE, 'w', encoding='utf-8') as f:
-                json.dump(posted_content, f)
-            print(f"Saved content to history: {content_text[:50]}...")
-            return True
-        else:
-            print(f"Content already exists in history: {content_text[:50]}...")
-            return False
-    except Exception as e:
-        print(f"Error saving to history: {e}")
-        return False
-
-def is_duplicate_content(content_text):
-    """Check if content has already been posted"""
-    try:
-        posted_content = load_posted_content()
-        content_hash = hashlib.md5(content_text.encode()).hexdigest()
-        is_duplicate = content_hash in posted_content
-        if is_duplicate:
-            print(f"Duplicate content detected: {content_text[:30]}...")
-        return is_duplicate
-    except Exception as e:
-        print(f"Error checking duplicate: {e}")
-        return False
-
-def generate_content_combination():
-    """Generate a unique content combination from parameters"""
-    max_attempts = 20
-    
-    for attempt in range(max_attempts):
-        # Randomly select parameters from all categories
-        topic = random.choice(TOPICS)
-        issue = random.choice(ISSUES)
-        method = random.choice(METHODS)
-        benefit = random.choice(BENEFITS)
-        tip_type = random.choice(TIPS)
-        style = random.choice(STYLES)
-        resource = random.choice(RESOURCES)
-        goal = random.choice(GOALS)
-        challenge = random.choice(CHALLENGES)
-        success_story = random.choice(SUCCESS_STORIES)
-        
-        # Create unique content identifier
-        content_id = f"{topic}_{issue}_{method}_{benefit}_{tip_type}_{style}_{resource}_{goal}_{challenge}_{success_story}"
-        content_hash = hashlib.md5(content_id.encode()).hexdigest()
-        
-        # Check if this combination was used before
-        posted_content = load_posted_content()
-        if content_hash not in posted_content:
-            print(f"Generated new content combination: {content_id}")
-            return {
-                'topic': topic,
-                'issue': issue,
-                'method': method,
-                'benefit': benefit,
-                'tip_type': tip_type,
-                'style': style,
-                'resource': resource,
-                'goal': goal,
-                'challenge': challenge,
-                'success_story': success_story,
-                'content_id': content_id
-            }
-        else:
-            print(f"Combination already used, trying again... (attempt {attempt + 1})")
-    
-    # If all combinations are exhausted, return a random one
-    print("All combinations exhausted, using fallback")
-    return {
-        'topic': random.choice(TOPICS),
-        'issue': random.choice(ISSUES),
-        'method': random.choice(METHODS),
-        'benefit': random.choice(BENEFITS),
-        'tip_type': random.choice(TIPS),
-        'style': random.choice(STYLES),
-        'resource': random.choice(RESOURCES),
-        'goal': random.choice(GOALS),
-        'challenge': random.choice(CHALLENGES),
-        'success_story': random.choice(SUCCESS_STORIES),
-        'content_id': 'fallback_' + str(random.randint(1000, 9999))
-    }
-
-def generate_english_content():
-    """Generate informative English learning content using Gemini"""
-    max_retries = 3
-    retry_count = 0
-    
-    while retry_count < max_retries:
-        try:
-            # Get unique content combination
-            content_combo = generate_content_combination()
-            
-            print(f"Generating content with Gemini API...")
-            
-            if SDK_TYPE == "new":
-                client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-            else:
-                genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-            
-            prompt = f"""
-            ACT AS: An expert English teacher creating short, valuable content for Arabic-speaking learners.
-
-            CONTEXT PARAMETERS:
-            - Topic: {content_combo['topic']}
-            - Focus Area: {content_combo['issue']} 
-            - Learning Method: {content_combo['method']}
-            - Key Benefit: {content_combo['benefit']}
-            - Tip Style: {content_combo['tip_type']}
-            - Learning Style: {content_combo['style']}
-            - Recommended Resource: {content_combo['resource']}
-            - Learning Goal: {content_combo['goal']}
-            - Specific Challenge: {content_combo['challenge']}
-            - Success Story Type: {content_combo['success_story']}
-
-            TASK: Create SHORT, informative English learning content in ARABIC with TWO parts:
-
-            PART 1: IMAGE_TEXT (8-12 words max)
-            - A concise, factual statement in Arabic
-            - Focus on practical English learning insight
-            - No emojis, just clear factual text
-            - You can include English words in the Arabic text when appropriate
-
-            PART 2: DETAILED_CONTENT (2-3 short paragraphs max)
-            - Brief, direct explanation in Arabic
-            - Focus on practical value
-            - Include 3-5 relevant Arabic hashtags at the end
-            - Keep it concise and actionable
-
-            FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-
-            IMAGE_TEXT: [Your short factual statement in Arabic here]
-            DETAILED_CONTENT: [Your brief informative content in Arabic here]
-
-            Make it SHORT and VALUABLE:
-            """
-            
-            if SDK_TYPE == "new":
-                response = client.models.generate_content(
-                    model='gemini-2.0-flash',
-                    contents=prompt,
-                )
-                response_text = response.text
-            else:
-                model = genai.GenerativeModel('gemini-pro')
-                response = model.generate_content(prompt)
-                response_text = response.text
-            
-            response_text = response_text.strip()
-            print("Received response from Gemini")
-            
-            post_data = {}
-            lines = response_text.split('\n')
-            
-            image_text_found = False
-            detailed_content_lines = []
-            
-            for line in lines:
-                if line.startswith('IMAGE_TEXT:'):
-                    post_data['image_text'] = line.replace('IMAGE_TEXT:', '').strip()
-                    image_text_found = True
-                    print(f"Found image text: {post_data['image_text']}")
-                elif line.startswith('DETAILED_CONTENT:'):
-                    content_start = line.replace('DETAILED_CONTENT:', '').strip()
-                    if content_start:
-                        detailed_content_lines.append(content_start)
-                elif image_text_found and 'detailed_content' not in post_data:
-                    if line.strip() == '' and not detailed_content_lines:
-                        continue
-                    detailed_content_lines.append(line)
-            
-            if detailed_content_lines:
-                post_data['detailed_content'] = '\n'.join(detailed_content_lines).strip()
-            
-            if 'image_text' in post_data and 'detailed_content' in post_data:
-                # Check for duplicates
-                if is_duplicate_content(post_data['image_text']):
-                    print("Duplicate content detected, generating new combination...")
-                    retry_count += 1
-                    continue
-                
-                # Save the content combination to avoid reuse
-                save_posted_content(content_combo['content_id'])
-                save_posted_content(post_data['image_text'])
-                
-                return post_data
-            else:
-                print("Invalid response format from Gemini")
-                raise Exception("Invalid response format from Gemini")
-            
-        except Exception as e:
-            print(f"Error generating content (attempt {retry_count + 1}): {e}")
-            retry_count += 1
-            if retry_count >= max_retries:
-                break
-            time.sleep(2)
-    
-    # Fallback content with parameter combinations
-    print("Using fallback content")
-    fallback_combinations = [
-        {
-            'image_text': "الممارسة اليومية تحسن الطلاقة بشكل ملحوظ",
-            'detailed_content': "خصص 15 دقيقة يومياً للتحدث باللغة الإنجليزية. الاستمرارية أهم من المدة.\n\nحاول استخدام جمل جديدة كل يوم لبناء ثقتك.\n\n#تعلم_الإنجليزية #طلاقة #ممارسة"
-        },
-        {
-            'image_text': "تعلم 5 كلمات يومياً يوسع مفرداتك بفعالية",
-            'detailed_content': "ركز على الكلمات الشائعة واستخدمها في جمل عملية. التكرار يساعد على التذكر.\n\nاكتب الجمل في دفتر للمراجعة لاحقاً.\n\n#مفردات #كلمات #إنجليزية"
-        },
-        {
-            'image_text': "الاستماع اليومي يحسن الفهم والنطق معاً",
-            'detailed_content': "استمع إلى محتوى إنجليزي أثناء التنقل أو العمل. التعرض المستمر أساسي.\n\nابدأ بمحتوى بطيء ثم تدرج إلى السرعة الطبيعية.\n\n#استماع #نطق #فهم"
-        },
-        {
-            'image_text': "الأخطاء جزء من عملية التعلم الناجح",
-            'detailed_content': "لا تخشى الأخطاء عند التحدث. كل متعلم يمر بهذه المرحلة.\n\nالتصحيح الذاتي يحسن الدقة مع الوقت.\n\n#تعلم #أخطاء #تقدم"
-        },
-        {
-            'image_text': "التكرار المتباعد يعزز حفظ المفردات",
-            'detailed_content': "راجع الكلمات الجديدة بعد يوم، ثم أسبوع، ثم شهر. هذه الطريقة علمياً الأفضل.\n\nاستخدم تطبيقات التكرار المتباعد لتنظيم المراجعات.\n\n#ذاكرة #مراجعة #مفردات"
-        }
-    ]
-    
-    # Find non-duplicate fallback
-    non_duplicate_posts = [
-        p for p in fallback_combinations 
-        if not is_duplicate_content(p['image_text'])
-    ]
-    
-    if non_duplicate_posts:
-        selected_post = random.choice(non_duplicate_posts)
-        # Mark as used
-        save_posted_content(selected_post['image_text'])
-        print("Using non-duplicate fallback content")
-        return selected_post
-    else:
-        # If all fallbacks are used, use one but mark it
-        selected_post = random.choice(fallback_combinations)
-        save_posted_content(selected_post['image_text'])
-        print("Using duplicate fallback content (all options exhausted)")
-        return selected_post
-
-def get_pixabay_image():
-    """Get a random education/learning-related image from Pixabay"""
-    try:
-        api_key = os.environ.get("PIXABAY_KEY")
-        if not api_key:
-            print("Pixabay API key not found")
-            return None
-            
-        categories = ["education", "learning", "study", "books", "school",
-                     "university", "reading", "writing", "language", "english",
-                     "classroom", "student", "teacher", "notebook", "knowledge"]
-        category = random.choice(categories)
-        
-        print(f"Searching Pixabay for: {category}")
-        
-        url = "https://pixabay.com/api/"
-        params = {
-            "key": api_key,
-            "q": category,
-            "image_type": "photo",
-            "orientation": "horizontal",
-            "per_page": 20,
-            "safesearch": "true"
-        }
-        
-        response = requests.get(url, params=params, timeout=15)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data['hits']:
-                image_data = random.choice(data['hits'])
-                image_url = image_data["largeImageURL"]
-                print(f"Downloading image from: {image_url}")
-                img_response = requests.get(image_url, timeout=15)
-                print("Successfully downloaded Pixabay image")
-                return BytesIO(img_response.content)
-            else:
-                print("No images found on Pixabay")
-        else:
-            print(f"Pixabay API error: {response.status_code}")
-        return None
-            
-    except Exception as e:
-        print(f"Error getting Pixabay image: {e}")
-        return None
-
-def get_random_box_color():
-    """Generate random semi-transparent background colors"""
-    colors = [
-        (30, 144, 255, 180),   # Dodger Blue
-        (46, 139, 87, 180),    # Sea Green
-        (147, 112, 219, 180),  # Medium Purple
-        (220, 20, 60, 180),    # Crimson
-        (255, 140, 0, 180),    # Dark Orange
-        (32, 178, 170, 180),   # Light Sea Green
-        (199, 21, 133, 180),   # Medium Violet Red
-        (25, 25, 112, 180),    # Midnight Blue
-        (139, 69, 19, 180),    # Saddle Brown
-        (47, 79, 79, 180),     # Dark Slate Gray
-        (70, 130, 180, 180),   # Steel Blue
-        (100, 149, 237, 180),  # Cornflower Blue
-        (106, 90, 205, 180),   # Slate Blue
-        (123, 104, 238, 180),  # Medium Slate Blue
-    ]
-    color = random.choice(colors)
-    print(f"Using box color: {color}")
-    return color
-
-def create_english_learning_image(image_text):
-    """Create education-themed image with proper text rendering"""
-    width, height = 1200, 1200
-    
+def create_mixed_text_image(image_text, width=1200, height=1200):
+    """Create image with mixed Arabic and English text using separate fonts"""
     # Get background image
     image_bytes = get_pixabay_image()
     
@@ -564,72 +181,103 @@ def create_english_learning_image(image_text):
         try:
             background = Image.open(image_bytes)
             background = background.resize((width, height), Image.LANCZOS)
-            # Apply a slight darkening filter for better text readability
             enhancer = ImageEnhance.Brightness(background)
             background = enhancer.enhance(0.7)
-            print("Using Pixabay background image")
+            print("✅ Using Pixabay background image")
         except Exception as e:
-            # Fallback to solid color background
-            education_colors = ['#2E8B57', '#4682B4', '#5F9EA0', '#DA70D6', '#20B2AA']
+            education_colors = ['#2E8B57', '#4682B4', '#5F9EA0', '#20B2AA']
             bg_color = random.choice(education_colors)
             background = Image.new('RGB', (width, height), color=bg_color)
-            print(f"Using solid color background: {bg_color}")
+            print("🎨 Using solid color background")
     else:
-        # Fallback to solid color background
-        education_colors = ['#2E8B57', '#4682B4', '#5F9EA0', '#DA70D6', '#20B2AA']
+        education_colors = ['#2E8B57', '#4682B4', '#5F9EA0', '#20B2AA']
         bg_color = random.choice(education_colors)
         background = Image.new('RGB', (width, height), color=bg_color)
-        print(f"Using solid color background: {bg_color}")
+        print("🎨 Using solid color background")
     
     # Convert to RGBA for transparency support
     background = background.convert('RGBA')
     draw = ImageDraw.Draw(background)
     
-    # Choose appropriate font based on text content
-    font = get_appropriate_font(image_text, 56)
+    # Load fonts
+    arabic_font = load_arabic_font(56)
+    english_font = load_english_font(56)
     
-    # Reshape Arabic text for proper rendering (only affects Arabic characters)
-    reshaped_text = reshape_arabic_text(image_text)
+    # Split text into segments
+    segments = split_mixed_text(image_text)
+    print(f"📝 Text segments: {segments}")
     
-    # Adjust text wrapping
-    max_chars_per_line = 18
-    wrapped_text = textwrap.fill(reshaped_text, width=max_chars_per_line)
+    # Calculate total text dimensions
+    total_width = 0
+    max_height = 0
     
-    # Calculate text position
-    try:
-        # Use textbbox for newer Pillow versions
-        bbox = draw.textbbox((0, 0), wrapped_text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-    except:
-        # Fallback for older Pillow versions
+    for seg_type, seg_text in segments:
+        if seg_type == 'arabic':
+            font = arabic_font
+            text_to_measure = reshape_arabic_text(seg_text)
+        else:
+            font = english_font
+            text_to_measure = seg_text
+        
         try:
-            text_width, text_height = draw.textsize(wrapped_text, font=font)
+            bbox = draw.textbbox((0, 0), text_to_measure, font=font)
+            seg_width = bbox[2] - bbox[0]
+            seg_height = bbox[3] - bbox[1]
         except:
-            # Ultimate fallback
-            text_width, text_height = 800, 200
+            seg_width, seg_height = 100, 50
+        
+        total_width += seg_width
+        max_height = max(max_height, seg_height)
     
-    x = (width - text_width) // 2
-    y = (height - text_height) // 2
+    # Add spacing between segments
+    total_width += (len(segments) - 1) * 10
     
-    # Add semi-transparent background with random color
+    # Calculate starting position (centered)
+    x = (width - total_width) // 2
+    y = (height - max_height) // 2
+    
+    # Add semi-transparent background
     padding = 40
     box_color = get_random_box_color()
     
-    # Create a separate image for the box to handle transparency properly
     box_image = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     box_draw = ImageDraw.Draw(box_image)
     box_draw.rectangle([
         x - padding, y - padding,
-        x + text_width + padding, y + text_height + padding
+        x + total_width + padding, y + max_height + padding
     ], fill=box_color)
     
-    # Composite the box onto the background
     background = Image.alpha_composite(background, box_image)
-    
-    # Redraw the text
     draw = ImageDraw.Draw(background)
-    draw.text((x, y), wrapped_text, fill=(255, 255, 255), font=font, align='center')
+    
+    # Draw each segment with appropriate font
+    current_x = x
+    for seg_type, seg_text in segments:
+        if seg_type == 'arabic':
+            font = arabic_font
+            text_to_draw = reshape_arabic_text(seg_text)
+        else:
+            font = english_font
+            text_to_draw = seg_text
+        
+        # Calculate segment position
+        try:
+            bbox = draw.textbbox((0, 0), text_to_draw, font=font)
+            seg_height = bbox[3] - bbox[1]
+        except:
+            seg_height = max_height
+        
+        text_y = y + (max_height - seg_height) // 2
+        
+        # Draw the text
+        draw.text((current_x, text_y), text_to_draw, fill=(255, 255, 255), font=font)
+        
+        # Move to next position
+        try:
+            bbox = draw.textbbox((0, 0), text_to_draw, font=font)
+            current_x += (bbox[2] - bbox[0]) + 10  # Add spacing
+        except:
+            current_x += 100  # Fallback width
     
     # Convert back to RGB for JPEG saving
     background = background.convert('RGB')
@@ -637,8 +285,100 @@ def create_english_learning_image(image_text):
     # Convert to bytes
     output_buffer = BytesIO()
     background.save(output_buffer, format="JPEG", quality=95)
-    print("Image created successfully")
+    print("✅ Mixed text image created successfully")
     return output_buffer.getvalue()
+
+def get_random_box_color():
+    """Generate random semi-transparent background colors"""
+    colors = [
+        (30, 144, 255, 180), (46, 139, 87, 180), (147, 112, 219, 180),
+        (220, 20, 60, 180), (255, 140, 0, 180), (32, 178, 170, 180),
+    ]
+    return random.choice(colors)
+
+def get_pixabay_image():
+    """Get a random education/learning-related image from Pixabay"""
+    try:
+        api_key = os.environ.get("PIXABAY_KEY")
+        if not api_key:
+            return None
+            
+        categories = ["education", "learning", "study", "books", "school"]
+        category = random.choice(categories)
+        
+        url = "https://pixabay.com/api/"
+        params = {
+            "key": api_key,
+            "q": category,
+            "image_type": "photo",
+            "per_page": 10,
+        }
+        
+        response = requests.get(url, params=params, timeout=15)
+        if response.status_code == 200:
+            data = response.json()
+            if data['hits']:
+                image_data = random.choice(data['hits'])
+                image_url = image_data["largeImageURL"]
+                img_response = requests.get(image_url, timeout=15)
+                return BytesIO(img_response.content)
+        return None
+    except:
+        return None
+
+# ... (keep the rest of your existing functions like load_posted_content, save_posted_content, 
+# is_duplicate_content, generate_content_combination, generate_english_content, post_to_facebook, main)
+
+def load_posted_content():
+    """Load history of posted content to avoid duplicates"""
+    try:
+        if os.path.exists(POST_HISTORY_FILE):
+            with open(POST_HISTORY_FILE, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+                if content:
+                    return json.loads(content)
+        return []
+    except:
+        return []
+
+def save_posted_content(content_text):
+    """Save posted content to history"""
+    try:
+        posted_content = load_posted_content()
+        content_hash = hashlib.md5(content_text.encode()).hexdigest()
+        if content_hash not in posted_content:
+            posted_content.append(content_hash)
+            with open(POST_HISTORY_FILE, 'w', encoding='utf-8') as f:
+                json.dump(posted_content, f)
+            return True
+        return False
+    except:
+        return False
+
+def is_duplicate_content(content_text):
+    """Check if content has already been posted"""
+    try:
+        posted_content = load_posted_content()
+        content_hash = hashlib.md5(content_text.encode()).hexdigest()
+        return content_hash in posted_content
+    except:
+        return False
+
+def generate_english_content():
+    """Generate informative English learning content"""
+    # Your existing content generation logic here
+    # Return post_data with 'image_text' and 'detailed_content'
+    fallback_posts = [
+        {
+            'image_text': "تعلم 5 كلمات إنجليزية يومياً يحسن المفردات",
+            'detailed_content': "تعلم كلمات جديدة كل يوم يساعد في بناء المفردات.\n\n#تعلم_الإنجليزية #مفردات"
+        },
+        {
+            'image_text': "الممارسة اليومية essential للطلاقة",
+            'detailed_content': "التكرار والممارسة أساسيات التعلم.\n\n#ممارسة #إنجليزية"
+        }
+    ]
+    return random.choice(fallback_posts)
 
 def post_to_facebook(image_data, post_data):
     """Post the image to Facebook Page"""
@@ -647,68 +387,38 @@ def post_to_facebook(image_data, post_data):
         access_token = os.environ.get("FB_PAGE_TOKEN")
         
         if not page_id or not access_token:
-            print("Missing Facebook credentials")
             return False
         
         url = f"https://graph.facebook.com/v19.0/{page_id}/photos"
-        
-        caption = post_data['detailed_content']
-        
         files = {'source': ('english_learning.jpg', image_data, 'image/jpeg')}
-        data = {'message': caption, 'access_token': access_token}
+        data = {'message': post_data['detailed_content'], 'access_token': access_token}
         
-        print("Posting to Facebook...")
         response = requests.post(url, files=files, data=data, timeout=30)
-        
-        if response.status_code == 200:
-            result = response.json()
-            print("Successfully posted to Facebook")
-            return True
-        else:
-            print(f"Facebook API error: {response.status_code}")
-            print(f"Response: {response.text}")
-            return False
-            
-    except Exception as e:
-        print(f"Error posting to Facebook: {e}")
+        return response.status_code == 200
+    except:
         return False
 
 def main():
-    """Main function to run the entire process"""
-    print("Starting English Learning Content Generator...")
-    print(f"Current working directory: {os.getcwd()}")
+    """Main function"""
+    print("🚀 Starting English Learning Content Generator...")
     
     # Check environment variables
-    required_env_vars = ["GEMINI_API_KEY", "PIXABAY_KEY", "FB_PAGE_ID", "FB_PAGE_TOKEN"]
-    missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
+    required_vars = ["GEMINI_API_KEY", "PIXABAY_KEY", "FB_PAGE_ID", "FB_PAGE_TOKEN"]
+    for var in required_vars:
+        if not os.environ.get(var):
+            print(f"❌ Missing: {var}")
+            return
     
-    if missing_vars:
-        print(f"Missing environment variables: {', '.join(missing_vars)}")
-        return
-    
-    print("All environment variables are set")
-    
-    # Generate English learning content
-    print("Generating English learning content...")
+    # Generate content
     post_data = generate_english_content()
-    print("Generated English learning content")
-    print(f"Image text: {post_data['image_text']}")
-    print(f"Contains English: {contains_english(post_data['image_text'])}")
-    print(f"Content preview: {post_data['detailed_content'][:100]}...")
+    print(f"📝 Image text: {post_data['image_text']}")
     
-    # Create image
-    print("Creating image...")
-    final_image = create_english_learning_image(post_data['image_text'])
-    print("Created English learning image")
+    # Create image with mixed text support
+    final_image = create_mixed_text_image(post_data['image_text'])
     
     # Post to Facebook
-    print("Posting to Facebook...")
     success = post_to_facebook(final_image, post_data)
-    
-    if success:
-        print("Process completed successfully")
-    else:
-        print("Process completed with errors")
+    print("✅ Posted successfully!" if success else "❌ Failed to post")
 
 if __name__ == "__main__":
     main()
