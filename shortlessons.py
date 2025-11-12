@@ -14,6 +14,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 from io import BytesIO
 import time
+import subprocess
 
 # Try the new Google GenAI SDK import first
 try:
@@ -40,11 +41,11 @@ try:
     from bidi.algorithm import get_display
     ARABIC_SUPPORT = True
     print("✅ Arabic text support enabled")
-except ImportError:
+except ImportError as e:
     ARABIC_SUPPORT = False
-    print("⚠️ Arabic text support disabled - install arabic-reshaper and python-bidi")
+    print(f"⚠️ Arabic text support disabled: {e}")
 
-# File to store posted tips for duplication check - using absolute path
+# File to store posted tips for duplication check
 POST_HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "posted_english_tips.json")
 
 def load_posted_tips():
@@ -301,35 +302,75 @@ def get_pixabay_image():
         print(f"❌ Error fetching image from Pixabay: {e}")
         return None
 
+def get_available_fonts():
+    """List available fonts for debugging"""
+    try:
+        result = subprocess.run(['fc-list', ':lang=ar'], capture_output=True, text=True)
+        print("Available Arabic fonts:")
+        print(result.stdout[:500])  # Print first 500 chars
+    except Exception as e:
+        print(f"Error listing fonts: {e}")
+
 def get_arabic_font():
-    """Try to load an Arabic-compatible font"""
+    """Try to load an Arabic-compatible font with fallbacks"""
     font_paths = [
-        # Common Arabic fonts on Linux
-        "/usr/share/fonts/truetype/arabic/arial.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        # Noto Arabic fonts (primary choice)
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
+        # Harmattan font
+        "/usr/share/fonts/truetype/harmattan/Harmattan-Regular.ttf",
+        # DejaVu fonts (good unicode coverage)
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        # Windows fonts (if running on Windows)
-        "C:/Windows/Fonts/arial.ttf",
-        "C:/Windows/Fonts/tahoma.ttf",
-        # macOS fonts
-        "/Library/Fonts/Arial.ttf",
-        "/System/Library/Fonts/Supplemental/Arial.ttf"
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        # Liberation fonts
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        # Free fonts
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
     ]
     
     for font_path in font_paths:
         try:
             if os.path.exists(font_path):
+                print(f"✅ Using Arabic font: {font_path}")
                 return ImageFont.truetype(font_path, 42)
+        except Exception as e:
+            print(f"⚠️ Failed to load font {font_path}: {e}")
+            continue
+    
+    # Final fallback: try to find any font that might work
+    try:
+        print("🔄 Trying to find any system font...")
+        return ImageFont.load_default()
+    except:
+        print("❌ No fonts available, using basic font")
+        return ImageFont.load_default()
+
+def get_english_font():
+    """Get English font"""
+    font_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+    ]
+    
+    for font_path in font_paths:
+        try:
+            if os.path.exists(font_path):
+                return ImageFont.truetype(font_path, 48)
         except Exception:
             continue
     
-    # Fallback to default font
-    print("⚠️ No Arabic font found, using default")
-    return ImageFont.load_default()
+    try:
+        return ImageFont.truetype("arial.ttf", 48)
+    except:
+        return ImageFont.load_default()
 
 def create_english_image(tip_data):
     """Create English learning themed image with dual language text overlay"""
     width, height = 1200, 1200
+    
+    # Debug: list available fonts
+    get_available_fonts()
     
     # Try to get a Pixabay image first
     image_bytes = get_pixabay_image()
@@ -372,23 +413,18 @@ def create_english_image(tip_data):
     draw = ImageDraw.Draw(background)
     
     # Load fonts
-    try:
-        english_font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-        english_font = ImageFont.truetype(english_font_path, 48)
-    except (IOError, OSError):
-        try:
-            english_font = ImageFont.truetype("arial.ttf", 48)
-        except (IOError, OSError):
-            english_font = ImageFont.load_default()
-    
-    # Load Arabic font
+    english_font = get_english_font()
     arabic_font = get_arabic_font()
+    
+    print(f"English font: {english_font}")
+    print(f"Arabic font: {arabic_font}")
     
     # Prepare Arabic text with reshaping and bidirectional algorithm
     if ARABIC_SUPPORT:
         try:
             arabic_tip_reshaped = arabic_reshaper.reshape(tip_data['arabic_tip'])
             arabic_tip_display = get_display(arabic_tip_reshaped)
+            print("✅ Arabic text processed successfully")
         except Exception as e:
             print(f"❌ Error processing Arabic text: {e}")
             arabic_tip_display = tip_data['arabic_tip']  # Fallback to original text
@@ -400,17 +436,20 @@ def create_english_image(tip_data):
     max_chars_per_line = 25
     wrapped_english_tip = textwrap.fill(tip_data['main_tip'], width=max_chars_per_line)
     
-    # Wrap Arabic text (approximate)
+    # Simple Arabic text wrapping (basic approach)
+    arabic_words = tip_data['arabic_tip'].split()
     arabic_lines = []
     current_line = ""
-    for word in tip_data['arabic_tip'].split():
-        if len(current_line + word) <= 15:  # Arabic characters are wider
-            current_line += " " + word
+    
+    for word in arabic_words:
+        if len(current_line) + len(word) + 1 <= 12:  # Arabic needs fewer characters per line
+            current_line = current_line + " " + word if current_line else word
         else:
-            arabic_lines.append(current_line.strip())
+            if current_line:
+                arabic_lines.append(current_line)
             current_line = word
     if current_line:
-        arabic_lines.append(current_line.strip())
+        arabic_lines.append(current_line)
     
     wrapped_arabic_tip = "\n".join(arabic_lines)
     
@@ -430,35 +469,39 @@ def create_english_image(tip_data):
         wrapped_arabic_tip_display = wrapped_arabic_tip
     
     # Calculate text positions
-    # English text at top
+    # English text at top (40% of height)
     english_bbox = draw.textbbox((0, 0), wrapped_english_tip, font=english_font)
     english_width = english_bbox[2] - english_bbox[0]
     english_height = english_bbox[3] - english_bbox[1]
     english_x = (width - english_width) // 2
-    english_y = height // 4 - english_height // 2
+    english_y = (height * 0.4 - english_height) // 2
     
-    # Arabic text at bottom
+    # Arabic text at bottom (60% of height)
     arabic_bbox = draw.textbbox((0, 0), wrapped_arabic_tip_display, font=arabic_font)
     arabic_width = arabic_bbox[2] - arabic_bbox[0]
     arabic_height = arabic_bbox[3] - arabic_bbox[1]
     arabic_x = (width - arabic_width) // 2
-    arabic_y = 3 * height // 4 - arabic_height // 2
+    arabic_y = height * 0.6 + (height * 0.4 - arabic_height) // 2
     
-    # Generate background color for text boxes
-    text_bg_color = (0, 0, 0, 160)  # Semi-transparent black
+    # Generate background color for text boxes (semi-transparent black)
+    text_bg_color = (0, 0, 0, 180)
     
     # Add semi-transparent background for English text
     english_padding = 30
     draw.rectangle([
-        english_x - english_padding, english_y - english_padding,
-        english_x + english_width + english_padding, english_y + english_height + english_padding
+        english_x - english_padding, 
+        english_y - english_padding,
+        english_x + english_width + english_padding, 
+        english_y + english_height + english_padding
     ], fill=text_bg_color)
     
     # Add semi-transparent background for Arabic text
     arabic_padding = 30
     draw.rectangle([
-        arabic_x - arabic_padding, arabic_y - arabic_padding,
-        arabic_x + arabic_width + arabic_padding, arabic_y + arabic_height + arabic_padding
+        arabic_x - arabic_padding, 
+        arabic_y - arabic_padding,
+        arabic_x + arabic_width + arabic_padding, 
+        arabic_y + arabic_height + arabic_padding
     ], fill=text_bg_color)
     
     # Draw English text
