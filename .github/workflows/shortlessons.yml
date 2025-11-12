@@ -1,4 +1,4 @@
-name: English Coach Daily Post
+name: English Coach Daily Post Eg/ar short les
 
 on:
   schedule:
@@ -102,7 +102,7 @@ jobs:
           
     - name: Run English Coach Script
       run: |
-        python english_coach.py
+        python shortlessons.py
           
     - name: Upload generated image as artifact
       uses: actions/upload-artifact@v4
