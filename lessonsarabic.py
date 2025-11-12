@@ -10,11 +10,14 @@ import random
 import textwrap
 import json
 import hashlib
+import re
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageOps
 from io import BytesIO
 import time
 from urllib.parse import quote_plus
+import arabic_reshaper
+from bidi.algorithm import get_display
 
 # Try the new Google GenAI SDK import first
 try:
@@ -38,46 +41,108 @@ except ImportError:
 # File to store posted content for duplication check - Use current working directory
 POST_HISTORY_FILE = os.path.join(os.getcwd(), "posted_content.json")
 
-# Content parameters for variety
+# Content parameters for variety - Increased to 10 each
 TOPICS = [
-    "grammar rules",
-    "vocabulary building", 
-    "speaking practice",
-    "listening skills",
-    "pronunciation tips"
+    "grammar rules", "vocabulary building", "speaking practice", "listening skills", 
+    "pronunciation tips", "writing skills", "reading comprehension", "conversation practice",
+    "business English", "academic English"
 ]
 
 ISSUES = [
-    "common mistakes",
-    "learning challenges",
-    "practice problems",
-    "understanding difficulties",
-    "communication barriers"
+    "common mistakes", "learning challenges", "practice problems", "understanding difficulties",
+    "communication barriers", "confidence issues", "motivation problems", "time management",
+    "memory retention", "accent reduction"
 ]
 
 METHODS = [
-    "daily practice",
-    "immersive learning",
-    "structured study",
-    "conversation practice",
-    "multimedia resources"
+    "daily practice", "immersive learning", "structured study", "conversation practice",
+    "multimedia resources", "language apps", "flashcards", "shadowing technique",
+    "thinking in English", "journal writing"
 ]
 
 BENEFITS = [
-    "improved fluency",
-    "better communication",
-    "career opportunities",
-    "cultural understanding",
-    "academic success"
+    "improved fluency", "better communication", "career opportunities", "cultural understanding",
+    "academic success", "travel confidence", "brain health", "personal growth",
+    "social connections", "professional development"
 ]
 
 TIPS = [
-    "quick tips",
-    "effective strategies",
-    "simple techniques",
-    "proven methods",
-    "easy approaches"
+    "quick tips", "effective strategies", "simple techniques", "proven methods",
+    "easy approaches", "expert advice", "practical solutions", "innovative ideas",
+    "time-saving hacks", "success secrets"
 ]
+
+STYLES = [
+    "beginner friendly", "advanced level", "fast results", "long-term mastery",
+    "fun learning", "serious study", "interactive methods", "self-paced approach",
+    "group learning", "individual focus"
+]
+
+RESOURCES = [
+    "mobile apps", "online courses", "books", "podcasts", "YouTube channels",
+    "language partners", "teachers", "websites", "games", "movies and TV shows"
+]
+
+GOALS = [
+    "basic communication", "business meetings", "academic writing", "travel conversations",
+    "exam preparation", "job interviews", "presentation skills", "social interactions",
+    "customer service", "creative writing"
+]
+
+CHALLENGES = [
+    "verb tenses", "prepositions", "phrasal verbs", "pronunciation", "listening speed",
+    "vocabulary range", "sentence structure", "idioms", "formal vs informal", "accent understanding"
+]
+
+SUCCESS_STORIES = [
+    "rapid progress", "breakthrough moments", "confidence building", "real-life success",
+    "career advancement", "travel experiences", "exam success", "friendship building",
+    "cultural exchange", "personal achievement"
+]
+
+def contains_english(text):
+    """Check if text contains English characters"""
+    return bool(re.search(r'[a-zA-Z]', text))
+
+def load_multi_script_font(font_size=56):
+    """Load a font that supports both Arabic and English"""
+    # Try fonts that support both Arabic and English
+    multi_script_fonts = [
+        # Fonts that typically support both Arabic and Latin scripts
+        "/System/Library/Fonts/Arial.ttf",  # macOS
+        "/System/Library/Fonts/Arial.ttf",  # macOS
+        "C:/Windows/Fonts/arial.ttf",  # Windows
+        "C:/Windows/Fonts/tahoma.ttf",  # Windows
+        "C:/Windows/Fonts/segoeui.ttf",  # Windows
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",  # Linux
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Linux
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",  # Linux - Noto Sans supports many scripts
+    ]
+    
+    # First try to find a font that supports both scripts
+    for font_path in multi_script_fonts:
+        try:
+            if os.path.exists(font_path):
+                font = ImageFont.truetype(font_path, font_size)
+                print(f"Loaded multi-script font: {font_path}")
+                return font
+        except (IOError, OSError):
+            continue
+    
+    # If no multi-script font found, try to download Noto Sans which supports both
+    try:
+        font_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSans/NotoSans-Regular.ttf"
+        response = requests.get(font_url, timeout=10)
+        if response.status_code == 200:
+            font_file = BytesIO(response.content)
+            print("Downloaded Noto Sans font (supports Arabic and English)")
+            return ImageFont.truetype(font_file, font_size)
+    except Exception as e:
+        print(f"Error downloading multi-script font: {e}")
+    
+    # Ultimate fallback - use default font
+    print("Using default font - may not support Arabic properly")
+    return ImageFont.load_default()
 
 def load_arabic_font(font_size=56):
     """Try to load an Arabic-supported font with fallbacks"""
@@ -92,35 +157,58 @@ def load_arabic_font(font_size=56):
         "C:/Windows/Fonts/simplarab.ttf", # Windows Simplified Arabic
         "/System/Library/Fonts/GeezaPro.ttc",  # macOS Arabic font
         "/Library/Fonts/Arial Unicode MS.ttf", # macOS - has Arabic support
-        "/Library/Fonts/Times New Roman.ttf",  # macOS - sometimes has Arabic
     ]
     
     for font_path in arabic_font_paths:
         try:
             if os.path.exists(font_path):
+                print(f"Loaded Arabic font: {font_path}")
                 return ImageFont.truetype(font_path, font_size)
         except (IOError, OSError):
             continue
     
     # Try to download a fallback Arabic font if none are available locally
     try:
-        # Download Noto Sans Arabic font as fallback
         font_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansArabic/NotoSansArabic-Regular.ttf"
         response = requests.get(font_url, timeout=10)
         if response.status_code == 200:
             font_file = BytesIO(response.content)
+            print("Downloaded Arabic font from GitHub")
             return ImageFont.truetype(font_file, font_size)
-    except:
-        pass
+    except Exception as e:
+        print(f"Error downloading Arabic font: {e}")
     
-    # Ultimate fallback - try default fonts that might support Arabic
+    return None
+
+def get_appropriate_font(text, font_size=56):
+    """Choose the right font based on text content"""
+    # If text contains English, use a multi-script font
+    if contains_english(text):
+        print("Text contains English, using multi-script font")
+        return load_multi_script_font(font_size)
+    else:
+        # Try Arabic font first, fall back to multi-script if not available
+        arabic_font = load_arabic_font(font_size)
+        if arabic_font:
+            print("Text is Arabic-only, using Arabic font")
+            return arabic_font
+        else:
+            print("Arabic font not available, using multi-script font")
+            return load_multi_script_font(font_size)
+
+def reshape_arabic_text(text):
+    """Reshape Arabic text for proper rendering"""
     try:
-        return ImageFont.truetype("arial.ttf", font_size)
-    except:
-        try:
-            return ImageFont.truetype("arialuni.ttf", font_size)  # Arial Unicode
-        except:
-            return ImageFont.load_default()
+        # Only reshape if there's Arabic text
+        if re.search(r'[\u0600-\u06FF]', text):  # Arabic Unicode range
+            reshaped_text = arabic_reshaper.reshape(text)
+            bidi_text = get_display(reshaped_text)
+            return bidi_text
+        else:
+            return text
+    except Exception as e:
+        print(f"Error reshaping Arabic text: {e}")
+        return text
 
 def load_posted_content():
     """Load history of posted content to avoid duplicates"""
@@ -184,18 +272,23 @@ def is_duplicate_content(content_text):
 
 def generate_content_combination():
     """Generate a unique content combination from parameters"""
-    max_attempts = 10
+    max_attempts = 20
     
     for attempt in range(max_attempts):
-        # Randomly select parameters
+        # Randomly select parameters from all categories
         topic = random.choice(TOPICS)
         issue = random.choice(ISSUES)
         method = random.choice(METHODS)
         benefit = random.choice(BENEFITS)
         tip_type = random.choice(TIPS)
+        style = random.choice(STYLES)
+        resource = random.choice(RESOURCES)
+        goal = random.choice(GOALS)
+        challenge = random.choice(CHALLENGES)
+        success_story = random.choice(SUCCESS_STORIES)
         
         # Create unique content identifier
-        content_id = f"{topic}_{issue}_{method}_{benefit}_{tip_type}"
+        content_id = f"{topic}_{issue}_{method}_{benefit}_{tip_type}_{style}_{resource}_{goal}_{challenge}_{success_story}"
         content_hash = hashlib.md5(content_id.encode()).hexdigest()
         
         # Check if this combination was used before
@@ -208,6 +301,11 @@ def generate_content_combination():
                 'method': method,
                 'benefit': benefit,
                 'tip_type': tip_type,
+                'style': style,
+                'resource': resource,
+                'goal': goal,
+                'challenge': challenge,
+                'success_story': success_story,
                 'content_id': content_id
             }
         else:
@@ -221,6 +319,11 @@ def generate_content_combination():
         'method': random.choice(METHODS),
         'benefit': random.choice(BENEFITS),
         'tip_type': random.choice(TIPS),
+        'style': random.choice(STYLES),
+        'resource': random.choice(RESOURCES),
+        'goal': random.choice(GOALS),
+        'challenge': random.choice(CHALLENGES),
+        'success_story': random.choice(SUCCESS_STORIES),
         'content_id': 'fallback_' + str(random.randint(1000, 9999))
     }
 
@@ -246,10 +349,15 @@ def generate_english_content():
 
             CONTEXT PARAMETERS:
             - Topic: {content_combo['topic']}
-            - Focus: {content_combo['issue']} 
-            - Method: {content_combo['method']}
-            - Benefit: {content_combo['benefit']}
-            - Style: {content_combo['tip_type']}
+            - Focus Area: {content_combo['issue']} 
+            - Learning Method: {content_combo['method']}
+            - Key Benefit: {content_combo['benefit']}
+            - Tip Style: {content_combo['tip_type']}
+            - Learning Style: {content_combo['style']}
+            - Recommended Resource: {content_combo['resource']}
+            - Learning Goal: {content_combo['goal']}
+            - Specific Challenge: {content_combo['challenge']}
+            - Success Story Type: {content_combo['success_story']}
 
             TASK: Create SHORT, informative English learning content in ARABIC with TWO parts:
 
@@ -257,6 +365,7 @@ def generate_english_content():
             - A concise, factual statement in Arabic
             - Focus on practical English learning insight
             - No emojis, just clear factual text
+            - You can include English words in the Arabic text when appropriate
 
             PART 2: DETAILED_CONTENT (2-3 short paragraphs max)
             - Brief, direct explanation in Arabic
@@ -435,13 +544,17 @@ def get_random_box_color():
         (25, 25, 112, 180),    # Midnight Blue
         (139, 69, 19, 180),    # Saddle Brown
         (47, 79, 79, 180),     # Dark Slate Gray
+        (70, 130, 180, 180),   # Steel Blue
+        (100, 149, 237, 180),  # Cornflower Blue
+        (106, 90, 205, 180),   # Slate Blue
+        (123, 104, 238, 180),  # Medium Slate Blue
     ]
     color = random.choice(colors)
     print(f"Using box color: {color}")
     return color
 
 def create_english_learning_image(image_text):
-    """Create education-themed image with proper Arabic text rendering"""
+    """Create education-themed image with proper text rendering"""
     width, height = 1200, 1200
     
     # Get background image
@@ -472,12 +585,15 @@ def create_english_learning_image(image_text):
     background = background.convert('RGBA')
     draw = ImageDraw.Draw(background)
     
-    # Load Arabic-supported font
-    font = load_arabic_font(56)
+    # Choose appropriate font based on text content
+    font = get_appropriate_font(image_text, 56)
     
-    # Adjust text wrapping for Arabic - fewer characters per line
+    # Reshape Arabic text for proper rendering (only affects Arabic characters)
+    reshaped_text = reshape_arabic_text(image_text)
+    
+    # Adjust text wrapping
     max_chars_per_line = 18
-    wrapped_text = textwrap.fill(image_text, width=max_chars_per_line)
+    wrapped_text = textwrap.fill(reshaped_text, width=max_chars_per_line)
     
     # Calculate text position
     try:
@@ -577,6 +693,7 @@ def main():
     post_data = generate_english_content()
     print("Generated English learning content")
     print(f"Image text: {post_data['image_text']}")
+    print(f"Contains English: {contains_english(post_data['image_text'])}")
     print(f"Content preview: {post_data['detailed_content'][:100]}...")
     
     # Create image
