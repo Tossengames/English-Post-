@@ -40,44 +40,63 @@ POST_HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "po
 
 # Content parameters for variety
 TOPICS = [
-    "grammar rules",
-    "vocabulary building", 
-    "speaking practice",
-    "listening skills",
-    "pronunciation tips"
+    "grammar rules", "vocabulary building", "speaking practice", "listening skills", 
+    "pronunciation tips", "writing skills", "reading comprehension", "conversation practice",
+    "business English", "academic English"
 ]
 
 ISSUES = [
-    "common mistakes",
-    "learning challenges",
-    "practice problems",
-    "understanding difficulties",
-    "communication barriers"
+    "common mistakes", "learning challenges", "practice problems", "understanding difficulties",
+    "communication barriers", "confidence issues", "motivation problems", "time management",
+    "memory retention", "accent reduction"
 ]
 
 METHODS = [
-    "daily practice",
-    "immersive learning",
-    "structured study",
-    "conversation practice",
-    "multimedia resources"
+    "daily practice", "immersive learning", "structured study", "conversation practice",
+    "multimedia resources", "language apps", "flashcards", "shadowing technique",
+    "thinking in English", "journal writing"
 ]
 
 BENEFITS = [
-    "improved fluency",
-    "better communication",
-    "career opportunities",
-    "cultural understanding",
-    "academic success"
+    "improved fluency", "better communication", "career opportunities", "cultural understanding",
+    "academic success", "travel confidence", "brain health", "personal growth",
+    "social connections", "professional development"
 ]
 
 TIPS = [
-    "quick tips",
-    "effective strategies",
-    "simple techniques",
-    "proven methods",
-    "easy approaches"
+    "quick tips", "effective strategies", "simple techniques", "proven methods",
+    "easy approaches", "expert advice", "practical solutions", "innovative ideas",
+    "time-saving hacks", "success secrets"
 ]
+
+STYLES = [
+    "beginner friendly", "advanced level", "fast results", "long-term mastery",
+    "fun learning", "serious study", "interactive methods", "self-paced approach",
+    "group learning", "individual focus"
+]
+
+RESOURCES = [
+    "mobile apps", "online courses", "books", "podcasts", "YouTube channels",
+    "language partners", "teachers", "websites", "games", "movies and TV shows"
+]
+
+GOALS = [
+    "basic communication", "business meetings", "academic writing", "travel conversations",
+    "exam preparation", "job interviews", "presentation skills", "social interactions",
+    "customer service", "creative writing"
+]
+
+CHALLENGES = [
+    "verb tenses", "prepositions", "phrasal verbs", "pronunciation", "listening speed",
+    "vocabulary range", "sentence structure", "idioms", "formal vs informal", "accent understanding"
+]
+
+SUCCESS_STORIES = [
+    "rapid progress", "breakthrough moments", "confidence building", "real-life success",
+    "career advancement", "travel experiences", "exam success", "friendship building",
+    "cultural exchange", "personal achievement"
+]
+
 
 def load_arabic_font(font_size=56):
     """Try to load an Arabic-supported font with fallbacks"""
