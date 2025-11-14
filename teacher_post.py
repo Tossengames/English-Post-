@@ -312,24 +312,30 @@ def generate_regular_english_post():
         style_name, style = "Pronunciation Guide", POST_STYLES["Pronunciation Guide"]
     
     prompt = f"""
-    Create a short English learning post in Arabic about: {topic}
+    Create an English learning post without greetings or an opening in Arabic about:
+    {topic}
     
     Requirements:
-    - No greetings or opening phrases
-    - Content in Arabic explaining English concepts
-    - Structure: {style['structure']}
-    - Keep it concise and practical
-    - For pronunciation posts: show English words with Arabic pronunciation guides
-    - Include engagement CTA within the content naturally
-    - Add group invitation: "انضم لمجتمعنا التعليمي: https://facebook.com/groups/202055694371791/"
-    - Use 2-3 emojis maximum
-    - End with hashtags: {style['hashtags']}
+    1. Arabic title with emoji
+    2. Content in Arabic explaining English concepts
+    3. Structure: {style['structure']}
+    4. For pronunciation posts:
+       - Show English words only
+       - Add Arabic pronunciation guides in parentheses
+    5. Include engagement CTA naturally within the content
+    6. Add group invitation: "انضم لمجتمعنا التعليمي: https://facebook.com/groups/202055694371791/"
+    7. Include at the end:
+       - "{random.choice(ENGAGEMENT_MSGS)}"
+       - "👍 أعجبني وتابعنا لدروس إنجليزية يومية"
+    8. Hashtags: {style['hashtags']}
     
     Important:
     - Never provide pronunciation guides for Arabic words
     - Focus only on English pronunciation
+    - Keep explanations comprehensive and practical
+    - Use 3-5 emojis per post
     - Make CTA part of the content flow
-    - Keep it short and direct
+    - Maintain the same length as original posts
     """
     
     response = ask_ai(prompt)
@@ -351,24 +357,30 @@ def generate_translation_challenge():
     style = POST_STYLES["Translation Challenge"]
     
     prompt = f"""
-    Create a short English-to-Arabic translation challenge post for Arabic learners.
+    Create an English-to-Arabic translation challenge post for Arabic learners of English.
     
     Requirements:
-    - No greetings or opening phrases
-    - Write a short English paragraph (2-3 sentences)
-    - Challenge users to translate it to Arabic
-    - Write the entire post in Arabic
-    - Structure: {style['structure']}
-    - Include engagement CTA within the content naturally
-    - Add group invitation: "انضم لمجتمعنا التعليمي: https://facebook.com/groups/202055694371791/"
-    - Use 2-3 emojis maximum
-    - End with hashtags: {style['hashtags']}
+    1. Write a short English paragraph (3-5 sentences) with intermediate-level vocabulary
+    2. The paragraph should be interesting and engaging
+    3. Challenge users to translate it to Arabic in the comments
+    4. Encourage them not to use translator apps
+    5. Write the entire post in Arabic with an engaging introduction
+    6. Structure: {style['structure']}
+    7. Include engagement CTA naturally within the content
+    8. Add group invitation: "انضم لمجتمعنا التعليمي: https://facebook.com/groups/202055694371791/"
+    9. Include at the end:
+       - "اكتب ترجمتك في التعليقات"
+       - "ممنوع استخدام برامج الترجمة الآلية"
+       - "👍 أعجبني وتابعنا لتحديات إنجليزية يومية"
+    10. Hashtags: {style['hashtags']}
     
     Important:
-    - Make it short and engaging
+    - The English text should be clear and well-written
+    - Use 3-5 emojis in the post
+    - Make it engaging and fun
     - All instructions must be in Arabic
-    - Make CTA part of the content flow
-    - Keep it concise
+    - Don't promise to feature any translations
+    - Maintain the same length as original posts
     """
     
     response = ask_ai(prompt)
@@ -390,24 +402,27 @@ def generate_reading_comprehension():
     style = POST_STYLES["Reading Comprehension"]
     
     prompt = f"""
-    Create a short reading comprehension post for Arabic learners of English.
+    Create a reading comprehension post for Arabic learners of English.
     
     Requirements:
-    - No greetings or opening phrases
-    - Write a short English story or text (3-4 sentences)
-    - Create 2 comprehension questions about the text
-    - Write the entire post in Arabic
-    - Structure: {style['structure']}
-    - Include engagement CTA within the content naturally
-    - Add group invitation: "انضم لمجتمعنا التعليمي: https://facebook.com/groups/202055694371791/"
-    - Use 2-3 emojis maximum
-    - End with hashtags: {style['hashtags']}
+    1. Write a short English story or text (4-6 sentences) with intermediate-level vocabulary
+    2. Create 2-3 comprehension questions about the text
+    3. Write the entire post in Arabic with an engaging introduction
+    4. Structure: {style['structure']}
+    5. Include engagement CTA naturally within the content
+    6. Add group invitation: "انضم لمجتمعنا التعليمي: https://facebook.com/groups/202055694371791/"
+    7. Include at the end:
+       - "💭 اجب عن الأسئلة في التعليقات"
+       - "📚 تابعنا لممارسة اللغة الإنجليزية يومياً"
+    8. Hashtags: {style['hashtags']}
     
     Important:
-    - Make it short and educational
+    - The English text should be clear and interesting
     - Questions should be directly related to the text
-    - Make CTA part of the content flow
-    - Keep it concise
+    - Use 3-5 emojis in the post
+    - Make it engaging and educational
+    - All instructions must be in Arabic
+    - Maintain the same length as original posts
     """
     
     response = ask_ai(prompt)
