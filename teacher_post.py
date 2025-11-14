@@ -13,135 +13,174 @@ PIXABAY_KEY = os.getenv('PIXABAY_KEY')           # Your Pixabay API Key
 
 # ===== IMAGE KEYWORDS =====
 PIXABAY_KEYWORDS = [
-    "learning", "education", "books", "study", "classroom",
-    "language", "writing", "reading", "students", "teacher",
-    "notebook", "pen", "laptop", "online", "school",
-    "university", "college", "library", "campus", "graduation"
+    "flowers", "landscape", "mountains", "forest", "ocean",
+    "sunset", "animals", "wildlife", "butterfly", "waterfall",
+    "garden", "spring", "autumn", "winter", "summer"
 ]
 
-# ===== ENGLISH TEACHING TOPICS FOR SCHOOL & COLLEGE STUDENTS =====
+# ===== LESSON TOPICS =====
 LESSON_TOPICS = [
-    # 📚 GRAMMAR ESSENTIALS (20 topics)
-    "📝 Present Perfect vs Past Simple",
-    "🔍 All English Tenses Overview",
-    "🎯 Modal Verbs: Can, Could, Should, Must",
-    "📖 Passive Voice in Academic Writing",
-    "⚠️ Common Article Mistakes (a/an/the)",
-    "🔄 Reported Speech for School Essays",
-    "💬 Phrasal Verbs for Daily Conversation",
-    "⏳ Future Forms: Will vs Going to",
-    "🔤 Countable & Uncountable Nouns",
-    "❓ Question Formation Techniques",
-    "📌 Relative Clauses: Who, Which, That",
-    "✨ Gerunds and Infinitives",
-    "🧩 Prepositions of Time and Place",
-    "📊 Comparative & Superlative Forms",
-    "🔗 Linking Words for Better Writing",
-    "📈 Subject-Verb Agreement Rules",
-    "🎓 Conditional Sentences",
-    "📋 Word Order in English Sentences",
-    "🔍 Direct vs Indirect Questions",
-    "📖 Adjective Word Order",
+    # College Academic English (30 topics)
+    "🎓 Academic Essay Structure - Introduction/Body/Conclusion",
+    "📚 Research Paper Vocabulary - Key Terms for University",
+    "💡 Thesis Statement Development - Master Your Argument",
+    "🔍 Critical Analysis Phrases - Academic Discussion",
+    "📝 Literature Review Language - Synthesizing Sources",
+    "⚡ Avoiding Plagiarism - Paraphrasing Techniques",
+    "📊 Data Analysis Terms - Presenting Research Findings",
+    "🎯 Academic Presentations - Language for Public Speaking",
+    "🤔 Debate and Discussion Phrases - Classroom Participation",
+    "📖 Scholarly Article Comprehension - Reading Strategies",
+    "✍️ Academic Email Writing - Professional Communication",
+    "🔬 STEM Vocabulary - Science and Technology Terms",
+    "📈 Business Case Study Language - Analysis Frameworks",
+    "🌍 Global Issues Terminology - Current Events Vocabulary",
+    "⚖️ Legal Studies Vocabulary - Law and Justice Terms",
+    "🏛️ Political Science Terms - Government and Policy",
+    "💼 Internship Application Language - Professional Requests",
+    "📋 Lab Report Writing - Scientific Method Documentation",
+    "🎨 Arts and Humanities Vocabulary - Critical Theory Terms",
+    "💰 Economics Terminology - Market and Financial Language",
+    "👥 Group Project Communication - Collaborative Language",
+    "📆 Time Management Vocabulary - Academic Planning",
+    "🎤 Conference Presentation Skills - Academic Events",
+    "📝 Note-taking Strategies - Lecture Comprehension",
+    "🔎 Source Evaluation Language - Credibility Assessment",
+    "📚 Textbook Reading Techniques - Efficient Study Methods",
+    "💬 Classroom Interaction Phrases - Active Participation",
+    "📋 Exam Preparation Vocabulary - Test Strategies",
+    "🎯 Peer Review Language - Constructive Feedback",
+    "📖 Academic Reading Speed - Comprehension Techniques",
 
-    # 🗣️ SPEAKING & PRONUNCIATION (15 topics)
-    "🎤 English Pronunciation Basics",
-    "🔊 TH Sound Practice",
-    "🗣️ Intonation Patterns",
-    "💬 Common Speaking Mistakes",
-    "🎯 Fluency Building Exercises",
-    "📢 Public Speaking Tips",
-    "👂 Listening Comprehension",
-    "🔈 Word Stress Rules",
-    "🎙️ Connected Speech",
-    "📝 Tongue Twisters Practice",
-    "💡 Conversation Starters",
-    "🎭 Role-Play Scenarios",
-    "📞 Telephone English",
-    "🤝 Social English Phrases",
-    "🎓 Academic Presentations",
+    # High School English Essentials (30 topics)
+    "📖 Book Report Language - Analyzing Literature",
+    "✏️ Essay Writing Basics - High School Structure",
+    "🔤 Vocabulary Building - Word Roots and Prefixes",
+    "📝 Creative Writing Prompts - Story Development",
+    "🎭 Shakespearean Language - Modern Translations",
+    "📚 Novel Analysis Terms - Character and Plot",
+    "⚡ Poetry Analysis - Figurative Language",
+    "📋 Study Skills Vocabulary - Effective Learning",
+    "🎯 Grammar for Essays - Common Mistakes to Avoid",
+    "💬 Classroom Presentation Skills - Confidence Building",
+    "📊 Compare and Contrast Language - Analytical Writing",
+    "🔍 Reading Comprehension Strategies - Test Taking",
+    "📝 Persuasive Writing Techniques - Argument Development",
+    "🎓 College Application Essays - Personal Statements",
+    "📖 Literary Devices - Metaphor, Simile, Symbolism",
+    "⚡ Sentence Variety - Improving Writing Style",
+    "📚 Short Story Analysis - Elements of Fiction",
+    "💡 Critical Thinking Vocabulary - Analysis Terms",
+    "🎤 Speech and Debate Terms - Formal Speaking",
+    "📝 Research Project Basics - Source Integration",
+    "🔤 Spelling Rules - Common Patterns and Exceptions",
+    "📖 Reading Fluency - Pace and Expression",
+    "🎯 Test-taking Strategies - Multiple Choice Skills",
+    "📝 Paragraph Development - Topic Sentences",
+    "💬 Discussion Leadership - Facilitating Conversations",
+    "📚 Genre Study Vocabulary - Fiction vs Nonfiction",
+    "⚡ Vocabulary in Context - Guessing Meaning",
+    "🎓 Scholarship Essay Writing - Winning Applications",
+    "📝 Editing and Proofreading - Error Detection",
+    "🔍 Text Evidence - Supporting Arguments",
 
-    # 📖 WRITING SKILLS (15 topics)
-    "✍️ Paragraph Structure",
-    "📝 Essay Writing Basics",
-    "🎯 Thesis Statement Writing",
-    "📋 Formal vs Informal Writing",
-    "🔍 Punctuation Rules",
-    "📖 Sentence Variety",
-    "💡 Writing Strong Conclusions",
-    "📊 Descriptive Writing",
-    "🎯 Argumentative Essays",
-    "📝 Letter Writing Format",
-    "🔍 Proofreading Techniques",
-    "📖 Summary Writing",
-    "🎓 Research Paper Basics",
-    "📋 Note-Taking Methods",
-    "✍️ Creative Writing Tips",
+    # University Survival English (25 topics)
+    "🏠 Dorm Life Vocabulary - Campus Living Terms",
+    "🍔 Dining Hall Conversations - Food and Socializing",
+    "📚 Library Research - Academic Resource Language",
+    "💻 Online Learning Terms - Digital Classroom",
+    "👥 Professor Communication - Office Hours Etiquette",
+    "🎯 Major Declaration Language - Academic Planning",
+    "📆 Syllabus Comprehension - Course Requirements",
+    "💼 Career Center Vocabulary - Job Preparation",
+    "🎓 Graduation Requirements - Academic Progress",
+    "📝 Capstone Project Language - Final Year Work",
+    "🔬 Research Assistant Terms - Academic Employment",
+    "🌍 Study Abroad Vocabulary - International Education",
+    "💬 Campus Club Language - Extracurricular Activities",
+    "🏥 Health Center Terms - Medical Campus Services",
+    "💰 Financial Aid Vocabulary - Tuition and Funding",
+    "📚 Textbook Buying/Selling - Campus Commerce",
+    "🎯 Academic Advising Terms - Guidance Meetings",
+    "📝 Internship Interview Language - Professional Skills",
+    "🔍 Lab Safety Vocabulary - Science Classroom Terms",
+    "📊 Statistics Terminology - Data Interpretation",
+    "🎤 Student Government Language - Campus Leadership",
+    "📚 Peer Tutoring Terms - Academic Support",
+    "💻 Technology Troubleshooting - Campus IT Issues",
+    "🏛️ Administrative Office Vocabulary - University Services",
+    "🎯 Time Management for Students - Balancing Workload",
 
-    # 📚 ACADEMIC ENGLISH (15 topics)
-    "🎓 University Lecture Comprehension",
-    "📖 Academic Vocabulary Building",
-    "📝 Exam Writing Strategies",
-    "⏰ Time Management for Exams",
-    "🔍 Reading Comprehension Tips",
-    "📋 Note-Making in Lectures",
-    "🎯 Seminar Participation",
-    "📖 Textbook Study Methods",
-    "📝 Assignment Writing",
-    "🔍 Critical Reading Skills",
-    "📊 Graph Description Language",
-    "🎓 Group Discussion English",
-    "📖 Literature Analysis Terms",
-    "📝 Research Methodology Language",
-    "🎯 Academic Presentations",
+    # Modern Communication Skills (20 topics)
+    "💼 Professional Email Writing - Formal Communication",
+    "📱 Social Media English - Digital Communication",
+    "👥 Networking Language - Making Professional Connections",
+    "💬 Interview English - Job and Internship Questions",
+    "📝 Cover Letter Vocabulary - Employment Applications",
+    "🤝 Team Meeting Phrases - Collaborative Language",
+    "🎯 Project Proposal Language - Idea Presentation",
+    "📊 Data Presentation Terms - Visualizing Information",
+    "💡 Brainstorming Vocabulary - Creative Sessions",
+    "⚡ Conflict Resolution Phrases - Professional Disagreements",
+    "📋 Feedback Language - Giving and Receiving Criticism",
+    "🎤 Public Speaking Skills - Audience Engagement",
+    "📝 Business Report Writing - Formal Documentation",
+    "🔍 Problem-solving Vocabulary - Analytical Language",
+    "💬 Small Talk Skills - Social Situations",
+    "📱 Digital Etiquette - Online Communication Rules",
+    "👥 Cross-cultural Communication - Global Context",
+    "🎯 Negotiation Language - Compromise and Agreement",
+    "📝 Professional Summary Writing - Career Documents",
+    "💼 Workplace Terminology - Office Environment",
 
-    # 💼 PRACTICAL ENGLISH (15 topics)
-    "📧 Email Writing Etiquette",
-    "💼 Job Interview English",
-    "📋 CV and Resume Writing",
-    "🤝 Business Meeting Phrases",
-    "📞 Customer Service English",
-    "🎯 Small Talk Strategies",
-    "📝 Formal Letter Writing",
-    "💬 Social Situations Vocabulary",
-    "📋 Application Forms",
-    "🎓 College Application Essays",
-    "📖 Understanding Instructions",
-    "🔍 Following Directions",
-    "📝 Note-Taking in Meetings",
-    "💡 Problem-Solving Language",
-    "🎯 Giving Opinions Politely"
+    # Test Preparation Vocabulary (15 topics)
+    "🎯 TOEFL Essential Vocabulary - Academic Test Terms",
+    "📚 IELTS Writing Task Language - Exam Structure",
+    "💡 SAT Critical Reading - Test-specific Vocabulary",
+    "⚡ ACT English Section - Grammar and Usage",
+    "📝 GRE Analytical Writing - Advanced Vocabulary",
+    "🔍 GMAT Sentence Correction - Business Terms",
+    "📊 Test-taking Strategies - Time Management",
+    "🎯 Vocabulary in Context - Reading Comprehension",
+    "📝 Essay Exam Phrases - Timed Writing",
+    "🔤 Word Association - Memory Techniques",
+    "📚 Practice Test Language - Simulation Vocabulary",
+    "💡 Test Anxiety Terms - Performance Psychology",
+    "⚡ Multiple Choice Strategies - Elimination Techniques",
+    "📝 Short Answer Language - Concise Responses",
+    "🎯 Standardized Test Format - Structure Understanding"
 ]
 
 # ===== POSTING STYLES =====
 POST_STYLES = {
     "Grammar Tips": {
-        "hashtags": "#EnglishGrammar #LearnEnglish #GrammarTips",
-        "structure": "🎯 Rule Explanation\n💡 Example Sentences\n🔑 Quick Tip"
+        "hashtags": "#English_Grammar #Learn_English #English_Tips 🧠",
+        "structure": "🎯 Rule Explanation\n💡 Example Sentences\n🔑 Why This Matters\n✨ Practical Tip"
     },
-    "Speaking Practice": {
-        "hashtags": "#SpeakingEnglish #EnglishPractice #Pronunciation",
-        "structure": "🗣️ Practice Point\n💬 Example Dialogue\n🎯 Your Turn"
+    "Vocabulary Tips": {
+        "hashtags": "#English_Vocab #Word_of_the_Day #Learn_English 📖",
+        "structure": "🚀 3 Words/Phrases\n📌 Meaning\n💡 Example\n💎 Usage Tip"
     },
-    "Writing Skills": {
-        "hashtags": "#WritingSkills #EnglishWriting #AcademicEnglish",
-        "structure": "✍️ Writing Tip\n📝 Example\n🔍 Key Point"
+    "Pronunciation Guide": {
+        "hashtags": "#English_Pronunciation #Speak_English #Learn_English 🗣️",
+        "structure": "🔊 Sound/Rule Focus\n💡 Example Words\n🎯 Practice Exercise\n🔈 Pronunciation Tip"
     },
-    "Vocabulary Building": {
-        "hashtags": "#EnglishVocabulary #WordPower #LearnWords",
-        "structure": "📚 3 Useful Words\n📖 Meaning & Examples\n💡 Practice Tip"
+    "Translation Challenge": {
+        "hashtags": "#Translation_Challenge #English_Practice #Learn_English 🌟",
+        "structure": "📝 نص إنجليزي قصير\n🎯 التحدي: الترجمة إلى العربية\n💡 ممنوع استخدام برامج الترجمة!\n🏆 شارك ترجمتك في التعليقات"
     },
-    "Study Tips": {
-        "hashtags": "#StudyTips #EnglishLearning #StudentLife",
-        "structure": "🎓 Study Strategy\n💡 How to Use It\n📚 Practice Idea"
+    "Reading Comprehension": {
+        "hashtags": "#Reading_Practice #English_Comprehension #Learn_English 📚",
+        "structure": "📖 قصة/نص إنجليزي قصير\n❓ 2-3 أسئلة فهم\n💭 اجب في التعليقات"
     }
 }
 
 # ===== ENGAGEMENT MESSAGES =====
 ENGAGEMENT_MSGS = [
-    "💬 Practice this in the comments below!",
-    "📝 Write your own example sentence!",
-    "🎯 Try using this in your next conversation!",
-    "📚 Share your study tips with us!"
+    "💬 شاركنا رأيك في التعليقات!",
+    "🌟 اضغط على زر الإعجاب إذا وجدت هذا مفيدًا!",
+    "📌 شارك هذا المنشور لمساعدة الآخرين في تعلم الإنجليزية!",
+    "🔔 تابع صفحتنا لدروس يومية!"
 ]
 
 # ===== CORE FUNCTIONS =====
@@ -156,7 +195,7 @@ def ask_ai(prompt):
         "generationConfig": {
             "temperature": 0.7,
             "topP": 0.9,
-            "maxOutputTokens": 1024  # Shorter posts
+            "maxOutputTokens": 2048
         }
     }
     
@@ -240,75 +279,162 @@ def clean_ai_output(text):
     return text.strip()
 
 # ===== POST GENERATION FUNCTIONS =====
-def get_education_image():
-    """Get a random education-related image"""
+def get_nature_image():
+    """Get a random nature image"""
     return get_pixabay_image_url(random.choice(PIXABAY_KEYWORDS))
 
-def generate_english_lesson_post():
-    """Generate a short English lesson post"""
+def generate_regular_english_post():
+    """Generate a regular English learning post"""
     topic = random.choice(LESSON_TOPICS)
     
-    # Determine post style based on topic
-    if any(word in topic for word in ["Grammar", "Tense", "Verb", "Sentence"]):
+    # Determine post style
+    if any(word in topic for word in ["Grammar", "Verb", "Tense", "Article"]):
         style_name, style = "Grammar Tips", POST_STYLES["Grammar Tips"]
-    elif any(word in topic for word in ["Speaking", "Pronunciation", "Conversation"]):
-        style_name, style = "Speaking Practice", POST_STYLES["Speaking Practice"]
-    elif any(word in topic for word in ["Writing", "Essay", "Paragraph"]):
-        style_name, style = "Writing Skills", POST_STYLES["Writing Skills"]
-    elif any(word in topic for word in ["Vocabulary", "Words", "Terms"]):
-        style_name, style = "Vocabulary Building", POST_STYLES["Vocabulary Building"]
+    elif any(word in topic for word in ["Vocab", "Word", "Phrase", "Collocation"]):
+        style_name, style = "Vocabulary Tips", POST_STYLES["Vocabulary Tips"]
     else:
-        style_name, style = "Study Tips", POST_STYLES["Study Tips"]
+        style_name, style = "Pronunciation Guide", POST_STYLES["Pronunciation Guide"]
     
     prompt = f"""
-    Create a SHORT English teaching post for school and college students about:
+    Create an English learning post without greetings or an opening in Arabic about:
     {topic}
     
     Requirements:
-    1. Keep it very brief and practical (3-4 lines maximum)
-    2. Structure: {style['structure']}
-    3. Include ONE call-to-action within the content (not at the end)
-    4. Use simple, clear English
-    5. Add 1-2 relevant emojis
-    6. Make it feel like a teacher sharing a quick tip
-    
-    Example format:
-    🎯 Present Perfect for recent experiences
-    💡 "I have just finished my homework"
-    🔑 Use with 'just', 'already', 'yet'
-    💬 Try: Write about something you've done today!
+    1. Arabic title with emoji
+    2. Content in Arabic explaining English concepts
+    3. Structure: {style['structure']}
+    4. For pronunciation posts:
+       - Show English words only
+       - Add Arabic pronunciation guides in parentheses
+    5. Include at the end:
+       - "{random.choice(ENGAGEMENT_MSGS)}"
+       - "👍 أعجبني وتابعنا لدروس إنجليزية يومية"
+       - "🎓 دروس متقدمة على التليجرام: https://t.me/alleliteenglish"
+    6. Hashtags: {style['hashtags']}
     
     Important:
-    - Maximum 4 lines total
-    - Include engagement within the content
-    - No long explanations
-    - Focus on one specific point
-    - Use student-friendly language
+    - Never provide pronunciation guides for Arabic words
+    - Focus only on English pronunciation
+    - Keep explanations simple and practical
+    - Use 3-5 emojis per post
     """
     
     response = ask_ai(prompt)
     if response:
         content = clean_ai_output(response)
         
-        # Format the post
+        # Format hashtags properly
         lines = content.split('\n')
         main_content = [line for line in lines if not line.startswith('#')]
         formatted_content = '\n'.join(main_content).strip()
-        
-        # Add hashtags
         formatted_content += '\n\n' + style['hashtags']
         
-        return formatted_content, get_education_image(), topic
+        return formatted_content, get_nature_image(), topic
     
     return None, None, None
 
+def generate_translation_challenge():
+    """Generate a translation challenge post"""
+    style = POST_STYLES["Translation Challenge"]
+    
+    prompt = f"""
+    Create an English-to-Arabic translation challenge post for Arabic learners of English.
+    
+    Requirements:
+    1. Write a short English paragraph (3-5 sentences) with intermediate-level vocabulary
+    2. The paragraph should be interesting and engaging
+    3. Challenge users to translate it to Arabic in the comments
+    4. Encourage them not to use translator apps
+    5. Write the entire post in Arabic with an engaging introduction
+    6. Structure: {style['structure']}
+    7. Include at the end:
+       - "اكتب ترجمتك في التعليقات"
+       - "ممنوع استخدام برامج الترجمة الآلية"
+       - "👍 أعجبني وتابعنا لتحديات إنجليزية يومية"
+    8. Hashtags: {style['hashtags']}
+    
+    Important:
+    - The English text should be clear and well-written
+    - Use 3-5 emojis in the post
+    - Make it engaging and fun
+    - All instructions must be in Arabic
+    - Don't promise to feature any translations
+    """
+    
+    response = ask_ai(prompt)
+    if response:
+        content = clean_ai_output(response)
+        
+        # Format hashtags properly
+        lines = content.split('\n')
+        main_content = [line for line in lines if not line.startswith('#')]
+        formatted_content = '\n'.join(main_content).strip()
+        formatted_content += '\n\n' + style['hashtags']
+        
+        return formatted_content, get_nature_image(), "Translation Challenge"
+    
+    return None, None, None
+
+def generate_reading_comprehension():
+    """Generate a reading comprehension post"""
+    style = POST_STYLES["Reading Comprehension"]
+    
+    prompt = f"""
+    Create a reading comprehension post for Arabic learners of English.
+    
+    Requirements:
+    1. Write a short English story or text (4-6 sentences) with intermediate-level vocabulary
+    2. Create 2-3 comprehension questions about the text
+    3. Write the entire post in Arabic with an engaging introduction
+    4. Structure: {style['structure']}
+    5. Include at the end:
+       - "💭 اجب عن الأسئلة في التعليقات"
+       - "📚 تابعنا لممارسة اللغة الإنجليزية يومياً"
+    6. Hashtags: {style['hashtags']}
+    
+    Important:
+    - The English text should be clear and interesting
+    - Questions should be directly related to the text
+    - Use 3-5 emojis in the post
+    - Make it engaging and educational
+    - All instructions must be in Arabic
+    """
+    
+    response = ask_ai(prompt)
+    if response:
+        content = clean_ai_output(response)
+        
+        # Format hashtags properly
+        lines = content.split('\n')
+        main_content = [line for line in lines if not line.startswith('#')]
+        formatted_content = '\n'.join(main_content).strip()
+        formatted_content += '\n\n' + style['hashtags']
+        
+        return formatted_content, get_nature_image(), "Reading Comprehension"
+    
+    return None, None, None
+
+def generate_english_post():
+    """Randomly select and generate a post type"""
+    post_types = [
+        generate_regular_english_post,
+        generate_translation_challenge,
+        generate_reading_comprehension
+    ]
+    
+    # Adjust weights if you want some types to appear more frequently
+    weights = [0.10, 0.0, 0.0]  # 60% regular, 20% translation, 20% comprehension
+    
+    selected_generator = random.choices(post_types, weights=weights, k=1)[0]
+    return selected_generator()
+
 # ===== MAIN EXECUTION =====
 def main():
-    print(f"\n=== English Lesson Post Generator [{datetime.now().strftime('%Y-%m-%d %H:%M')}] ===")
-    post, image, topic = generate_english_lesson_post()
+    print(f"\n=== English Post Generator [{datetime.now().strftime('%Y-%m-%d %H:%M')}] ===")
+    post, image, topic = generate_english_post()
     
     if post:
-        print(f"\n=== Generated Lesson: {topic} ===")
+        print(f"\n=== Generated {topic} Content ===")
         print(post)
         
         if post_to_facebook(post, image):
