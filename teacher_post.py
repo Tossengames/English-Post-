@@ -320,7 +320,11 @@ def generate_regular_english_post():
     - Structure: {style['structure']}
     - For pronunciation posts: show English words with Arabic pronunciation guides
     - Include engagement CTA naturally within the content
-    - Add group invitation: "انضم لمجتمعنا التعليمي: https://facebook.com/groups/202055694371791/"
+    - Add ALL these CTAs at the end:
+      * "{random.choice(ENGAGEMENT_MSGS)}"
+      * "👍 أعجبني وتابعنا لدروس إنجليزية يومية"
+      * "📱 انضم لمجتمعنا على الفيسبوك: https://facebook.com/groups/202055694371791/"
+      * "🎓 دروس متقدمة على التليجرام: https://t.me/alleliteenglish"
     - Use emojis as needed to enhance readability
     - End with hashtags: {style['hashtags']}
     
@@ -330,7 +334,7 @@ def generate_regular_english_post():
     - Make the post as comprehensive and detailed as needed
     - No length restrictions - cover the topic thoroughly
     - Include plenty of examples and practical applications
-    - Make CTA part of the content flow naturally
+    - Make sure ALL CTAs are included at the end
     - Provide in-depth explanations and multiple examples
     """
     
@@ -364,7 +368,12 @@ def generate_translation_challenge():
     - Write the entire post in Arabic with comprehensive explanations
     - Structure: {style['structure']}
     - Include engagement CTA naturally within the content
-    - Add group invitation: "انضم لمجتمعنا التعليمي: https://facebook.com/groups/202055694371791/"
+    - Add ALL these CTAs at the end:
+      * "اكتب ترجمتك في التعليقات"
+      * "ممنوع استخدام برامج الترجمة الآلية"
+      * "👍 أعجبني وتابعنا لتحديات إنجليزية يومية"
+      * "📱 انضم لمجتمعنا على الفيسبوك: https://facebook.com/groups/202055694371791/"
+      * "🎓 دروس متقدمة على التليجرام: https://t.me/alleliteenglish"
     - Use emojis as needed to enhance readability
     - End with hashtags: {style['hashtags']}
     
@@ -375,6 +384,7 @@ def generate_translation_challenge():
     - Don't promise to feature any translations
     - No length restrictions - make it comprehensive
     - Provide context and background for the translation challenge
+    - Make sure ALL CTAs are included at the end
     """
     
     response = ask_ai(prompt)
@@ -405,7 +415,12 @@ def generate_reading_comprehension():
     - Write the entire post in Arabic with detailed explanations
     - Structure: {style['structure']}
     - Include engagement CTA naturally within the content
-    - Add group invitation: "انضم لمجتمعنا التعليمي: https://facebook.com/groups/202055694371791/"
+    - Add ALL these CTAs at the end:
+      * "💭 اجب عن الأسئلة في التعليقات"
+      * "📚 تابعنا لممارسة اللغة الإنجليزية يومياً"
+      * "👍 أعجبني وتابعنا لدروس إنجليزية يومية"
+      * "📱 انضم لمجتمعنا على الفيسبوك: https://facebook.com/groups/202055694371791/"
+      * "🎓 دروس متقدمة على التليجرام: https://t.me/alleliteenglish"
     - Use emojis as needed to enhance readability
     - End with hashtags: {style['hashtags']}
     
@@ -416,6 +431,7 @@ def generate_reading_comprehension():
     - All instructions must be in Arabic
     - No length restrictions - make it comprehensive
     - Provide detailed explanations and learning points
+    - Make sure ALL CTAs are included at the end
     """
     
     response = ask_ai(prompt)
