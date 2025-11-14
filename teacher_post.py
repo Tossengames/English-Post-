@@ -20,74 +20,135 @@ PIXABAY_KEYWORDS = [
 
 # ===== LESSON TOPICS =====
 LESSON_TOPICS = [
-    # Grammar Tips (25 topics)
-    "🔍 Present Perfect vs Past Simple - Key Differences",
-    "💡 All Conditional Types Explained Simply",
-    "🛠️ How to Use Modal Verbs Correctly",
-    "🎭 Passive Voice Made Easy",
-    "⚠️ Common Article Mistakes and Fixes",
-    "📝 Reported Speech - Rules and Examples",
-    "🔄 Essential Phrasal Verbs You Need",
-    "⏳ Future Tenses Comparison (Will/Going to/Present Continuous)",
-    "🔤 Countable vs Uncountable Nouns",
-    "🤔 Question Tags - How to Form Them Correctly",
-    "📌 Relative Clauses (Who/Which/That/Where)",
-    "✨ Gerunds vs Infinitives - Common Verbs",
-    "🧩 Prepositions of Time and Place",
-    "🆚 Comparative and Superlative Adjectives",
-    "🔗 Linking Words for Better Writing",
-    "📊 Quantifiers (Some/Any/Much/Many)",
-    "🔄 Subject-Verb Agreement Rules",
-    "🎯 Demonstratives (This/That/These/Those)",
-    "📌 Possessive Forms ('s vs of)",
-    "🔄 Word Order in English Questions",
-    "⏰ Time Expressions with Different Tenses",
-    "🔤 Irregular Plural Nouns",
-    "🔄 So vs Such - When to Use Each",
-    "🎯 Either/Neither - Correct Usage",
-    "📌 Adverbs of Frequency Placement",
+    # College Academic English (30 topics)
+    "🎓 Academic Essay Structure - Introduction/Body/Conclusion",
+    "📚 Research Paper Vocabulary - Key Terms for University",
+    "💡 Thesis Statement Development - Master Your Argument",
+    "🔍 Critical Analysis Phrases - Academic Discussion",
+    "📝 Literature Review Language - Synthesizing Sources",
+    "⚡ Avoiding Plagiarism - Paraphrasing Techniques",
+    "📊 Data Analysis Terms - Presenting Research Findings",
+    "🎯 Academic Presentations - Language for Public Speaking",
+    "🤔 Debate and Discussion Phrases - Classroom Participation",
+    "📖 Scholarly Article Comprehension - Reading Strategies",
+    "✍️ Academic Email Writing - Professional Communication",
+    "🔬 STEM Vocabulary - Science and Technology Terms",
+    "📈 Business Case Study Language - Analysis Frameworks",
+    "🌍 Global Issues Terminology - Current Events Vocabulary",
+    "⚖️ Legal Studies Vocabulary - Law and Justice Terms",
+    "🏛️ Political Science Terms - Government and Policy",
+    "💼 Internship Application Language - Professional Requests",
+    "📋 Lab Report Writing - Scientific Method Documentation",
+    "🎨 Arts and Humanities Vocabulary - Critical Theory Terms",
+    "💰 Economics Terminology - Market and Financial Language",
+    "👥 Group Project Communication - Collaborative Language",
+    "📆 Time Management Vocabulary - Academic Planning",
+    "🎤 Conference Presentation Skills - Academic Events",
+    "📝 Note-taking Strategies - Lecture Comprehension",
+    "🔎 Source Evaluation Language - Credibility Assessment",
+    "📚 Textbook Reading Techniques - Efficient Study Methods",
+    "💬 Classroom Interaction Phrases - Active Participation",
+    "📋 Exam Preparation Vocabulary - Test Strategies",
+    "🎯 Peer Review Language - Constructive Feedback",
+    "📖 Academic Reading Speed - Comprehension Techniques",
 
-    # Vocabulary Tips (25 topics)
-    "📚 5 Advanced Academic Words You Need",
-    "💼 Essential Business English Phrases",
-    "✍️ Must-Know IELTS Vocabulary",
-    "🔤 Alternatives to Overused Words",
-    "🤝 Common Verb Collocations",
-    "🏥 Medical and Health Vocabulary",
-    "💻 Technology Terms Everyone Should Know",
-    "✈️ Travel and Airport Vocabulary",
-    "🍳 Cooking and Kitchen Terms",
-    "🛒 Shopping and Money Expressions",
-    "🎓 University and Education Terms",
-    "⚽ Sports and Fitness Vocabulary",
-    "🎨 Art and Culture Related Words",
-    "🌳 Environment and Ecology Terms",
-    "👔 Job Interview Vocabulary",
-    "📱 Social Media and Internet Slang",
-    "🏠 House and Furniture Vocabulary",
-    "🚗 Car and Driving Terms",
-    "👗 Clothing and Fashion Words",
-    "🐾 Animal Related Vocabulary",
-    "🌦️ Weather Expressions",
-    "💑 Relationship and Dating Terms",
-    "🎭 Theater and Performance Words",
-    "📉 Business and Finance Vocabulary",
-    "👶 Baby and Parenting Terms",
-    "⚖️ Law and Legal Vocabulary",
+    # High School English Essentials (30 topics)
+    "📖 Book Report Language - Analyzing Literature",
+    "✏️ Essay Writing Basics - High School Structure",
+    "🔤 Vocabulary Building - Word Roots and Prefixes",
+    "📝 Creative Writing Prompts - Story Development",
+    "🎭 Shakespearean Language - Modern Translations",
+    "📚 Novel Analysis Terms - Character and Plot",
+    "⚡ Poetry Analysis - Figurative Language",
+    "📋 Study Skills Vocabulary - Effective Learning",
+    "🎯 Grammar for Essays - Common Mistakes to Avoid",
+    "💬 Classroom Presentation Skills - Confidence Building",
+    "📊 Compare and Contrast Language - Analytical Writing",
+    "🔍 Reading Comprehension Strategies - Test Taking",
+    "📝 Persuasive Writing Techniques - Argument Development",
+    "🎓 College Application Essays - Personal Statements",
+    "📖 Literary Devices - Metaphor, Simile, Symbolism",
+    "⚡ Sentence Variety - Improving Writing Style",
+    "📚 Short Story Analysis - Elements of Fiction",
+    "💡 Critical Thinking Vocabulary - Analysis Terms",
+    "🎤 Speech and Debate Terms - Formal Speaking",
+    "📝 Research Project Basics - Source Integration",
+    "🔤 Spelling Rules - Common Patterns and Exceptions",
+    "📖 Reading Fluency - Pace and Expression",
+    "🎯 Test-taking Strategies - Multiple Choice Skills",
+    "📝 Paragraph Development - Topic Sentences",
+    "💬 Discussion Leadership - Facilitating Conversations",
+    "📚 Genre Study Vocabulary - Fiction vs Nonfiction",
+    "⚡ Vocabulary in Context - Guessing Meaning",
+    "🎓 Scholarship Essay Writing - Winning Applications",
+    "📝 Editing and Proofreading - Error Detection",
+    "🔍 Text Evidence - Supporting Arguments",
 
-    # Pronunciation Focus (15 topics)
-    "🗣️ Mastering the TH Sound",
-    "🎙️ R vs L Pronunciation Guide",
-    "👄 Commonly Mispronounced Words",
-    "🔈 Silent Letters in English",
-    "📢 Sentence Intonation Rules",
-    "👂 Homophones (Same Sound, Different Meaning)",
-    "💬 Linking Sounds in Natural Speech",
-    "📖 -ED Ending Pronunciation Rules",
-    "🔊 V vs W Sound Difference",
-    "🗣️ P vs B Pronunciation Tips",
-    "🎙️ Schwa Sound - The Most Common Vowel",
-    "🔈 Difficult Consonant Clusters"
+    # University Survival English (25 topics)
+    "🏠 Dorm Life Vocabulary - Campus Living Terms",
+    "🍔 Dining Hall Conversations - Food and Socializing",
+    "📚 Library Research - Academic Resource Language",
+    "💻 Online Learning Terms - Digital Classroom",
+    "👥 Professor Communication - Office Hours Etiquette",
+    "🎯 Major Declaration Language - Academic Planning",
+    "📆 Syllabus Comprehension - Course Requirements",
+    "💼 Career Center Vocabulary - Job Preparation",
+    "🎓 Graduation Requirements - Academic Progress",
+    "📝 Capstone Project Language - Final Year Work",
+    "🔬 Research Assistant Terms - Academic Employment",
+    "🌍 Study Abroad Vocabulary - International Education",
+    "💬 Campus Club Language - Extracurricular Activities",
+    "🏥 Health Center Terms - Medical Campus Services",
+    "💰 Financial Aid Vocabulary - Tuition and Funding",
+    "📚 Textbook Buying/Selling - Campus Commerce",
+    "🎯 Academic Advising Terms - Guidance Meetings",
+    "📝 Internship Interview Language - Professional Skills",
+    "🔍 Lab Safety Vocabulary - Science Classroom Terms",
+    "📊 Statistics Terminology - Data Interpretation",
+    "🎤 Student Government Language - Campus Leadership",
+    "📚 Peer Tutoring Terms - Academic Support",
+    "💻 Technology Troubleshooting - Campus IT Issues",
+    "🏛️ Administrative Office Vocabulary - University Services",
+    "🎯 Time Management for Students - Balancing Workload",
+
+    # Modern Communication Skills (20 topics)
+    "💼 Professional Email Writing - Formal Communication",
+    "📱 Social Media English - Digital Communication",
+    "👥 Networking Language - Making Professional Connections",
+    "💬 Interview English - Job and Internship Questions",
+    "📝 Cover Letter Vocabulary - Employment Applications",
+    "🤝 Team Meeting Phrases - Collaborative Language",
+    "🎯 Project Proposal Language - Idea Presentation",
+    "📊 Data Presentation Terms - Visualizing Information",
+    "💡 Brainstorming Vocabulary - Creative Sessions",
+    "⚡ Conflict Resolution Phrases - Professional Disagreements",
+    "📋 Feedback Language - Giving and Receiving Criticism",
+    "🎤 Public Speaking Skills - Audience Engagement",
+    "📝 Business Report Writing - Formal Documentation",
+    "🔍 Problem-solving Vocabulary - Analytical Language",
+    "💬 Small Talk Skills - Social Situations",
+    "📱 Digital Etiquette - Online Communication Rules",
+    "👥 Cross-cultural Communication - Global Context",
+    "🎯 Negotiation Language - Compromise and Agreement",
+    "📝 Professional Summary Writing - Career Documents",
+    "💼 Workplace Terminology - Office Environment",
+
+    # Test Preparation Vocabulary (15 topics)
+    "🎯 TOEFL Essential Vocabulary - Academic Test Terms",
+    "📚 IELTS Writing Task Language - Exam Structure",
+    "💡 SAT Critical Reading - Test-specific Vocabulary",
+    "⚡ ACT English Section - Grammar and Usage",
+    "📝 GRE Analytical Writing - Advanced Vocabulary",
+    "🔍 GMAT Sentence Correction - Business Terms",
+    "📊 Test-taking Strategies - Time Management",
+    "🎯 Vocabulary in Context - Reading Comprehension",
+    "📝 Essay Exam Phrases - Timed Writing",
+    "🔤 Word Association - Memory Techniques",
+    "📚 Practice Test Language - Simulation Vocabulary",
+    "💡 Test Anxiety Terms - Performance Psychology",
+    "⚡ Multiple Choice Strategies - Elimination Techniques",
+    "📝 Short Answer Language - Concise Responses",
+    "🎯 Standardized Test Format - Structure Understanding"
 ]
 
 # ===== POSTING STYLES =====
@@ -141,9 +202,23 @@ def ask_ai(prompt):
     try:
         response = requests.post(url, headers=headers, json=data, timeout=90)
         response.raise_for_status()
-        return response.json()['candidates'][0]['content']['parts'][0]['text']
+        result = response.json()
+        
+        # Improved error handling for Gemini API response
+        if 'candidates' in result and len(result['candidates']) > 0:
+            candidate = result['candidates'][0]
+            if 'content' in candidate and 'parts' in candidate['content']:
+                if len(candidate['content']['parts']) > 0:
+                    return candidate['content']['parts'][0]['text']
+        
+        print(f"⚠️ Gemini API response structure unexpected: {result}")
+        return None
+        
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ Gemini API Request Error: {e}")
+        return None
     except Exception as e:
-        print(f"⚠️ Gemini Error: {e}")
+        print(f"⚠️ Gemini Unexpected Error: {e}")
         return None
 
 def post_to_facebook(message, image_url=None):
@@ -213,6 +288,8 @@ def get_pixabay_image_url(keyword):
 
 def clean_ai_output(text):
     """Clean AI-generated text"""
+    if not text:
+        return ""
     text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
     text = re.sub(r'[\*\_]{2,}', '', text)
     return text.strip()
@@ -362,7 +439,7 @@ def generate_english_post():
     ]
     
     # Adjust weights if you want some types to appear more frequently
-    weights = [0.10, 0.0, 0.0]  # 60% regular, 20% translation, 20% comprehension
+    weights = [0.7, 0.15, 0.15]  # 70% regular, 15% translation, 15% comprehension
     
     selected_generator = random.choices(post_types, weights=weights, k=1)[0]
     return selected_generator()
@@ -370,11 +447,19 @@ def generate_english_post():
 # ===== MAIN EXECUTION =====
 def main():
     print(f"\n=== English Post Generator [{datetime.now().strftime('%Y-%m-%d %H:%M')}] ===")
+    
+    # Test API keys first
+    if not all([FB_PAGE_TOKEN, FB_PAGE_ID, GEMINI_API_KEY, PIXABAY_KEY]):
+        print("❌ Missing environment variables. Please check your API keys.")
+        return
+    
+    print("✅ All environment variables loaded")
+    
     post, image, topic = generate_english_post()
     
     if post:
         print(f"\n=== Generated {topic} Content ===")
-        print(post)
+        print(post[:200] + "..." if len(post) > 200 else post)
         
         if post_to_facebook(post, image):
             print(f"\n✅ Posted successfully: {topic}")
