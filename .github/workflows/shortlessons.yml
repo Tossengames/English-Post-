@@ -3,7 +3,7 @@ name: English Coach Daily Post Eg/ar short les
 on:
   schedule:
     # Runs daily at 9:00 AM UTC
-    - cron: '0 9 * * *'
+    #- cron: '0 9 * * *'
   workflow_dispatch:  # Allows manual triggering
 
 env:
