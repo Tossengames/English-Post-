@@ -13,78 +13,78 @@ PIXABAY_KEY = os.getenv('PIXABAY_KEY')
 
 # ===== EVERGREEN PARENTING TOPICS =====
 EVERGREEN_TOPICS = [
-    # ADHD Strategies (15 topics)
-    "Creating homework routines that actually work for ADHD brains",
-    "Helping your child develop executive function skills naturally",
-    "Managing distractions without constant nagging",
-    "Positive reinforcement systems that don't feel like bribes",
-    "Organizing your home to reduce sensory overload",
-    "Bedtime routines for kids who just won't settle",
-    "Nutrition that supports focus and calm (beyond eliminating sugar)",
-    "Teaching emotional regulation when emotions feel overwhelming",
-    "Navigating friendship challenges with social differences",
-    "Time management tools that work for neurodiverse minds",
-    "Channeling hyperfocus into creative outlets",
-    "Movement breaks that actually help with focus",
-    "Understanding school accommodations and how to advocate for them",
-    "Simple mindfulness techniques for busy families",
-    "Finding the right balance with screen time",
+    # ADHD & Executive Function
+    "Effective homework strategies for children with ADHD",
+    "Developing executive function skills through daily routines",
+    "Managing distractions in a world of constant stimulation",
+    "Positive behavioral support systems that build confidence",
+    "Creating sensory-friendly home environments",
+    "Sleep hygiene practices for neurodiverse children",
+    "Nutritional approaches to support focus and regulation",
+    "Teaching emotional regulation skills",
+    "Social skill development for children with ADHD",
+    "Time management tools for neurodiverse learners",
+    "Channeling high energy into productive activities",
+    "Movement-based learning strategies",
+    "Understanding and implementing school accommodations",
+    "Mindfulness techniques suitable for children with ADHD",
+    "Balancing technology use for optimal development",
     
-    # Autism Parenting (15 topics)
-    "Building connection with a child who communicates differently",
-    "Creating calm spaces in a sensory-overwhelming world",
-    "Why predictability matters and how to create flexible routines",
-    "Supporting speech development when words don't come easily",
-    "Teaching emotion recognition in a way that makes sense",
-    "Using social stories for real-life situations",
-    "Daily sensory activities that actually help with regulation",
-    "Expanding food acceptance without mealtime battles",
-    "Sleep solutions for children who struggle to wind down",
-    "Toilet training approaches that respect sensory needs",
-    "Joining your child's play world to build connection",
-    "Recognizing meltdown triggers before they escalate",
-    "Visual schedules that actually get used",
-    "Developing empathy and perspective-taking skills",
-    "Using music and rhythm for emotional regulation",
+    # Autism & Sensory Support
+    "Communication strategies for children on the spectrum",
+    "Creating sensory-safe spaces at home",
+    "The importance of predictable routines for autistic children",
+    "Supporting language development in nonverbal children",
+    "Teaching emotion recognition and expression",
+    "Using visual supports effectively in daily life",
+    "Implementing sensory diets for regulation",
+    "Addressing selective eating in autistic children",
+    "Establishing healthy sleep patterns",
+    "Toilet training approaches for children with sensory differences",
+    "Developing play skills and social engagement",
+    "Preventing and managing sensory overload",
+    "Transition strategies for school and activities",
+    "Building empathy and social understanding",
+    "Incorporating rhythm and music for regulation",
     
-    # General Parenting Wisdom (15 topics)
-    "Discipline that strengthens connection rather than breaking it",
-    "Finding one-on-one time with multiple children",
-    "Listening to understand, not just to respond",
-    "Praising effort in a way that builds resilience",
-    "Setting tech boundaries that feel reasonable to everyone",
-    "Finding moments of self-care in a packed schedule",
-    "Helping siblings understand and support each other",
-    "Age-appropriate responsibilities that build confidence",
-    "Making reading together a special connection time",
-    "The mental health benefits of outdoor play",
-    "Using creativity to work through big feelings",
-    "Cooking together as relationship-building time",
-    "Teaching money concepts in practical, age-appropriate ways",
-    "Adapting your parenting as your child grows",
-    "Noticing and celebrating the tiny, beautiful moments",
+    # Parenting Strategies
+    "Connection-based discipline approaches",
+    "Meeting individual needs in sibling relationships",
+    "Active listening techniques for parent-child communication",
+    "Fostering growth mindset and resilience",
+    "Establishing healthy digital boundaries",
+    "Sustainable self-care practices for parents",
+    "Supporting positive sibling dynamics",
+    "Age-appropriate responsibility and independence",
+    "Shared reading as relationship building",
+    "The developmental benefits of outdoor play",
+    "Creative expression for emotional processing",
+    "Cooking together as learning and bonding",
+    "Teaching financial literacy through daily life",
+    "Adapting parenting approaches across developmental stages",
+    "Recognizing and celebrating developmental progress",
     
-    # Mom Support & Community (10 topics)
-    "Building your village when you feel isolated",
-    "Letting go of perfect and embracing 'good enough'",
-    "Speaking up for your child without burning bridges",
-    "Using journaling to process the parenting journey",
-    "Staying present when you're pulled in a million directions",
-    "Finding work-life balance that works for your family",
-    "Nurturing your relationship amid parenting demands",
-    "Setting boundaries with well-meaning relatives",
-    "Natural approaches that complement traditional methods",
-    "Trusting your instincts amid conflicting advice"
+    # Parent Support
+    "Building supportive parenting communities",
+    "Managing parenting expectations and perfectionism",
+    "Advocacy skills for educational and healthcare settings",
+    "Reflective practices for parenting growth",
+    "Maintaining presence amidst parenting demands",
+    "Balancing career and parenting responsibilities",
+    "Nurturing partner relationships through parenting challenges",
+    "Establishing healthy boundaries with extended family",
+    "Integrating complementary approaches to support",
+    "Developing confidence in parenting decisions"
 ]
 
 # ===== IMAGE KEYWORDS =====
 PIXABAY_KEYWORDS = [
-    "mother child", "family love", "parenting", "kids playing",
-    "calm home", "organized space", "outdoor family", "learning toys",
-    "sensory play", "happy children", "mom reading", "family nature",
-    "creative kids", "peaceful home", "parenting joy", "mother daughter",
-    "father child", "family kitchen", "bedtime story", "playground fun",
-    "special needs", "inclusive play", "therapy session", "learning time"
+    "parent child learning", "family support", "organized home", 
+    "calm parenting", "educational play", "therapy session", 
+    "structured routine", "patient teaching", "development support",
+    "special needs education", "positive parenting", "family bonding",
+    "child focus", "learning environment", "supportive family",
+    "developmental activities", "educational materials", "family organization"
 ]
 
 # ===== CORE FUNCTIONS =====
@@ -97,8 +97,8 @@ def ask_ai(prompt):
             "parts": [{"text": prompt}]
         }],
         "generationConfig": {
-            "temperature": 0.8,
-            "topP": 0.95,
+            "temperature": 0.7,
+            "topP": 0.9,
             "maxOutputTokens": 8192
         }
     }
@@ -179,138 +179,135 @@ def get_pixabay_image_url(keyword):
         return None
 
 def clean_ai_output(text):
-    """Clean AI-generated text to feel more human"""
+    """Clean AI-generated text"""
     if not text:
         return ""
     
-    # Remove markdown formatting
+    # Remove markdown and formatting
     text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
     text = re.sub(r'[\*\_]{2,}', '', text)
     text = re.sub(r'^#+\s*', '', text, flags=re.MULTILINE)
     
-    # Add human-like imperfections
-    lines = text.split('\n')
-    cleaned_lines = []
+    # Ensure proper paragraph spacing
+    text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
     
-    for line in lines:
-        line = line.strip()
-        if line:
-            # Occasionally add ellipsis or conversational punctuation
-            if random.random() > 0.7 and len(line) > 40:
-                if not line.endswith(('?', '!', '...')):
-                    if random.random() > 0.5:
-                        line = line + "..."
-            
-            # Sometimes add conversational phrases
-            if random.random() > 0.8 and len(cleaned_lines) > 2:
-                connectors = ["You know?", "Right?", "Honestly...", "I've found that..."]
-                if line.endswith('.'):
-                    line = line[:-1] + f" {random.choice(connectors)}"
-            
-            cleaned_lines.append(line)
-    
-    return '\n\n'.join(cleaned_lines)
+    return text.strip()
 
-def get_parenting_image():
-    """Get a random parenting/family image"""
-    return get_pixabay_image_url(random.choice(PIXABAY_KEYWORDS))
-
-# ===== NEW PARENTING POST GENERATOR =====
+# ===== PARENTING POST GENERATOR =====
 def generate_parenting_post():
-    """Generate a single, well-crafted parenting post"""
+    """Generate authoritative yet warm parenting content"""
     topic = random.choice(EVERGREEN_TOPICS)
-    image_keyword = random.choice(PIXABAY_KEYWORDS)
     
     prompt = f"""
-    Create a warm, conversational parenting post about: {topic}
+    Create a professional yet compassionate parenting guidance post about: {topic}
     
-    TONE AND VOICE:
-    - Write like a wise, compassionate friend who's been there
-    - Use natural, conversational language with occasional imperfections
-    - Include personal anecdotes or "I've noticed..." observations
-    - Sound like a real human parent sharing experience, not an expert lecturing
-    - Warm, companionable, reassuring - like chatting over coffee
+    TONE AND VOICE REQUIREMENTS:
+    - Authoritative: Based on established parenting principles and child development research
+    - Professional: Sound like an experienced educator or child development specialist
+    - Warm but not casual: Maintain professional boundaries while showing empathy
+    - Evidence-informed: Reference established approaches (OT, ABA, developmental psychology) when relevant
+    - Clear and structured: Present information in logical, digestible sections
+    - Supportive: Acknowledge challenges while providing practical solutions
+    
+    ABSOLUTELY AVOID:
+    - Personal anecdotes ("In my experience...", "What worked for me...")
+    - Overly casual language ("You know?", "Honestly...", coffee chat style)
+    - First-person framing that makes it about the writer
+    - Any "friend chatting" tone
     
     STRUCTURE:
-    Start with: An opening that grabs attention with understanding
-    Middle: Share insights, strategies, or perspectives
-    End: Wrap up with encouragement and next steps
+    1. Opening: State the parenting challenge clearly and professionally
+    2. Core Content: Present 3-4 key strategies or insights
+    3. Implementation: How to apply these in daily parenting
+    4. Closing: Summary and encouragement
     
-    CONTENT REQUIREMENTS:
-    1. Must include CTA at THREE points:
-       - Early in the post (first few sentences)
-       - Middle of the post (natural transition point)
-       - End of the post (final thought)
+    ESSENTIAL ELEMENTS:
+    1. Three CTAs (must be organically integrated):
+       - Opening CTA: Early invitation to engage or learn more
+       - Mid-post CTA: Natural transition inviting reflection or action
+       - Closing CTA: Clear next steps and resource mention
     
-    2. CTAs should encourage engagement naturally:
-       - Ask questions that invite sharing
-       - Suggest sharing with specific people
-       - Invite to read more on our website
-       - Use phrases like "I'd love to know..." or "Tell me..."
+    2. Natural website integration:
+       - Mention "www.google.com" as a resource naturally
+       - Position it as additional reading, not a sales pitch
+       - Example: "For more detailed strategies on this topic, visit www.google.com"
     
-    3. Engagement elements must be GENERATED for this specific topic:
-       - Create relevant hashtags (5-7) based on the content
-       - Create engagement tags (like "Tag a friend who...")
-       - Make them feel organic to the conversation
+    3. Fresh engagement elements:
+       - Generate 5-7 relevant hashtags based on the specific content
+       - Create 1-2 engagement prompts specific to the topic
+       - NO preset or generic engagement elements
     
-    4. Include mention of our website naturally:
-       - www.google.com (placeholder)
-       - Work it into the conversation naturally
-       - Example: "We've got more on this at www.google.com if you're curious"
+    4. Authoritative framing:
+       - Use "research shows", "developmental experts suggest", "established practice indicates"
+       - Cite approaches by their proper names when relevant
+       - Maintain professional credibility throughout
     
-    5. Human-like touches:
-       - Occasional parentheses with asides
-       - Natural sentence fragments for emphasis
-       - Varied sentence lengths
-       - Conversational questions
+    WRITING STYLE:
+    - Clear, professional sentences
+    - Varied paragraph lengths for readability
+    - Subheadings or bold text for key points (using **)
+    - Actionable, practical language
+    - Empathetic but not emotionally overstated
     
-    6. Content must feel evergreen - relevant anytime
+    LENGTH: 300-500 words, well-structured
     
-    LENGTH: 250-400 words, broken into short paragraphs
-    
-    IMPORTANT: Don't use any preset hashtags, tags, or CTAs. Generate them fresh for this topic.
-    The writing should flow naturally like a real social media post from a friend.
+    IMPORTANT: The tone should be like a knowledgeable professional guiding parents, not a peer sharing personal experiences.
     """
     
     response = ask_ai(prompt)
     
     if response:
-        # Clean and format the response
         content = clean_ai_output(response)
         
-        # Ensure we have engagement elements
-        if '#parenting' not in content.lower():
-            # Add a line about engagement if missing
-            engagement_lines = [
-                "\n\nI'd love to hear your thoughts on this...",
-                "\n\nWhat's been your experience with this?",
-                "\n\nThis stuff is always better when we share ideas..."
-            ]
-            content += random.choice(engagement_lines)
+        # Add subtle human touches to professional content
+        lines = content.split('\n')
+        enhanced_content = []
         
-        # Get image (silently fail if no image)
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if line:
+                # Occasionally add emphasis to key points
+                if i > 0 and i % 3 == 0 and len(line) > 40:
+                    if not any(marker in line for marker in ['**', '*', '_']):
+                        key_phrase = line.split('.')[0] if '.' in line else line[:50]
+                        if len(key_phrase) > 20:
+                            line = f"**{key_phrase}** - {line[len(key_phrase):]}" if line.startswith(key_phrase) else line
+                
+                enhanced_content.append(line)
+        
+        final_content = '\n\n'.join(enhanced_content)
+        
+        # Get appropriate image
+        if any(word in topic.lower() for word in ['adhd', 'focus', 'executive']):
+            image_keyword = "child focus learning"
+        elif any(word in topic.lower() for word in ['autism', 'sensory', 'spectrum']):
+            image_keyword = "therapy sensory support"
+        elif any(word in topic.lower() for word in ['routine', 'structure', 'organization']):
+            image_keyword = "organized home family"
+        else:
+            image_keyword = "parent child learning"
+        
         image_url = get_pixabay_image_url(image_keyword)
         
-        return content, image_url, topic
+        return final_content, image_url, topic
     
     return None, None, None
 
 # ===== MAIN EXECUTION =====
 def main():
-    """Main execution function - silent on errors"""
-    # Test API keys quietly
-    if not all([FB_PAGE_TOKEN, FB_PAGE_ID, GEMINI_API_KEY]):
+    """Main execution function - silent operation"""
+    # Quietly check for essential configurations
+    essential_vars = [FB_PAGE_TOKEN, FB_PAGE_ID, GEMINI_API_KEY]
+    
+    if not all(essential_vars):
         return
     
-    # Generate post
+    # Generate and post content
     post, image, topic = generate_parenting_post()
     
     if post:
-        # Try to post, but don't show errors
-        success = post_to_facebook(post, image)
-        if success:
-            # Optional: Log success quietly if needed
-            pass
+        # Post without error display
+        post_to_facebook(post, image)
 
 if __name__ == "__main__":
     main()
