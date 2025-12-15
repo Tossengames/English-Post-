@@ -14,110 +14,80 @@ PIXABAY_KEY = os.getenv('PIXABAY_KEY')
 # ===== EVERGREEN PARENTING TOPICS =====
 EVERGREEN_TOPICS = [
     # ADHD Strategies (15 topics)
-    "📚 ADHD Homework Strategies - Creating Effective Routines",
-    "🧠 Executive Function Development - Building Planning Skills",
-    "⚡ ADHD Focus Techniques - Managing Distractions",
-    "🎯 Behavior Management for ADHD - Positive Reinforcement Systems",
-    "🏠 ADHD-Friendly Home Organization - Reducing Overstimulation",
-    "💤 Sleep Strategies for ADHD Children - Establishing Routines",
-    "🍎 Nutrition Tips for ADHD - Brain-Boosting Foods",
-    "😤 Emotional Regulation for ADHD Kids - Managing Frustration",
-    "🤝 Social Skills Building - ADHD Friendship Challenges",
-    "⏰ Time Management for ADHD - Visual Schedules & Timers",
-    "🎨 Creative Outlets for ADHD Energy - Channeling Hyperfocus",
-    "🏃 Movement Breaks - Why Fidgeting Helps Focus",
-    "🎓 School Accommodations - IEP/504 Plan Essentials",
-    "🧘 Mindfulness for ADHD - Calming Techniques",
-    "📱 Technology Balance - Screen Time Management",
-
+    "Creating homework routines that actually work for ADHD brains",
+    "Helping your child develop executive function skills naturally",
+    "Managing distractions without constant nagging",
+    "Positive reinforcement systems that don't feel like bribes",
+    "Organizing your home to reduce sensory overload",
+    "Bedtime routines for kids who just won't settle",
+    "Nutrition that supports focus and calm (beyond eliminating sugar)",
+    "Teaching emotional regulation when emotions feel overwhelming",
+    "Navigating friendship challenges with social differences",
+    "Time management tools that work for neurodiverse minds",
+    "Channeling hyperfocus into creative outlets",
+    "Movement breaks that actually help with focus",
+    "Understanding school accommodations and how to advocate for them",
+    "Simple mindfulness techniques for busy families",
+    "Finding the right balance with screen time",
+    
     # Autism Parenting (15 topics)
-    "🤝 Autism Communication Strategies - Building Connection",
-    "🌀 Sensory Processing Support - Creating Calm Environments",
-    "📅 Predictability & Routines - Why Structure Matters",
-    "🗣️ Speech & Language Development - Alternative Communication",
-    "😊 Emotion Recognition - Teaching Facial Expressions",
-    "👥 Social Story Creation - Preparing for New Situations",
-    "👐 Sensory Diet Implementation - Daily Regulation Activities",
-    "🍽️ Picky Eating Solutions - Expanding Food Acceptance",
-    "💤 Autism Sleep Solutions - Bedtime Routines",
-    "🚽 Toilet Training Strategies - Autism-Specific Approaches",
-    "🎭 Play Skills Development - Joining Their World",
-    "🚨 Meltdown Prevention - Recognizing Triggers",
-    "🏫 School Transition Support - Visual Schedules",
-    "🤗 Building Empathy Skills - Perspective-Taking Activities",
-    "🎶 Music & Rhythm Therapy - Calming Benefits",
-
+    "Building connection with a child who communicates differently",
+    "Creating calm spaces in a sensory-overwhelming world",
+    "Why predictability matters and how to create flexible routines",
+    "Supporting speech development when words don't come easily",
+    "Teaching emotion recognition in a way that makes sense",
+    "Using social stories for real-life situations",
+    "Daily sensory activities that actually help with regulation",
+    "Expanding food acceptance without mealtime battles",
+    "Sleep solutions for children who struggle to wind down",
+    "Toilet training approaches that respect sensory needs",
+    "Joining your child's play world to build connection",
+    "Recognizing meltdown triggers before they escalate",
+    "Visual schedules that actually get used",
+    "Developing empathy and perspective-taking skills",
+    "Using music and rhythm for emotional regulation",
+    
     # General Parenting Wisdom (15 topics)
-    "❤️ Positive Discipline - Connection Before Correction",
-    "🎪 Balancing Multiple Children - Individual Attention",
-    "👂 Active Listening Skills - Understanding Your Child",
-    "🌱 Growth Mindset Parenting - Praising Effort vs Results",
-    "📱 Digital Parenting - Healthy Tech Boundaries",
-    "💖 Self-Care for Moms - Avoiding Burnout",
-    "👨‍👩‍👧‍👦 Sibling Dynamics - Managing Rivalry",
-    "🎯 Age-Appropriate Chores - Building Responsibility",
-    "📖 Reading Together - Bonding Through Books",
-    "🌳 Nature Connection - Outdoor Play Benefits",
-    "🎨 Creative Parenting - Art & Expression",
-    "🍳 Cooking With Kids - Life Skills Development",
-    "💰 Teaching Financial Literacy - Age-Appropriate Lessons",
-    "🔄 Parenting Transitions - Adapting as Kids Grow",
-    "🎉 Celebrating Small Wins - Joy in Daily Moments",
-
+    "Discipline that strengthens connection rather than breaking it",
+    "Finding one-on-one time with multiple children",
+    "Listening to understand, not just to respond",
+    "Praising effort in a way that builds resilience",
+    "Setting tech boundaries that feel reasonable to everyone",
+    "Finding moments of self-care in a packed schedule",
+    "Helping siblings understand and support each other",
+    "Age-appropriate responsibilities that build confidence",
+    "Making reading together a special connection time",
+    "The mental health benefits of outdoor play",
+    "Using creativity to work through big feelings",
+    "Cooking together as relationship-building time",
+    "Teaching money concepts in practical, age-appropriate ways",
+    "Adapting your parenting as your child grows",
+    "Noticing and celebrating the tiny, beautiful moments",
+    
     # Mom Support & Community (10 topics)
-    "🤝 Mom Friendships - Building Your Support Village",
-    "💪 Mom Guilt Management - Letting Go of Perfect",
-    "🗣️ Advocating for Your Child - School & Healthcare",
-    "📝 Journaling for Moms - Processing the Journey",
-    "🧘 Mindfulness for Moms - Staying Present",
-    "👩‍💼 Work-Life Balance - Realistic Expectations",
-    "💝 Marriage Maintenance - Nurturing Your Relationship",
-    "👵 Grandparent Relationships - Setting Boundaries",
-    "🌿 Holistic Wellness - Natural Parenting Approaches",
-    "🎯 Finding Your Parenting Style - Trusting Your Instincts"
+    "Building your village when you feel isolated",
+    "Letting go of perfect and embracing 'good enough'",
+    "Speaking up for your child without burning bridges",
+    "Using journaling to process the parenting journey",
+    "Staying present when you're pulled in a million directions",
+    "Finding work-life balance that works for your family",
+    "Nurturing your relationship amid parenting demands",
+    "Setting boundaries with well-meaning relatives",
+    "Natural approaches that complement traditional methods",
+    "Trusting your instincts amid conflicting advice"
 ]
-
-# ===== POSTING STYLES =====
-POST_STYLES = {
-    "Practical Tips": {
-        "hashtags": "#ParentingTips #ADHDMom #AutismParenting #MomLife",
-        "structure": "🎯 The Challenge\n💡 Evidence-Based Strategy\n✨ Real-Life Application\n✅ Quick Implementation Tip"
-    },
-    "Science Explained": {
-        "hashtags": "#ChildDevelopment #Neurodiversity #ParentingScience #MomAdvice",
-        "structure": "🧠 The Science Behind It\n👶 How It Manifests in Kids\n🛠️ Practical Parenting Adaptation\n🌟 Why This Matters Long-Term"
-    },
-    "Quick Wins": {
-        "hashtags": "#MomHacks #ParentingWin #ADHDLife #AutismSupport",
-        "structure": "⚡ The Problem You're Facing\n🎯 One Simple Adjustment\n💖 Expected Outcome\n📝 Try This Today"
-    },
-    "Story Format": {
-        "hashtags": "#MomStory #RealParenting #SpecialNeedsMom #ParentingJourney",
-        "structure": "📖 A Common Mom Struggle\n💡 The Turning Point\n✨ What Actually Worked\n❤️ What I Learned"
-    },
-    "Q&A Style": {
-        "hashtags": "#MomQuestions #ParentingAdvice #ADHDHelp #AutismCommunity",
-        "structure": "❓ Question From a Mom\n🎯 Expert-Informed Answer\n✨ Step-by-Step Guidance\n💝 Encouragement for You"
-    }
-}
 
 # ===== IMAGE KEYWORDS =====
 PIXABAY_KEYWORDS = [
     "mother child", "family love", "parenting", "kids playing",
     "calm home", "organized space", "outdoor family", "learning toys",
     "sensory play", "happy children", "mom reading", "family nature",
-    "creative kids", "peaceful home", "parenting joy"
+    "creative kids", "peaceful home", "parenting joy", "mother daughter",
+    "father child", "family kitchen", "bedtime story", "playground fun",
+    "special needs", "inclusive play", "therapy session", "learning time"
 ]
 
-# ===== ENGAGEMENT MESSAGES =====
-ENGAGEMENT_MSGS = [
-    "💬 Which of these strategies have you tried? Share your experience below!",
-    "👥 Tag a mom friend who needs to see this!",
-    "❤️ Save this post for when you need it most!",
-    "👇 What's YOUR biggest parenting challenge right now? Comment below!"
-]
-
-# ===== CORE FUNCTIONS (UNCHANGED from your original script) =====
+# ===== CORE FUNCTIONS =====
 def ask_ai(prompt):
     """Generate content using Gemini 2.5 Flash"""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
@@ -128,7 +98,7 @@ def ask_ai(prompt):
         }],
         "generationConfig": {
             "temperature": 0.8,
-            "topP": 0.9,
+            "topP": 0.95,
             "maxOutputTokens": 8192
         }
     }
@@ -144,55 +114,46 @@ def ask_ai(prompt):
                 if len(candidate['content']['parts']) > 0:
                     return candidate['content']['parts'][0]['text']
         
-        print(f"⚠️ Gemini API response structure unexpected: {result}")
         return None
         
-    except requests.exceptions.RequestException as e:
-        print(f"⚠️ Gemini API Request Error: {e}")
-        return None
-    except Exception as e:
-        print(f"⚠️ Gemini Unexpected Error: {e}")
+    except Exception:
         return None
 
 def post_to_facebook(message, image_url=None):
     """Post to Facebook Page"""
-    if image_url:
-        upload_url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/photos"
-        upload_params = {
-            'access_token': FB_PAGE_TOKEN,
-            'url': image_url,
-            'published': 'false'
-        }
-        try:
-            upload_resp = requests.post(upload_url, params=upload_params)
-            upload_resp.raise_for_status()
-            photo_id = upload_resp.json()['id']
-            
-            post_url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/feed"
-            post_params = {
+    try:
+        if image_url:
+            upload_url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/photos"
+            upload_params = {
                 'access_token': FB_PAGE_TOKEN,
-                'message': message,
-                'attached_media': json.dumps([{'media_fbid': photo_id}])
+                'url': image_url,
+                'published': 'false'
             }
-            post_resp = requests.post(post_url, params=post_params)
-            post_resp.raise_for_status()
-            return True
-        except Exception as e:
-            print(f"⚠️ Facebook Post Error: {e}")
-            return False
-    else:
-        try:
+            
+            upload_resp = requests.post(upload_url, params=upload_params, timeout=30)
+            upload_resp.raise_for_status()
+            photo_id = upload_resp.json().get('id')
+            
+            if photo_id:
+                post_url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/feed"
+                post_params = {
+                    'access_token': FB_PAGE_TOKEN,
+                    'message': message,
+                    'attached_media': json.dumps([{'media_fbid': photo_id}])
+                }
+                post_resp = requests.post(post_url, params=post_params, timeout=30)
+                return post_resp.status_code == 200
+        else:
             post_url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/feed"
             post_params = {
                 'access_token': FB_PAGE_TOKEN,
                 'message': message
             }
-            post_resp = requests.post(post_url, params=post_params)
-            post_resp.raise_for_status()
-            return True
-        except Exception as e:
-            print(f"⚠️ Facebook Post Error: {e}")
-            return False
+            post_resp = requests.post(post_url, params=post_params, timeout=30)
+            return post_resp.status_code == 200
+            
+    except Exception:
+        return False
 
 def get_pixabay_image_url(keyword):
     """Get random image from Pixabay"""
@@ -211,245 +172,145 @@ def get_pixabay_image_url(keyword):
         )
         response.raise_for_status()
         data = response.json()
-        return random.choice(data['hits'])['webformatURL'] if data['totalHits'] > 0 else None
-    except Exception as e:
-        print(f"⚠️ Pixabay Error: {e}")
+        if data['totalHits'] > 0:
+            return random.choice(data['hits'])['webformatURL']
+        return None
+    except Exception:
         return None
 
 def clean_ai_output(text):
-    """Clean AI-generated text"""
+    """Clean AI-generated text to feel more human"""
     if not text:
         return ""
+    
+    # Remove markdown formatting
     text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
     text = re.sub(r'[\*\_]{2,}', '', text)
-    return text.strip()
+    text = re.sub(r'^#+\s*', '', text, flags=re.MULTILINE)
+    
+    # Add human-like imperfections
+    lines = text.split('\n')
+    cleaned_lines = []
+    
+    for line in lines:
+        line = line.strip()
+        if line:
+            # Occasionally add ellipsis or conversational punctuation
+            if random.random() > 0.7 and len(line) > 40:
+                if not line.endswith(('?', '!', '...')):
+                    if random.random() > 0.5:
+                        line = line + "..."
+            
+            # Sometimes add conversational phrases
+            if random.random() > 0.8 and len(cleaned_lines) > 2:
+                connectors = ["You know?", "Right?", "Honestly...", "I've found that..."]
+                if line.endswith('.'):
+                    line = line[:-1] + f" {random.choice(connectors)}"
+            
+            cleaned_lines.append(line)
+    
+    return '\n\n'.join(cleaned_lines)
 
-# ===== NEW PARENTING POST GENERATORS =====
 def get_parenting_image():
     """Get a random parenting/family image"""
     return get_pixabay_image_url(random.choice(PIXABAY_KEYWORDS))
 
-def generate_evergreen_parenting_post():
-    """Generate an evergreen parenting post"""
-    topic = random.choice(EVERGREEN_TOPICS)
-    
-    # Determine post style based on topic
-    if any(word in topic.lower() for word in ["strategy", "technique", "tip", "how to"]):
-        style_name, style = "Practical Tips", POST_STYLES["Practical Tips"]
-    elif any(word in topic.lower() for word in ["science", "development", "brain", "research"]):
-        style_name, style = "Science Explained", POST_STYLES["Science Explained"]
-    elif "story" in topic.lower() or "journey" in topic.lower():
-        style_name, style = "Story Format", POST_STYLES["Story Format"]
-    else:
-        style_name, style = "Quick Wins", POST_STYLES["Quick Wins"]
-    
-    prompt = f"""
-    Create an evergreen parenting post about: {topic}
-    
-    IMPORTANT REQUIREMENTS:
-    1. Write in ENGLISH only (entire post)
-    2. Target audience: Mothers of children with ADHD, Autism, or general parenting challenges
-    3. Tone: Warm, encouraging, evidence-informed but not clinical
-    4. Structure: {style['structure']}
-    5. Content must remain relevant for years (evergreen) - no time-sensitive references
-    
-    CONTENT GUIDELINES:
-    - Start directly with valuable content (no greetings)
-    - Include practical, actionable advice
-    - Reference established parenting approaches when applicable
-    - Acknowledge that every child is different
-    - Normalize parenting struggles
-    - Focus on progress, not perfection
-    
-    ENGAGEMENT ELEMENTS:
-    - Include ONE of these naturally in the content:
-      * "{random.choice(ENGAGEMENT_MSGS)}"
-    - Add these at the END of your post:
-      * "👉 SAVE this post for when you need it!"
-      * "🤝 Share your experience in the comments below"
-      * "💌 Follow for daily parenting support"
-      * "🌟 You're doing better than you think, mama"
-    
-    FORMATTING:
-    - Use emojis sparingly for readability
-    - End with hashtags: {style['hashtags']}
-    
-    LENGTH: Comprehensive but readable (aim for 300-500 words)
-    """
-    
-    response = ask_ai(prompt)
-    if response:
-        content = clean_ai_output(response)
-        
-        # Format hashtags properly
-        lines = content.split('\n')
-        main_content = [line for line in lines if not line.startswith('#')]
-        formatted_content = '\n'.join(main_content).strip()
-        formatted_content += '\n\n' + style['hashtags']
-        
-        return formatted_content, get_parenting_image(), topic
-    
-    return None, None, None
-
-def generate_mom_support_post():
-    """Generate a mom-focused support post"""
-    style = POST_STYLES["Q&A Style"]
-    
-    # Common mom struggles (evergreen)
-    mom_questions = [
-        "How do I balance my needs with my child's constant demands?",
-        "I feel guilty when I lose patience with my neurodiverse child. Is this normal?",
-        "How can I explain my child's ADHD/Autism to family members who don't understand?",
-        "Where do I find the energy to advocate for my child day after day?",
-        "How do other special needs moms manage self-care?"
-    ]
-    
-    question = random.choice(mom_questions)
-    
-    prompt = f"""
-    Create a supportive, encouraging post for mothers of children with ADHD, Autism, or special needs.
-    
-    QUESTION TO ADDRESS: "{question}"
-    
-    IMPORTANT REQUIREMENTS:
-    1. Write in ENGLISH only
-    2. Format as a warm, compassionate Q&A
-    3. Structure: {style['structure']}
-    4. Tone: Like a wise friend who's been there
-    5. Make it evergreen - relevant anytime
-    
-    CONTENT GUIDELINES:
-    - Start directly with the question
-    - Provide validation and normalization first ("This is so common...")
-    - Offer practical, gentle advice
-    - Include specific, actionable steps
-    - Emphasize self-compassion
-    - Avoid clinical jargon
-    
-    MUST INCLUDE:
-    - Validation of her feelings
-    - 2-3 practical suggestions
-    - Reminder that progress isn't linear
-    - Encouragement to connect with other moms
-    
-    ENGAGEMENT:
-    - End with: "💬 What advice would YOU give to a mom feeling this way? Comment below!"
-    - Add: "❤️ Tag a mom friend who needs this reminder today"
-    - Include: "📌 Save this for when you need a boost"
-    
-    HASHTAGS: {style['hashtags']}
-    
-    LENGTH: 250-400 words
-    """
-    
-    response = ask_ai(prompt)
-    if response:
-        content = clean_ai_output(response)
-        
-        lines = content.split('\n')
-        main_content = [line for line in lines if not line.startswith('#')]
-        formatted_content = '\n'.join(main_content).strip()
-        formatted_content += '\n\n' + style['hashtags']
-        
-        return formatted_content, get_parenting_image(), "Mom Support Q&A"
-    
-    return None, None, None
-
-def generate_activity_idea_post():
-    """Generate a post with practical activity ideas"""
-    style = POST_STYLES["Practical Tips"]
-    
-    activity_types = [
-        "Sensory-friendly activities for sensitive kids",
-        "Quiet time ideas for overstimulated children",
-        "Movement breaks that actually calm ADHD energy",
-        "Social skills practice through play",
-        "Emotional regulation tools you can make at home"
-    ]
-    
-    activity = random.choice(activity_types)
-    
-    prompt = f"""
-    Create a practical, activity-focused parenting post.
-    
-    ACTIVITY FOCUS: {activity}
-    
-    AUDIENCE: Parents of children with ADHD, Autism, or sensory processing differences
-    
-    REQUIREMENTS:
-    1. Entire post in ENGLISH
-    2. Structure: {style['structure']}
-    3. Provide 3-5 specific activity ideas
-    4. Include:
-       - Age adaptations (toddlers, school-age, preteens)
-       - Materials needed (simple, household items)
-       - Expected benefits
-       - Troubleshooting tips
-    
-    FORMAT:
-    - List activities clearly
-    - Explain WHY each activity helps
-    - Include safety considerations if needed
-    - Suggest modifications for different needs
-    
-    ENGAGEMENT:
-    - Ask: "Which activity will you try first? Comment below! 📝"
-    - Add: "👥 Share this with parents who need fresh ideas"
-    
-    HASHTAGS: {style['hashtags']} #SensoryPlay #ADHDActivities #AutismPlay #MomHacks
-    
-    LENGTH: 300-500 words
-    """
-    
-    response = ask_ai(prompt)
-    if response:
-        content = clean_ai_output(response)
-        
-        lines = content.split('\n')
-        main_content = [line for line in lines if not line.startswith('#')]
-        formatted_content = '\n'.join(main_content).strip()
-        formatted_content += '\n\n' + style['hashtags'] + " #SensoryPlay #ADHDActivities #AutismPlay #MomHacks"
-        
-        return formatted_content, get_parenting_image(), activity
-    
-    return None, None, None
-
+# ===== NEW PARENTING POST GENERATOR =====
 def generate_parenting_post():
-    """Randomly select and generate a post type"""
-    post_types = [
-        generate_evergreen_parenting_post,  # 50% chance
-        generate_mom_support_post,          # 30% chance
-        generate_activity_idea_post         # 20% chance
-    ]
+    """Generate a single, well-crafted parenting post"""
+    topic = random.choice(EVERGREEN_TOPICS)
+    image_keyword = random.choice(PIXABAY_KEYWORDS)
     
-    weights = [0.5, 0.3, 0.2]
-    selected_generator = random.choices(post_types, weights=weights, k=1)[0]
-    return selected_generator()
+    prompt = f"""
+    Create a warm, conversational parenting post about: {topic}
+    
+    TONE AND VOICE:
+    - Write like a wise, compassionate friend who's been there
+    - Use natural, conversational language with occasional imperfections
+    - Include personal anecdotes or "I've noticed..." observations
+    - Sound like a real human parent sharing experience, not an expert lecturing
+    - Warm, companionable, reassuring - like chatting over coffee
+    
+    STRUCTURE:
+    Start with: An opening that grabs attention with understanding
+    Middle: Share insights, strategies, or perspectives
+    End: Wrap up with encouragement and next steps
+    
+    CONTENT REQUIREMENTS:
+    1. Must include CTA at THREE points:
+       - Early in the post (first few sentences)
+       - Middle of the post (natural transition point)
+       - End of the post (final thought)
+    
+    2. CTAs should encourage engagement naturally:
+       - Ask questions that invite sharing
+       - Suggest sharing with specific people
+       - Invite to read more on our website
+       - Use phrases like "I'd love to know..." or "Tell me..."
+    
+    3. Engagement elements must be GENERATED for this specific topic:
+       - Create relevant hashtags (5-7) based on the content
+       - Create engagement tags (like "Tag a friend who...")
+       - Make them feel organic to the conversation
+    
+    4. Include mention of our website naturally:
+       - www.google.com (placeholder)
+       - Work it into the conversation naturally
+       - Example: "We've got more on this at www.google.com if you're curious"
+    
+    5. Human-like touches:
+       - Occasional parentheses with asides
+       - Natural sentence fragments for emphasis
+       - Varied sentence lengths
+       - Conversational questions
+    
+    6. Content must feel evergreen - relevant anytime
+    
+    LENGTH: 250-400 words, broken into short paragraphs
+    
+    IMPORTANT: Don't use any preset hashtags, tags, or CTAs. Generate them fresh for this topic.
+    The writing should flow naturally like a real social media post from a friend.
+    """
+    
+    response = ask_ai(prompt)
+    
+    if response:
+        # Clean and format the response
+        content = clean_ai_output(response)
+        
+        # Ensure we have engagement elements
+        if '#parenting' not in content.lower():
+            # Add a line about engagement if missing
+            engagement_lines = [
+                "\n\nI'd love to hear your thoughts on this...",
+                "\n\nWhat's been your experience with this?",
+                "\n\nThis stuff is always better when we share ideas..."
+            ]
+            content += random.choice(engagement_lines)
+        
+        # Get image (silently fail if no image)
+        image_url = get_pixabay_image_url(image_keyword)
+        
+        return content, image_url, topic
+    
+    return None, None, None
 
 # ===== MAIN EXECUTION =====
 def main():
-    print(f"\n=== Parenting Post Generator [{datetime.now().strftime('%Y-%m-%d %H:%M')}] ===")
-    
-    # Test API keys
-    if not all([FB_PAGE_TOKEN, FB_PAGE_ID, GEMINI_API_KEY, PIXABAY_KEY]):
-        print("❌ Missing environment variables. Please check your API keys.")
+    """Main execution function - silent on errors"""
+    # Test API keys quietly
+    if not all([FB_PAGE_TOKEN, FB_PAGE_ID, GEMINI_API_KEY]):
         return
     
-    print("✅ All environment variables loaded")
-    
+    # Generate post
     post, image, topic = generate_parenting_post()
     
     if post:
-        print(f"\n=== Generated {topic} ===")
-        print(post[:500] + "..." if len(post) > 500 else post)
-        print(f"\nPost length: {len(post)} characters")
-        
-        if post_to_facebook(post, image):
-            print(f"\n✅ Posted successfully: {topic}")
-        else:
-            print("\n❌ Facebook posting failed")
-    else:
-        print("\n⚠️ Failed to generate content")
+        # Try to post, but don't show errors
+        success = post_to_facebook(post, image)
+        if success:
+            # Optional: Log success quietly if needed
+            pass
 
 if __name__ == "__main__":
     main()
