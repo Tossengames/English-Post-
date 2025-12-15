@@ -85,7 +85,8 @@ PIXABAY_KEYWORDS = [
     "special needs education", "positive parenting", "family bonding",
     "child focus", "learning environment", "supportive family",
     "developmental activities", "educational materials", "family organization",
-    "parent child reading", "outdoor learning", "creative play"
+    "parent child reading", "outdoor learning", "creative play",
+    "mother child homework", "sensory activities", "family meal time"
 ]
 
 # ===== CORE FUNCTIONS =====
@@ -179,17 +180,17 @@ def get_pixabay_image_url(keyword):
     except Exception:
         return None
 
-def clean_ai_output(text):
-    """Clean AI-generated text to remove markdown and AI clichés"""
+def format_with_proper_spacing(text):
+    """Format text with proper spacing for readability"""
     if not text:
         return ""
     
-    # Remove all markdown formatting
+    # Clean all markdown
     text = re.sub(r'\*\*|\*|__|_|`', '', text)
     text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
     text = re.sub(r'^#{1,6}\s*', '', text, flags=re.MULTILINE)
     
-    # Remove common AI clichés and phrases
+    # Remove AI clichés
     ai_cliches = [
         r'\bnavigating\b.*?\bcomplexity\b',
         r'\bdiscover\b.*?\bpotential\b',
@@ -211,98 +212,125 @@ def clean_ai_output(text):
     for cliche in ai_cliches:
         text = re.sub(cliche, '', text, flags=re.IGNORECASE)
     
-    # Clean up extra spaces and line breaks
+    # Normalize spacing
     text = re.sub(r'\s+', ' ', text)
-    text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
     
-    # Ensure clear paragraph structure
-    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+    # Split into paragraphs and clean
+    paragraphs = []
+    for p in text.split('\n\n'):
+        p = p.strip()
+        if p:
+            # Ensure each paragraph has proper line breaks
+            sentences = re.split(r'(?<=[.!?])\s+', p)
+            formatted_paragraph = '\n'.join(sentences)
+            paragraphs.append(formatted_paragraph)
     
+    # Join with double line breaks for clear separation
     return '\n\n'.join(paragraphs)
 
 # ===== PARENTING POST GENERATOR =====
 def generate_parenting_post():
-    """Generate professional parenting content with clear headline"""
+    """Generate professional parenting content with proper spacing"""
     topic = random.choice(EVERGREEN_TOPICS)
+    website_url = "https://elitemomshq.blogspot.com/"
     
     prompt = f"""
-    Create a parenting guidance post with a clear headline about: {topic}
+    Create a natural, readable parenting guidance post about: {topic}
     
     FORMAT REQUIREMENTS:
-    1. Start with a SHORT, CLEAR HEADLINE in all caps, followed by a blank line
-    2. No markdown of any kind (no **bold**, no *italics*, no bullet points)
-    3. Use plain text with clear paragraphs
+    1. Start with a SHORT, CLEAR HEADLINE in all caps
+    2. Leave a blank line after the headline
+    3. Use proper spacing between paragraphs
+    4. Keep paragraphs short (2-3 sentences each)
+    5. Add line breaks between sentences for better readability
     
     TONE REQUIREMENTS:
-    - Authoritative and professional
-    - Warm but not casual
-    - Direct and clear
-    - Based on established parenting principles
-    
-    ABSOLUTELY AVOID:
-    - Any AI cliché phrases like "navigating the complexity", "discover your", "unlock the", "journey toward", "unleash potential"
-    - Markdown formatting
-    - Personal anecdotes
-    - Overly casual language
-    - Vague or flowery language
-    
-    STRUCTURE:
-    1. HEADLINE: Clear, specific, in all caps
-    2. Opening paragraph: State the issue clearly
-    3. Main content: 3-4 specific strategies or points
-    4. Practical application: How to implement
-    5. Closing: Summary and encouragement
+    - Natural and conversational
+    - Authoritative but warm
+    - Like a trusted expert sharing practical advice
+    - Direct and clear without being robotic
     
     ESSENTIAL ELEMENTS:
-    1. Three natural CTAs integrated:
-       - Early in the post (first paragraph)
-       - Middle of the post (after main strategies)
-       - End of the post (final paragraph)
+    1. Three natural CTAs integrated organically:
+       - Early in the post (within first paragraph)
+       - Middle of the post (after key points)
+       - End of the post (as a natural conclusion)
     
-    2. Website mention: Include "www.google.com" naturally once
+    2. Website mention: Include {website_url} naturally once
     
-    3. Engagement elements:
-       - Generate 3-5 relevant hashtags at the end
-       - Include one question for engagement
+    3. Natural engagement:
+       - Include 4-5 relevant hashtags at the end
+       - Add one open-ended question for engagement
+    
+    CONTENT STRUCTURE:
+    HEADLINE IN ALL CAPS
+    
+    [Opening paragraph with first CTA]
+    
+    [Key strategies or insights - 2-3 paragraphs]
+    
+    [Practical application with second CTA]
+    
+    [Closing thoughts with third CTA and website mention]
+    
+    [Question for engagement]
+    
+    [Hashtags]
     
     WRITING STYLE:
-    - Use clear, direct sentences
-    - Focus on practical, actionable advice
-    - Avoid jargon unless clearly explained
-    - Paragraphs should be 2-4 sentences each
+    - Use natural line breaks
+    - Keep sentences varied in length
+    - Make it feel like a human wrote it
+    - Avoid robotic or formulaic patterns
     
-    LENGTH: 250-400 words total
+    LENGTH: 250-350 words total
     
-    EXAMPLE HEADLINE: MANAGING HOMEWORK STRUGGLES WITH ADHD
-    
-    Begin with the headline immediately.
+    Focus on creating content that flows naturally and is easy to read with proper spacing.
     """
     
     response = ask_ai(prompt)
     
     if response:
-        content = clean_ai_output(response)
+        # First, clean the content
+        content = format_with_proper_spacing(response)
         
-        # Ensure it starts with a clear headline
+        # Ensure headline formatting
         lines = content.split('\n')
-        if len(lines) > 0 and not lines[0].isupper() and len(lines[0]) < 50:
-            # Add a headline if missing
-            headline = topic.upper()
-            content = f"{headline}\n\n{content}"
+        if len(lines) > 0:
+            # Check if first line looks like a headline
+            first_line = lines[0].strip()
+            if len(first_line) < 60 and not first_line.endswith('.') and not first_line.endswith('?'):
+                # It's likely a headline, ensure proper spacing
+                if len(lines) > 1 and lines[1].strip():
+                    content = f"{first_line}\n\n{'\n'.join(lines[1:])}"
+            else:
+                # Add a headline
+                headline = topic.upper()
+                content = f"{headline}\n\n{content}"
+        
+        # Ensure website URL is included naturally
+        if website_url not in content:
+            # Add it organically at the end
+            closing_phrases = [
+                f"For more parenting resources, visit {website_url}",
+                f"Find additional strategies at {website_url}",
+                f"Explore more content at {website_url}"
+            ]
+            content += f"\n\n{random.choice(closing_phrases)}"
         
         # Get appropriate image
-        if any(word in topic.lower() for word in ['adhd', 'focus', 'homework', 'executive']):
-            image_keyword = "child focus learning"
+        if any(word in topic.lower() for word in ['adhd', 'homework', 'focus']):
+            image_keyword = "child homework help"
         elif any(word in topic.lower() for word in ['autism', 'sensory']):
-            image_keyword = "therapy sensory support"
-        elif any(word in topic.lower() for word in ['routine', 'structure']):
-            image_keyword = "organized home family"
-        elif any(word in topic.lower() for word in ['sleep', 'bedtime']):
-            image_keyword = "calm bedroom child"
+            image_keyword = "sensory play therapy"
+        elif any(word in topic.lower() for word in ['sleep', 'bedtime', 'routine']):
+            image_keyword = "bedtime routine child"
         elif any(word in topic.lower() for word in ['nutrition', 'food', 'eating']):
-            image_keyword = "healthy food family"
+            image_keyword = "healthy family meal"
         elif any(word in topic.lower() for word in ['social', 'friends', 'play']):
             image_keyword = "children playing together"
+        elif any(word in topic.lower() for word in ['self-care', 'parent', 'balance']):
+            image_keyword = "mom self care"
         else:
             image_keyword = "parent child learning"
         
@@ -323,6 +351,9 @@ def main():
     post, image, topic = generate_parenting_post()
     
     if post:
+        # Add visual separators for readability
+        post = post.replace('\n\n', '\n\n')
+        
         post_to_facebook(post, image)
 
 if __name__ == "__main__":
