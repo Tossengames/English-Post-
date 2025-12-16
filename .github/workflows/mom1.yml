@@ -3,7 +3,7 @@ name: mom 1
 on:
   schedule:
     # Posts at 8AM, 12PM, 4PM, 8PM Middle East Time (UTC+3)
-    - cron: '0 14 * * *'
+    - cron: '0 20,1,6 * * *'
   workflow_dispatch:
 
 jobs:
