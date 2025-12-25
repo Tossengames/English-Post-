@@ -1,0 +1,46 @@
+name: Parenting Video Creator
+
+on:
+  # Schedule: 9 PM US West (Pacific Time) - UTC-8/UTC-7
+  schedule:
+    # 9 PM PST = 5 AM UTC next day (UTC-8)
+    - cron: '0 5 * * *'
+    # 9 PM PDT = 4 AM UTC next day (UTC-7)
+    - cron: '0 4 * * *'
+  
+  # Manual trigger from GitHub UI
+  workflow_dispatch:
+
+jobs:
+  create-video:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      # Setup Python with built-in caching
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+      
+      # Install system tools (FFmpeg for video processing)
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      
+      # Install Python packages
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+      
+      # Run the video script
+      - name: Create and post video
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+        run: python parent2.py
