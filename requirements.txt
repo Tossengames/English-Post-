@@ -3,3 +3,7 @@ requests
 google-generativeai
 python-docx
 PyPDF2
+google-generativeai
+requests
+edge-tts
+gtts
