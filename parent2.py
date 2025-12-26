@@ -98,12 +98,9 @@ def generate_parenting_tip(post_history):
         - Do not include phrases like "Did you know" or "Remember this"
         - Make it sound natural and direct
         - Title should be specific to the topic
-        - ADD NATURAL PUNCTUATION like commas or periods to create natural pauses in speech
-        - Example of good punctuation: "When reading with your child, pause to ask questions, which builds comprehension skills."
-        - Example of good punctuation: "For better sleep, establish a bedtime routine, including bath, story, and lights out."
-        - Example of good punctuation: "To build trust in children, help them with their problems, and listen without judgment."
-        - Example of good punctuation: "When children are frustrated, validate their feelings first, then help them find solutions."
-        - Example of good punctuation: "For picky eaters, offer new foods repeatedly, without pressure or bribes.""""
+        - Add commas for natural pauses in speech
+        - Example: "When reading with your child, pause to ask questions."
+        - Example: "For picky eaters, offer new foods repeatedly, without pressure.""""
         
         try:
             genai.configure(api_key=os.environ["GEMINI_API_KEY"])
