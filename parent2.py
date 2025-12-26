@@ -286,7 +286,6 @@ def create_voiceover(title, tip, output_path):
     temp_dir = tempfile.mkdtemp()
     
     # CHANGED: Use male voice instead of female
-    # Male voice options: "en-US-GuyNeural", "en-US-DavisNeural", "en-US-BrianNeural"
     voice = "en-US-GuyNeural"  # Changed from "en-US-AriaNeural"
     
     # Create the text to be spoken
