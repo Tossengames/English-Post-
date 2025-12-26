@@ -88,7 +88,6 @@ def generate_parenting_tip(post_history):
         
         prompt = f"""Generate ONE practical parenting tip about {category}.
         Return ONLY in this exact format: title .| tip
-        Example: Toddler Sleep .| Establish a consistent bedtime routine, to help toddlers sleep better.
         
         Rules:
         - Make it practical and useful for parents
@@ -98,9 +97,7 @@ def generate_parenting_tip(post_history):
         - Do not include phrases like "Did you know" or "Remember this"
         - Make it sound natural and direct
         - Title should be specific to the topic
-        - Add commas for natural pauses in speech
-        - Example: "When reading with your child, pause to ask questions."
-        - Example: "For picky eaters, offer new foods repeatedly, without pressure.""""
+        - Use commas to create natural pauses in speech"""
         
         try:
             genai.configure(api_key=os.environ["GEMINI_API_KEY"])
