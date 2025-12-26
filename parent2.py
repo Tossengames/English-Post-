@@ -88,7 +88,7 @@ def generate_parenting_tip(post_history):
         
         prompt = f"""Generate ONE practical parenting tip about {category}.
         Return ONLY in this exact format: title .| tip
-        Example: Toddler Sleep .| Establish a consistent bedtime routine to help toddlers sleep better.
+        Example: Toddler Sleep .| Establish a consistent bedtime routine, to help toddlers sleep better.
         
         Rules:
         - Make it practical and useful for parents
@@ -97,7 +97,13 @@ def generate_parenting_tip(post_history):
         - Ensure information is accurate
         - Do not include phrases like "Did you know" or "Remember this"
         - Make it sound natural and direct
-        - Title should be specific to the topic"""
+        - Title should be specific to the topic
+        - ADD NATURAL PUNCTUATION like commas or periods to create natural pauses in speech
+        - Example of good punctuation: "When reading with your child, pause to ask questions, which builds comprehension skills."
+        - Example of good punctuation: "For better sleep, establish a bedtime routine, including bath, story, and lights out."
+        - Example of good punctuation: "To build trust in children, help them with their problems, and listen without judgment."
+        - Example of good punctuation: "When children are frustrated, validate their feelings first, then help them find solutions."
+        - Example of good punctuation: "For picky eaters, offer new foods repeatedly, without pressure or bribes.""""
         
         try:
             genai.configure(api_key=os.environ["GEMINI_API_KEY"])
@@ -286,7 +292,7 @@ def create_voiceover(title, tip, output_path):
     # Create the text to be spoken
     spoken_text = f"{tip}"
     
-    print("Creating voiceover...")
+    print("Creating voiceover with natural pauses...")
     
     # Try Edge TTS first if available
     if EDGE_TTS_AVAILABLE:
@@ -294,7 +300,7 @@ def create_voiceover(title, tip, output_path):
         try:
             success = asyncio.run(edge_tts_generate(spoken_text, output_path, voice))
             if success:
-                print("✅ Voiceover created with Edge TTS (Male voice)")
+                print("✅ Voiceover created with Edge TTS (Male voice with natural pauses)")
                 return True
         except Exception as e:
             print(f"Edge TTS async error: {e}")
@@ -465,7 +471,7 @@ def main():
     post_history.history = new_history
     post_history.save_history()
     
-    # Generate unique parenting tip
+    # Generate unique parenting tip with natural punctuation
     title, tip = generate_parenting_tip(post_history)
     
     if title is None or tip is None:
@@ -474,7 +480,7 @@ def main():
         return
     
     print(f"Title: {title}")
-    print(f"Tip: {tip}")
+    print(f"Tip (with natural pauses): {tip}")
 
     video_path = "parenting_tips_shorts.mp4"
     if create_vertical_video(title, tip, video_path):
