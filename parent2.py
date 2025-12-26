@@ -129,13 +129,13 @@ def escape_text(text):
     text = re.sub(r'[^\w\s.,!?-]', '', text)
     return text
 
-def get_random_color():
-    """Generate random colors for text boxes"""
-    colors = [
-        "blue", "red", "green", "yellow", "magenta", "cyan", "white", 
-        "orange", "purple", "pink", "brown", "lime", "teal", "navy"
+def get_dark_color():
+    """Generate darker, more visible colors for text on white background"""
+    dark_colors = [
+        "darkblue", "darkred", "darkgreen", "darkmagenta", "darkcyan",
+        "black", "navy", "maroon", "purple", "indigo", "brown", "olive"
     ]
-    return random.choice(colors)
+    return random.choice(dark_colors)
 
 def get_pixabay_image(prompt, output_path):
     """Get image from Pixabay API"""
@@ -279,8 +279,9 @@ def create_voiceover(title, tip, output_path):
     """Create voiceover using Edge TTS if available, otherwise gTTS"""
     temp_dir = tempfile.mkdtemp()
     
-    # Use consistent female voice for Edge TTS
-    voice = "en-US-AriaNeural"
+    # CHANGED: Use male voice instead of female
+    # Male voice options: "en-US-GuyNeural", "en-US-DavisNeural", "en-US-BrianNeural"
+    voice = "en-US-GuyNeural"  # Changed from "en-US-AriaNeural"
     
     # Create the text to be spoken
     spoken_text = f"{tip}"
@@ -293,7 +294,7 @@ def create_voiceover(title, tip, output_path):
         try:
             success = asyncio.run(edge_tts_generate(spoken_text, output_path, voice))
             if success:
-                print("✅ Voiceover created with Edge TTS")
+                print("✅ Voiceover created with Edge TTS (Male voice)")
                 return True
         except Exception as e:
             print(f"Edge TTS async error: {e}")
@@ -355,10 +356,16 @@ def create_vertical_video(title, tip, output_path):
     # Wrap text for better readability
     wrapped_tip = textwrap.fill(escaped_tip, width=35)
     
-    # Generate random colors for each text element
-    header_color = get_random_color()
-    title_color = get_random_color()
-    tip_color = get_random_color()
+    # CHANGED: Get darker, more visible colors for text
+    header_color = get_dark_color()
+    title_color = get_dark_color()
+    tip_color = get_dark_color()
+    
+    # Ensure we don't get the same color for all text elements
+    while title_color == header_color:
+        title_color = get_dark_color()
+    while tip_color == header_color or tip_color == title_color:
+        tip_color = get_dark_color()
     
     print(f"Using colors - Header: {header_color}, Title: {title_color}, Tip: {tip_color}")
     
@@ -367,9 +374,9 @@ def create_vertical_video(title, tip, output_path):
     with open(filter_script, 'w') as f:
         f.write(f"""
         [0:v]{video_filters},
-        drawtext=text='PARENTING TIPS':fontcolor={header_color}:fontsize=70:box=1:boxcolor=white@0.9:boxborderw=15:x=(w-text_w)/2:y=350,
-        drawtext=text='{escaped_title}':fontcolor={title_color}:fontsize=60:box=1:boxcolor=white@0.9:boxborderw=10:x=(w-text_w)/2:y=500,
-        drawtext=text='{wrapped_tip}':fontcolor={tip_color}:fontsize=50:box=1:boxcolor=white@0.9:boxborderw=10:x=(w-text_w)/2:y=700
+        drawtext=text='PARENTING TIPS':fontcolor={header_color}:fontsize=70:box=1:boxcolor=white@1.0:boxborderw=15:x=(w-text_w)/2:y=350,
+        drawtext=text='{escaped_title}':fontcolor={title_color}:fontsize=60:box=1:boxcolor=white@1.0:boxborderw=10:x=(w-text_w)/2:y=500,
+        drawtext=text='{wrapped_tip}':fontcolor={tip_color}:fontsize=50:box=1:boxcolor=white@1.0:boxborderw=10:x=(w-text_w)/2:y=700
         """)
     
     ffmpeg_cmd = [
