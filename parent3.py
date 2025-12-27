@@ -20,6 +20,13 @@ except ImportError:
     from gtts import gTTS
     import time
 
+# Update to new Google GenAI package
+try:
+    import google.genai as genai_new
+    NEW_GENAI_AVAILABLE = True
+except ImportError:
+    NEW_GENAI_AVAILABLE = False
+
 class PostHistory:
     def __init__(self, history_file="mom_issues_history.json"):
         self.history_file = history_file
@@ -205,12 +212,21 @@ def generate_mom_issue_solution(post_history):
         """
         
         try:
-            genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-            model = genai.GenerativeModel('gemini-2.5-flash')
-            response = model.generate_content(prompt)
+            # Try new Google GenAI API first
+            if NEW_GENAI_AVAILABLE:
+                genai_new.configure(api_key=os.environ["GEMINI_API_KEY"])
+                model = genai_new.GenerativeModel('gemini-2.5-flash')
+                response = model.generate_content(prompt)
+                result_text = response.text
+            else:
+                # Fallback to old API
+                genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+                model = genai.GenerativeModel('gemini-2.5-flash')
+                response = model.generate_content(prompt)
+                result_text = response.text
             
-            if response.text.count('|') == 2:
-                problem, solution, hook = response.text.strip().split('|')
+            if result_text.count('|') == 2:
+                problem, solution, hook = result_text.strip().split('|')
                 problem, solution, hook = problem.strip(), solution.strip(), hook.strip()
                 
                 # Check if this topic has been used before
@@ -302,7 +318,6 @@ def get_pixabay_image(prompt, output_path):
                 "per_page": 30,
                 "safesearch": "true",
                 "category": "people",
-                "colors": "gold,yellow",  # Prefer gold/yellow tones
                 "editors_choice": "true"
             },
             timeout=30
@@ -424,9 +439,9 @@ def get_audio_duration(audio_path):
 def get_template_layout(template_type, hook, problem, solution):
     """Get different layouts based on template type"""
     
-    # Gold and black color scheme variations
-    gold_colors = ["gold", "goldenrod", "darkgoldenrod", "goldenrod1", "gold2"]
-    black_colors = ["black", "gray10", "gray15", "gray20"]
+    # Use ONLY standard FFmpeg color names
+    gold_colors = ["gold", "yellow", "orange", "khaki"]
+    black_colors = ["black", "gray", "dimgray", "darkslategray"]
     
     primary_gold = random.choice(gold_colors)
     primary_black = random.choice(black_colors)
@@ -443,7 +458,7 @@ def get_template_layout(template_type, hook, problem, solution):
             'hook_y': 350,
             'problem_y': 650,
             'solution_y': 950,
-            'cta_y': 1400  # Lower CTA position
+            'cta_y': 1500  # Lower CTA position
         },
         'confession': {
             'title': "MOM CONFESSION",
@@ -455,7 +470,7 @@ def get_template_layout(template_type, hook, problem, solution):
             'hook_y': 320,
             'problem_y': 600,
             'solution_y': 900,
-            'cta_y': 1450
+            'cta_y': 1550
         },
         'challenge': {
             'title': "PARENTING CHALLENGE",
@@ -467,7 +482,7 @@ def get_template_layout(template_type, hook, problem, solution):
             'hook_y': 380,
             'problem_y': 700,
             'solution_y': 1000,
-            'cta_y': 1550
+            'cta_y': 1600
         },
         'reveal': {
             'title': "MOM REVEAL",
@@ -479,7 +494,7 @@ def get_template_layout(template_type, hook, problem, solution):
             'hook_y': 340,
             'problem_y': 620,
             'solution_y': 920,
-            'cta_y': 1480
+            'cta_y': 1580
         },
         'story': {
             'title': "MOM STORY",
@@ -491,7 +506,7 @@ def get_template_layout(template_type, hook, problem, solution):
             'hook_y': 360,
             'problem_y': 640,
             'solution_y': 940,
-            'cta_y': 1500
+            'cta_y': 1650
         },
         'secret': {
             'title': "MOM SECRET",
@@ -503,7 +518,7 @@ def get_template_layout(template_type, hook, problem, solution):
             'hook_y': 330,
             'problem_y': 610,
             'solution_y': 910,
-            'cta_y': 1470
+            'cta_y': 1570
         },
         'warning': {
             'title': "MOM WARNING",
@@ -515,7 +530,7 @@ def get_template_layout(template_type, hook, problem, solution):
             'hook_y': 350,
             'problem_y': 630,
             'solution_y': 930,
-            'cta_y': 1520
+            'cta_y': 1620
         },
         'promise': {
             'title': "MOM PROMISE",
@@ -527,7 +542,7 @@ def get_template_layout(template_type, hook, problem, solution):
             'hook_y': 340,
             'problem_y': 620,
             'solution_y': 920,
-            'cta_y': 1490
+            'cta_y': 1590
         }
     }
     
@@ -597,22 +612,26 @@ def create_vertical_video(hook, problem, solution, template_type, output_path):
     filter_script = os.path.join(temp_dir, "filter.txt")
     with open(filter_script, 'w') as f:
         # Base video filter with dark overlay
-        f.write(f"[0:v]{video_filters},{layout['bg_overlay']}[v];")
-        
-        # Add text layers with gold and black theme
-        f.write(f"""
-        [v]drawtext=text='{escaped_title}':fontcolor={layout['primary_gold']}:fontsize=80:font=serif:box=1:boxcolor={layout['primary_black']}@0.7:boxborderw=10:x=(w-text_w)/2:y={layout['title_y']},
-        drawtext=text='{escaped_hook}':fontcolor=white:fontsize=60:font=sans:box=1:boxcolor={layout['primary_gold']}@0.5:boxborderw=8:x=(w-text_w)/2:y={layout['hook_y']},
-        drawtext=text='{escaped_problem}':fontcolor=white:fontsize=52:font=sans:box=1:boxcolor={layout['primary_black']}@0.6:boxborderw=6:x=(w-text_w)/2:y={layout['problem_y']},
-        drawtext=text='{escaped_solution}':fontcolor={layout['primary_gold']}:fontsize=56:font=serif:box=1:boxcolor={layout['primary_black']}@0.8:boxborderw=8:x=(w-text_w)/2:y={layout['solution_y']},
-        drawtext=text='Follow for more mom wisdom':fontcolor={layout['primary_gold']}:fontsize=38:font=sans:box=1:boxcolor={layout['primary_black']}@0.9:boxborderw=4:x=(w-text_w)/2:y={layout['cta_y']}
-        """)
+        f.write(f"""[0:v]{video_filters},{layout['bg_overlay']}[v];
+[v]drawtext=text='{escaped_title}':fontcolor={layout['primary_gold']}:fontsize=80:font='Arial':box=1:boxcolor={layout['primary_black']}@0.7:boxborderw=10:x=(w-text_w)/2:y={layout['title_y']},
+drawtext=text='{escaped_hook}':fontcolor=white:fontsize=60:font='Arial':box=1:boxcolor={layout['primary_gold']}@0.5:boxborderw=8:x=(w-text_w)/2:y={layout['hook_y']},
+drawtext=text='{escaped_problem}':fontcolor=white:fontsize=52:font='Arial':box=1:boxcolor={layout['primary_black']}@0.6:boxborderw=6:x=(w-text_w)/2:y={layout['problem_y']},
+drawtext=text='{escaped_solution}':fontcolor={layout['primary_gold']}:fontsize=56:font='Arial':box=1:boxcolor={layout['primary_black']}@0.8:boxborderw=8:x=(w-text_w)/2:y={layout['solution_y']},
+drawtext=text='Follow for more mom wisdom':fontcolor={layout['primary_gold']}:fontsize=38:font='Arial':box=1:boxcolor={layout['primary_black']}@0.9:boxborderw=4:x=(w-text_w)/2:y={layout['cta_y']}""")
     
     ffmpeg_cmd = [
         'ffmpeg', '-y',
         *input_source,
         '-i', voice_path,
-        '-filter_complex_script', filter_script,
+        '-filter_complex', 
+        f"""movie='{bg_image}',scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},format=yuv420p,{layout['bg_overlay']}[bg];
+        [bg]drawtext=text='{escaped_title}':fontcolor={layout['primary_gold']}:fontsize=80:font='Arial':box=1:boxcolor={layout['primary_black']}@0.7:boxborderw=10:x=(w-text_w)/2:y={layout['title_y']},
+        drawtext=text='{escaped_hook}':fontcolor=white:fontsize=60:font='Arial':box=1:boxcolor={layout['primary_gold']}@0.5:boxborderw=8:x=(w-text_w)/2:y={layout['hook_y']},
+        drawtext=text='{escaped_problem}':fontcolor=white:fontsize=52:font='Arial':box=1:boxcolor={layout['primary_black']}@0.6:boxborderw=6:x=(w-text_w)/2:y={layout['problem_y']},
+        drawtext=text='{escaped_solution}':fontcolor={layout['primary_gold']}:fontsize=56:font='Arial':box=1:boxcolor={layout['primary_black']}@0.8:boxborderw=8:x=(w-text_w)/2:y={layout['solution_y']},
+        drawtext=text='Follow for more mom wisdom':fontcolor={layout['primary_gold']}:fontsize=38:font='Arial':box=1:boxcolor={layout['primary_black']}@0.9:boxborderw=4:x=(w-text_w)/2:y={layout['cta_y']}[v]""",
+        '-map', '[v]',
+        '-map', '1:a',
         '-c:v', 'libx264', '-c:a', 'aac',
         '-t', str(duration),
         '-shortest',
@@ -622,10 +641,69 @@ def create_vertical_video(hook, problem, solution, template_type, output_path):
     ]
     
     try:
-        subprocess.run(ffmpeg_cmd, check=True)
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            print(f"FFmpeg stderr: {result.stderr}")
+            print(f"FFmpeg stdout: {result.stdout}")
+            
+            # Try simpler approach if complex filter fails
+            print("Trying simpler FFmpeg approach...")
+            return create_simple_video(bg_image, voice_path, duration, escaped_title, escaped_hook, escaped_problem, escaped_solution, layout, output_path)
+        
         return True
-    except subprocess.CalledProcessError as e:
+    except Exception as e:
         print(f"FFmpeg error: {e}")
+        return False
+
+def create_simple_video(bg_image, voice_path, duration, title, hook, problem, solution, layout, output_path):
+    """Create video using a simpler approach"""
+    try:
+        # Create a temporary text image
+        temp_dir = tempfile.mkdtemp()
+        
+        # Create individual text images
+        width, height = 1080, 1920
+        
+        # Create base video with image
+        base_video = os.path.join(temp_dir, "base.mp4")
+        base_cmd = [
+            'ffmpeg', '-y',
+            '-loop', '1',
+            '-i', bg_image,
+            '-c:v', 'libx264',
+            '-t', str(duration),
+            '-vf', f'scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}',
+            '-pix_fmt', 'yuv420p',
+            base_video
+        ]
+        
+        subprocess.run(base_cmd, check=True, capture_output=True)
+        
+        # Overlay text using simpler method
+        filter_cmd = f"""color=black@0.3[overlay];
+        [0:v][overlay]overlay=0:0[base];
+        [base]drawtext=text='{title}':fontcolor={layout['primary_gold']}:fontsize=80:x=(w-text_w)/2:y={layout['title_y']},
+        drawtext=text='{hook}':fontcolor=white:fontsize=60:x=(w-text_w)/2:y={layout['hook_y']},
+        drawtext=text='{problem}':fontcolor=white:fontsize=52:x=(w-text_w)/2:y={layout['problem_y']},
+        drawtext=text='{solution}':fontcolor={layout['primary_gold']}:fontsize=56:x=(w-text_w)/2:y={layout['solution_y']},
+        drawtext=text='Follow for more mom wisdom':fontcolor={layout['primary_gold']}:fontsize=38:x=(w-text_w)/2:y={layout['cta_y']}"""
+        
+        final_cmd = [
+            'ffmpeg', '-y',
+            '-i', base_video,
+            '-i', voice_path,
+            '-filter_complex', filter_cmd,
+            '-c:v', 'libx264',
+            '-c:a', 'aac',
+            '-shortest',
+            '-pix_fmt', 'yuv420p',
+            output_path
+        ]
+        
+        subprocess.run(final_cmd, check=True)
+        return True
+    except Exception as e:
+        print(f"Simple video creation failed: {e}")
         return False
 
 def generate_hashtags(problem, solution, template_type):
