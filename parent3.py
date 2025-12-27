@@ -61,37 +61,30 @@ class PostHistory:
 def generate_voiceover_script(post_history):
     """Generate a natural, engaging voiceover script using Gemini"""
     
-    # Common issues moms/parents face
     mom_issues = [
         "bedtime battles", "picky eating", "tantrums in public", 
         "sibling rivalry", "homework struggles", "screen time",
         "morning chaos", "backtalk", "mealtime messes",
-        "constant messes", "mom guilt", "balancing work and family",
-        "bedtime stalling", "messy rooms", "endless questions",
-        "fussy eating", "homework meltdowns", "chore resistance"
+        "constant messes", "mom guilt", "balancing work and family"
     ]
     
-    # Try AI generation first
-    for attempt in range(5):  # Try 5 times to get a unique topic
+    for attempt in range(5):
         issue = random.choice(mom_issues)
         
-        # CRITICAL: New prompt for natural, engaging content
-        prompt = f"""Write a 15-20 second, natural-sounding voiceover script for a parenting Instagram Reel about {issue}.
+        prompt = f"""Write a 15-second, natural-sounding voiceover for a parenting Instagram Reel about {issue}.
 
-        **Requirements:**
-        - Sound like a real mom talking to a friend, not a robot
-        - Start with a strong, relatable hook/question
-        - Describe the struggle naturally within the flow
-        - Share ONE simple, actionable tip or mindset shift
+        Requirements:
+        - Sound like a real mom talking to a friend
+        - Start with a relatable question or statement
+        - Share ONE simple, actionable tip
         - End with encouragement
-        - Maximum 50 words, very concise
-        - DO NOT use labels like "Problem:" or "Solution:"
-        - Write in a single, flowing paragraph
+        - 40-50 words maximum
+        - NO labels like "Problem:" or "Solution:"
+        - Write as ONE flowing paragraph
 
-        **Example Style:**
-        "Ugh, is bedtime taking forever at your house too? I used to get so stressed when my kids kept coming out of their rooms. Now I use a '3 things' rule: one hug, one drink, one story. Then lights out. It's been a game-changer!"
+        Example: "Is bedtime a nightly battle at your house? I used to get so stressed. Now we do a 5-minute 'snuggle countdown' where we read one short book and give three hugs. It's made all the difference!"
 
-        Write ONLY the script text, nothing else."""
+        Write ONLY the script text."""
         
         try:
             genai.configure(api_key=os.environ["GEMINI_API_KEY"])
@@ -100,18 +93,14 @@ def generate_voiceover_script(post_history):
             
             voiceover_script = response.text.strip()
             
-            # Check for duplicates
-            if not post_history.is_duplicate_content(voiceover_script):
+            if voiceover_script and not post_history.is_duplicate_content(voiceover_script):
                 return voiceover_script
-            else:
-                print(f"Duplicate content detected. Trying again...")
         except Exception as e:
             print(f"Gemini API error: {e}")
             continue
     
     # Fallback scripts
     fallback_scripts = [
-        "Is your kid suddenly a picky eater? Mine went from eating everything to just plain pasta. The trick? Serve a 'safe food' they like, plus one new thing, with zero pressure. It takes the mealtime power struggle off the table.",
         "Morning routines feeling impossible? I was always yelling 'hurry up!'. Now we do a 5-minute 'ready check' where they show me shoes, coat, and backpack. Turns it into a game and saves my sanity.",
         "Tired of the toy explosion? My living room was a disaster zone. Now we do a '10-item pickup' to a fun song before bath time. They think it's a race, and my house isn't a total wreck anymore."
     ]
@@ -122,99 +111,73 @@ def generate_voiceover_script(post_history):
     
     return None
 
-def get_background_image(script):
-    """Get background image - try Pixabay first, then AI"""
-    temp_dir = tempfile.mkdtemp()
+def get_background_image(script, temp_dir):
+    """Get background image in the specified temp directory"""
     image_path = os.path.join(temp_dir, "background.jpg")
     
-    # Extract keywords for image search
-    keywords = ["mother", "parenting", "family", "kids"]
-    for word in ["bedtime", "sleep"]:
-        if word in script.lower():
-            keywords = ["bedtime", "mother child", "sleeping child"]
-            break
-    for word in ["eat", "food", "meal"]:
-        if word in script.lower():
-            keywords = ["family dinner", "child eating", "healthy food"]
-            break
-    for word in ["toy", "mess", "clean"]:
-        if word in script.lower():
-            keywords = ["playroom", "toys", "cleaning"]
-            break
+    # Extract keywords
+    script_lower = script.lower()
+    if "sibling" in script_lower or "squabbling" in script_lower:
+        keywords = ["siblings playing", "brother sister", "family kids"]
+    elif "bedtime" in script_lower or "sleep" in script_lower:
+        keywords = ["bedtime story", "mother child sleeping", "bedtime routine"]
+    elif "eat" in script_lower or "food" in script_lower:
+        keywords = ["family dinner", "child eating", "healthy food kids"]
+    elif "morning" in script_lower or "routine" in script_lower:
+        keywords = ["morning family", "breakfast kids", "getting ready"]
+    else:
+        keywords = ["mother child", "happy family", "parenting love"]
     
     pixabay_prompt = random.choice(keywords)
     
-    print(f"Trying Pixabay for: {pixabay_prompt}")
+    print(f"Searching for image: {pixabay_prompt}")
     
-    # Try Pixabay first
-    if get_pixabay_image(pixabay_prompt, image_path):
-        print("✅ Pixabay image found")
-        return image_path
+    # Try Pixabay
+    if "PIXABAY_KEY" in os.environ:
+        try:
+            response = requests.get(
+                "https://pixabay.com/api/",
+                params={
+                    "key": os.environ["PIXABAY_KEY"],
+                    "q": pixabay_prompt,
+                    "image_type": "photo",
+                    "orientation": "vertical",
+                    "per_page": 20,
+                    "safesearch": "true"
+                },
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                images = response.json().get('hits', [])
+                if images:
+                    image_url = random.choice(images)['largeImageURL']
+                    img_response = requests.get(image_url, timeout=30)
+                    if img_response.status_code == 200:
+                        with open(image_path, 'wb') as f:
+                            f.write(img_response.content)
+                        print("✅ Pixabay image downloaded")
+                        return image_path
+        except Exception as e:
+            print(f"Pixabay error: {e}")
     
-    # If Pixabay fails, try AI image generation
-    ai_prompt = f"mother with child, happy, loving, {pixabay_prompt}, realistic photo, vertical, 4k, warm lighting"
-    
-    print(f"Trying AI image generation: {ai_prompt}")
-    
-    if get_ai_generated_image(ai_prompt, image_path):
-        print("✅ AI image generated successfully")
-        return image_path
-    
-    # If both fail
-    print("❌ Could not get image")
-    return None
-
-def get_pixabay_image(prompt, output_path):
-    """Get image from Pixabay API"""
-    if "PIXABAY_KEY" not in os.environ:
-        return False
-    
+    # Try AI generation as fallback
     try:
-        response = requests.get(
-            "https://pixabay.com/api/",
-            params={
-                "key": os.environ["PIXABAY_KEY"],
-                "q": prompt,
-                "image_type": "photo",
-                "orientation": "vertical",
-                "per_page": 20,
-                "safesearch": "true",
-                "category": "people"
-            },
-            timeout=30
-        )
-        
-        if response.status_code == 200:
-            images = response.json().get('hits', [])
-            if images:
-                image_url = random.choice(images)['largeImageURL']
-                img_response = requests.get(image_url, timeout=30)
-                if img_response.status_code == 200:
-                    with open(output_path, 'wb') as f:
-                        f.write(img_response.content)
-                    return True
-    except Exception as e:
-        print(f"Pixabay API error: {e}")
-    
-    return False
-
-def get_ai_generated_image(prompt, output_path):
-    """Generate AI image using Pollinations.ai"""
-    try:
-        clean_prompt = prompt.replace(" ", "%20").replace(",", "%2C")
+        clean_prompt = pixabay_prompt.replace(" ", "%20")
         api_url = f"https://image.pollinations.ai/prompt/{clean_prompt}?width=1080&height=1920"
         
         response = requests.get(api_url, timeout=30)
         if response.status_code == 200:
-            with open(output_path, 'wb') as f:
+            with open(image_path, 'wb') as f:
                 f.write(response.content)
-            return True
+            print("✅ AI image generated")
+            return image_path
     except Exception as e:
-        print(f"Pollinations.ai error: {e}")
+        print(f"AI image error: {e}")
     
-    return False
+    return None
 
-async def edge_tts_generate(text, path, voice):
+async def edge_tts_generate(text, path, voice="en-US-AriaNeural"):
     """Generate speech using Edge TTS"""
     try:
         tts = edge_tts.Communicate(text, voice)
@@ -224,49 +187,36 @@ async def edge_tts_generate(text, path, voice):
         print(f"Edge TTS failed: {e}")
         return False
 
-def gtts_generate(text, path):
-    """Generate speech using gTTS (fallback)"""
-    try:
-        tts = gTTS(text=text, lang='en', slow=False)
-        tts.save(path)
-        time.sleep(1)
-        return True
-    except Exception as e:
-        print(f"gTTS failed: {e}")
-        return False
-
-def create_voiceover(script):
-    """Create voiceover with natural delivery"""
-    temp_dir = tempfile.mkdtemp()
-    
-    # Use empathetic female voice
-    voice = "en-US-AriaNeural"
-    output_path = os.path.join(temp_dir, "voiceover.mp3")
+def create_voiceover(script, temp_dir):
+    """Create voiceover in the specified temp directory"""
+    voice_path = os.path.join(temp_dir, "voiceover.mp3")
     
     print("Creating voiceover...")
     
-    # Try Edge TTS first if available
+    # Try Edge TTS first
     if EDGE_TTS_AVAILABLE:
-        print("Trying Edge TTS...")
         try:
-            success = asyncio.run(edge_tts_generate(script, output_path, voice))
+            success = asyncio.run(edge_tts_generate(script, voice_path))
             if success:
                 print("✅ Voiceover created with Edge TTS")
-                return output_path
+                return voice_path
         except Exception as e:
-            print(f"Edge TTS async error: {e}")
+            print(f"Edge TTS error: {e}")
     
     # Fallback to gTTS
-    print("Falling back to gTTS...")
-    if gtts_generate(script, output_path):
+    try:
+        tts = gTTS(text=script, lang='en', slow=False)
+        tts.save(voice_path)
+        time.sleep(1)
         print("✅ Voiceover created with gTTS")
-        return output_path
+        return voice_path
+    except Exception as e:
+        print(f"gTTS error: {e}")
     
-    print("❌ All TTS methods failed")
     return None
 
 def get_audio_duration(audio_path):
-    """Get the duration of an audio file in seconds"""
+    """Get the duration of an audio file"""
     try:
         result = subprocess.run([
             'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
@@ -274,59 +224,64 @@ def get_audio_duration(audio_path):
         ], capture_output=True, text=True, check=True)
         return float(result.stdout.strip())
     except:
-        return 15  # Fallback duration
+        return 15.0
 
-def create_vertical_video(script, output_path):
-    """Create vertical video with text overlay - FIXED VERSION"""
+def create_video_with_text(script, output_path="mom_reel.mp4"):
+    """Main function to create video with all assets in same temp directory"""
+    
+    # Create ONE temp directory for all files
     temp_dir = tempfile.mkdtemp()
-    voice_path = os.path.join(temp_dir, "voiceover.mp3")
+    print(f"Working in temp directory: {temp_dir}")
     
-    if not create_voiceover(script):
-        print("❌ Failed to create voiceover")
+    # Step 1: Create voiceover
+    voice_path = create_voiceover(script, temp_dir)
+    if not voice_path or not os.path.exists(voice_path):
+        print(f"❌ Voiceover file not created or not found at: {voice_path}")
         return False
-
-    # Get actual duration
+    
+    print(f"Voiceover exists: {os.path.exists(voice_path)}, size: {os.path.getsize(voice_path) if os.path.exists(voice_path) else 0} bytes")
+    
+    # Step 2: Get background image
+    image_path = get_background_image(script, temp_dir)
+    if not image_path or not os.path.exists(image_path):
+        print("❌ Could not get background image")
+        return False
+    
+    print(f"Background image exists: {os.path.exists(image_path)}")
+    
+    # Step 3: Get audio duration
     duration = get_audio_duration(voice_path)
-    print(f"Video duration: {duration:.2f} seconds")
+    print(f"Audio duration: {duration:.2f} seconds")
     
-    bg_image = get_background_image(script)
-    
-    if bg_image is None:
-        print("❌ Skipping video creation due to no background image")
-        return False
-    
-    # Vertical format
-    width, height = 1080, 1920
-    
-    # Prepare text for display (split into lines)
-    lines = textwrap.wrap(script, width=40)
-    if len(lines) > 4:  # Limit display lines
+    # Step 4: Prepare text for display
+    lines = textwrap.wrap(script, width=35)
+    if len(lines) > 4:
         lines = lines[:4]
     
-    # Create text overlay command
-    drawtext_filters = []
-    y_start = 300
-    line_height = 100
+    # Build the FFmpeg filter
+    width, height = 1080, 1920
+    drawtext_parts = []
+    y_start = 400
     
     for i, line in enumerate(lines):
-        # Escape single quotes for shell
-        line_escaped = line.replace("'", "'\\''")
-        y_pos = y_start + (i * line_height)
-        drawtext_filters.append(f"drawtext=text='{line_escaped}':fontcolor=#FFD700:fontsize=60:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:box=1:boxcolor=#000000@0.6:boxborderw=5:x=(w-text_w)/2:y={y_pos}")
+        # Properly escape for FFmpeg
+        line_escaped = line.replace("'", "'\\\\\\''")
+        y_pos = y_start + (i * 100)
+        drawtext_parts.append(f"drawtext=text='{line_escaped}':fontcolor=#FFD700:fontsize=60:box=1:boxcolor=#000000@0.7:boxborderw=5:x=(w-text_w)/2:y={y_pos}")
     
-    # Join all filters
-    filter_chain = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},"
-    filter_chain += ','.join(drawtext_filters)
+    # Combine all filters
+    video_filter = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},"
+    video_filter += ','.join(drawtext_parts)
     
-    # SIMPLE, RELIABLE FFMPEG COMMAND - This is the fix for no sound/text
+    # SIMPLE FFMPEG COMMAND - All files in same temp directory
     ffmpeg_cmd = [
         'ffmpeg', '-y',
         '-loop', '1',
-        '-i', bg_image,
-        '-i', voice_path,
-        '-filter_complex', filter_chain,
-        '-map', '0:v',
-        '-map', '1:a',
+        '-i', image_path,      # Background image
+        '-i', voice_path,      # Voiceover audio
+        '-filter_complex', video_filter,
+        '-map', '0:v:0',       # Map video from first input
+        '-map', '1:a:0',       # Map audio from second input
         '-c:v', 'libx264',
         '-c:a', 'aac',
         '-t', str(duration),
@@ -336,102 +291,114 @@ def create_vertical_video(script, output_path):
         output_path
     ]
     
-    print("Running FFmpeg command...")
+    print("Running FFmpeg...")
+    print(f"Image: {image_path}")
+    print(f"Audio: {voice_path}")
+    
     try:
-        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
+        # Run with timeout
+        result = subprocess.run(
+            ffmpeg_cmd, 
+            capture_output=True, 
+            text=True,
+            timeout=60  # 60 second timeout
+        )
+        
+        print(f"FFmpeg return code: {result.returncode}")
+        
         if result.returncode != 0:
-            print(f"FFmpeg stderr: {result.stderr}")
-            print(f"FFmpeg stdout: {result.stdout}")
+            print("FFmpeg failed!")
+            print(f"STDERR:\n{result.stderr[:500]}")  # First 500 chars
+            print(f"STDOUT:\n{result.stdout}")
             
-            # Try even simpler approach
-            print("Trying alternative simple approach...")
-            return create_simple_video_fallback(bg_image, voice_path, duration, script, output_path)
+            # Try ultra-simple fallback
+            return create_ultra_simple_video(image_path, voice_path, duration, output_path)
         
-        # Verify the output file has audio
+        print("✅ FFmpeg completed successfully")
+        
+        # Verify output
         if os.path.exists(output_path):
-            # Check if video has audio stream
-            check_cmd = ['ffprobe', '-i', output_path, '-show_streams', '-select_streams', 'a', '-loglevel', 'error']
+            filesize = os.path.getsize(output_path)
+            print(f"✅ Video created: {output_path} ({filesize/1024/1024:.1f} MB)")
+            
+            # Quick check for audio
+            check_cmd = ['ffprobe', '-i', output_path, '-show_streams', '-select_streams', 'a', '-loglevel', 'quiet']
             check_result = subprocess.run(check_cmd, capture_output=True, text=True)
-            if check_result.returncode != 0:
-                print("⚠️ Warning: Output video may not have audio track")
-            else:
+            if check_result.returncode == 0:
                 print("✅ Video has audio track")
-        
-        return True
+            else:
+                print("⚠️ Video may not have audio")
+            
+            return True
+        else:
+            print("❌ Output file not created")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        print("❌ FFmpeg timed out after 60 seconds")
+        return False
     except Exception as e:
-        print(f"FFmpeg error: {e}")
+        print(f"❌ FFmpeg exception: {e}")
         return False
 
-def create_simple_video_fallback(bg_image, voice_path, duration, script, output_path):
-    """Fallback video creation without complex filters"""
+def create_ultra_simple_video(image_path, voice_path, duration, output_path):
+    """Ultra-simple video creation as last resort"""
     try:
-        temp_dir = tempfile.mkdtemp()
+        print("Trying ultra-simple video creation...")
         
-        # First create a textless video
-        temp_video = os.path.join(temp_dir, "temp.mp4")
+        # First create video without audio
+        temp_video = output_path.replace('.mp4', '_temp.mp4')
         cmd1 = [
             'ffmpeg', '-y',
             '-loop', '1',
-            '-i', bg_image,
-            '-i', voice_path,
+            '-i', image_path,
             '-c:v', 'libx264',
-            '-c:a', 'aac',
             '-t', str(duration),
-            '-shortest',
             '-pix_fmt', 'yuv420p',
             temp_video
         ]
         
         subprocess.run(cmd1, check=True, capture_output=True)
         
-        # Add text as a separate, simpler step
-        lines = textwrap.wrap(script, width=40)
-        if len(lines) > 3:
-            lines = lines[:3]
-        
-        drawtext_parts = []
-        y_start = 400
-        for i, line in enumerate(lines):
-            line_escaped = line.replace("'", "'\\''")
-            y_pos = y_start + (i * 120)
-            drawtext_parts.append(f"drawtext=text='{line_escaped}':fontcolor=#FFD700:fontsize=70:box=1:boxcolor=#000000@0.7:x=(w-text_w)/2:y={y_pos}")
-        
-        filter_text = ','.join(drawtext_parts)
-        
+        # Then add audio
         cmd2 = [
             'ffmpeg', '-y',
             '-i', temp_video,
-            '-vf', filter_text,
-            '-c:v', 'libx264',
-            '-c:a', 'copy',
+            '-i', voice_path,
+            '-c:v', 'copy',
+            '-c:a', 'aac',
+            '-shortest',
             output_path
         ]
         
         subprocess.run(cmd2, check=True, capture_output=True)
+        
+        # Clean up
+        if os.path.exists(temp_video):
+            os.remove(temp_video)
+            
+        print("✅ Ultra-simple video created")
         return True
         
     except Exception as e:
-        print(f"Fallback video creation failed: {e}")
+        print(f"❌ Ultra-simple video failed: {e}")
         return False
 
 def generate_hashtags(script):
     """Generate relevant hashtags"""
     base_hashtags = [
         "#MomHacks", "#ParentingTips", "#Motherhood", 
-        "#RaisingKids", "#FamilyLife", "#MomLife",
-        "#ParentingAdvice", "#PracticalParenting", "#ParentingWin"
+        "#RaisingKids", "#FamilyLife", "#MomLife"
     ]
     
     script_lower = script.lower()
     
-    if any(word in script_lower for word in ["bedtime", "sleep"]):
+    if any(word in script_lower for word in ["sibling", "squabbl"]):
+        base_hashtags.extend(["#SiblingRivalry", "#Siblings"])
+    elif any(word in script_lower for word in ["bedtime", "sleep"]):
         base_hashtags.extend(["#BedtimeRoutine", "#SleepTraining"])
-    elif any(word in script_lower for word in ["eat", "food", "meal"]):
-        base_hashtags.extend(["#PickyEater", "#Mealtime"])
-    elif any(word in script_lower for word in ["toy", "mess", "clean"]):
-        base_hashtags.extend(["#CleanUp", "#HomeOrganization"])
     
-    return " ".join(base_hashtags[:12])
+    return " ".join(base_hashtags[:10])
 
 def post_to_facebook(video_path, script):
     try:
@@ -448,56 +415,53 @@ def post_to_facebook(video_path, script):
                 timeout=60
             )
         if response.status_code == 200:
-            print("✅ Video posted successfully to Facebook!")
+            print("✅ Video posted to Facebook!")
             return True
         else:
-            print(f"❌ Facebook error: {response.status_code} - {response.text}")
+            print(f"Facebook error: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Upload error: {e}")
+        print(f"Upload error: {e}")
         return False
 
 def main():
     print("=== Mom Wisdom Reel Creator ===")
-    print("Creating natural, engaging parenting reels...")
     
     # Initialize post history
     post_history = PostHistory()
     
-    # Generate natural voiceover script
-    voiceover_script = generate_voiceover_script(post_history)
-    
-    if voiceover_script is None:
-        print("❌ Could not generate a unique script")
+    # Generate script
+    script = generate_voiceover_script(post_history)
+    if not script:
+        print("❌ Could not generate script")
         return
     
-    print(f"\n🎙️ VOICEOVER SCRIPT:")
-    print(f"\"{voiceover_script}\"")
-
+    print(f"\n🎙️ SCRIPT:\n{script}\n")
+    
+    # Create video
     video_path = "mom_reel.mp4"
-    if create_vertical_video(voiceover_script, video_path):
-        print(f"✅ Video created: {video_path}")
+    if create_video_with_text(script, video_path):
+        print(f"\n✅ Video created successfully: {video_path}")
         
-        # Add to post history
-        post_history.add_post(voiceover_script, video_path)
+        # Add to history
+        post_history.add_post(script, video_path)
         
+        # Post to Facebook if credentials exist
         if all(key in os.environ for key in ["FB_PAGE_ID", "FB_PAGE_TOKEN"]):
             print("📤 Posting to Facebook...")
-            if post_to_facebook(video_path, voiceover_script):
-                print("✅ Post completed successfully!")
+            if post_to_facebook(video_path, script):
+                print("✅ Post completed!")
             else:
-                print("❌ Failed to post to Facebook")
+                print("❌ Facebook post failed")
         else:
-            print("ℹ️ Facebook credentials not found - video saved locally")
-
+            print("ℹ️ No Facebook credentials - video saved locally")
+            
         # Save description
-        hashtags = generate_hashtags(voiceover_script)
-        with open("video_description.txt", "w") as f:
-            f.write(f"{voiceover_script}\n\n")
-            f.write(f"{hashtags}\n\n")
-            f.write("👇 Follow for more real mom tips!")
+        with open("description.txt", "w") as f:
+            f.write(f"{script}\n\n{generate_hashtags(script)}\n\n👇 Follow for more tips!")
+            
     else:
-        print("❌ Failed to create video - skipping")
+        print("❌ Video creation failed")
 
 if __name__ == "__main__":
     main()
