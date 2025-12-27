@@ -38,4 +38,4 @@ jobs:
           PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-        run: python parent2.py
+        run: python parent3.py
