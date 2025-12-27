@@ -20,18 +20,10 @@ except ImportError:
     from gtts import gTTS
     import time
 
-# Update to new Google GenAI package
-try:
-    import google.genai as genai_new
-    NEW_GENAI_AVAILABLE = True
-except ImportError:
-    NEW_GENAI_AVAILABLE = False
-
 class PostHistory:
     def __init__(self, history_file="mom_issues_history.json"):
         self.history_file = history_file
         self.history = self.load_history()
-        self.template_history = {}
     
     def load_history(self):
         """Load post history from JSON file"""
@@ -51,236 +43,106 @@ class PostHistory:
         except:
             pass
     
-    def add_post(self, problem, solution, hook, template_type, video_path=None):
+    def add_post(self, voiceover_script, video_path=None):
         """Add a post to history"""
-        post_id = hashlib.md5(f"{problem}{solution}".encode()).hexdigest()
+        post_id = hashlib.md5(voiceover_script.encode()).hexdigest()
         self.history[post_id] = {
-            'problem': problem,
-            'solution': solution,
-            'hook': hook,
-            'template_type': template_type,
+            'script': voiceover_script,
             'date': datetime.now().isoformat(),
             'video_path': video_path,
-            'topic': problem.lower()
         }
-        self.template_history[post_id] = template_type
         self.save_history()
     
-    def is_duplicate_topic(self, problem):
-        """Check if a topic has been used before"""
-        topic = problem.lower()
-        for post_data in self.history.values():
-            if post_data.get('topic', '').lower() == topic:
-                return True
-        return False
-    
-    def is_duplicate_content(self, problem, solution):
+    def is_duplicate_content(self, voiceover_script):
         """Check if exact content has been used before"""
-        post_id = hashlib.md5(f"{problem}{solution}".encode()).hexdigest()
+        post_id = hashlib.md5(voiceover_script.encode()).hexdigest()
         return post_id in self.history
-    
-    def get_next_template(self):
-        """Get next template type, avoiding recent ones"""
-        template_types = ['question', 'confession', 'challenge', 'reveal', 'story', 'secret', 'warning', 'promise']
-        
-        # If we have history, find least recently used template
-        if self.template_history:
-            recent_templates = list(self.template_history.values())[-3:]  # Last 3 used templates
-            available = [t for t in template_types if t not in recent_templates]
-            if available:
-                return random.choice(available)
-        
-        return random.choice(template_types)
 
-def generate_mom_issue_solution(post_history):
-    """Generate a common mom issue and practical solution using Gemini"""
-    
-    # Get template type for this post
-    template_type = post_history.get_next_template()
-    
-    # Template-specific hooks and formats
-    template_configs = {
-        'question': {
-            'prompt_keyword': 'question format',
-            'hook_patterns': [
-                "Struggling with {issue}?",
-                "Tired of {issue}?",
-                "Does your child {issue}?",
-                "Overwhelmed by {issue}?"
-            ]
-        },
-        'confession': {
-            'prompt_keyword': 'confession format',
-            'hook_patterns': [
-                "I used to struggle with {issue} too...",
-                "Confession: I almost gave up on {issue}",
-                "Mom truth: {issue} was my biggest challenge"
-            ]
-        },
-        'challenge': {
-            'prompt_keyword': 'challenge format',
-            'hook_patterns': [
-                "The {issue} challenge every mom faces",
-                "Biggest parenting challenge: {issue}",
-                "Overcoming the {issue} struggle"
-            ]
-        },
-        'reveal': {
-            'prompt_keyword': 'reveal format',
-            'hook_patterns': [
-                "What no one tells you about {issue}",
-                "The secret to fixing {issue}",
-                "Revealing the truth about {issue}"
-            ]
-        },
-        'story': {
-            'prompt_keyword': 'story format',
-            'hook_patterns': [
-                "When my child wouldn't stop {issue}...",
-                "The day {issue} changed everything",
-                "My {issue} breakthrough story"
-            ]
-        },
-        'secret': {
-            'prompt_keyword': 'secret format',
-            'hook_patterns': [
-                "The mom secret for {issue}",
-                "Shhh... my {issue} hack",
-                "What experienced moms know about {issue}"
-            ]
-        },
-        'warning': {
-            'prompt_keyword': 'warning format',
-            'hook_patterns': [
-                "Warning: {issue} could be hurting your child",
-                "Don't make this {issue} mistake",
-                "The {issue} trap most moms fall into"
-            ]
-        },
-        'promise': {
-            'prompt_keyword': 'promise format',
-            'hook_patterns': [
-                "I promise this works for {issue}",
-                "Guaranteed fix for {issue}",
-                "This will solve your {issue} problem"
-            ]
-        }
-    }
+def generate_voiceover_script(post_history):
+    """Generate a natural, engaging voiceover script using Gemini"""
     
     # Common issues moms/parents face
     mom_issues = [
         "bedtime battles", "picky eating", "tantrums in public", 
-        "sibling rivalry", "homework struggles", "screen time addiction",
-        "morning routine chaos", "potty training resistance", "separation anxiety",
-        "sharing problems", "backtalk and defiance", "mealtime messes",
-        "home organization with kids", "lack of me-time", "mom guilt",
-        "balancing work and family", "sleep deprivation", "meal planning stress",
-        "holiday stress with kids", "handling meltdowns", "discipline consistency",
-        "chores and responsibility", "friendship issues", "school anxiety",
-        "holiday gift overwhelm", "summer boredom", "holiday traveling with kids",
-        "managing kid's extracurriculars", "dealing with comparison", "self-care neglect"
+        "sibling rivalry", "homework struggles", "screen time",
+        "morning chaos", "backtalk", "mealtime messes",
+        "constant messes", "mom guilt", "balancing work and family",
+        "bedtime stalling", "messy rooms", "endless questions",
+        "fussy eating", "homework meltdowns", "chore resistance"
     ]
     
     # Try AI generation first
     for attempt in range(5):  # Try 5 times to get a unique topic
         issue = random.choice(mom_issues)
-        config = template_configs[template_type]
-        hook_pattern = random.choice(config['hook_patterns'])
         
-        prompt = f"""Generate a COMMON MOM/PARENTING PROBLEM and PRACTICAL SOLUTION about: {issue}
-        Use a {config['prompt_keyword']}.
+        # CRITICAL: New prompt for natural, engaging content
+        prompt = f"""Write a 15-20 second, natural-sounding voiceover script for a parenting Instagram Reel about {issue}.
 
-        Format EXACTLY like this:
-        PROBLEM|SOLUTION|HOOK
-        
-        Requirements:
-        PROBLEM: Describe one specific, relatable parenting struggle (1 sentence)
-        SOLUTION: Provide one actionable, evidence-based solution (1-2 sentences)
-        HOOK: Start with: "{hook_pattern.format(issue=issue)}" - make it engaging and attention-grabbing
-        
-        Example for {template_type} format:
-        PROBLEM|SOLUTION|HOOK
-        Your toddler throws food at every meal|Serve meals in silicone suction plates and offer only 2-3 foods at a time to reduce overwhelm|{random.choice(config['hook_patterns']).format(issue="mealtime battles")}
-        
-        Make it:
-        - Highly relatable to moms/parents
-        - Actionable and practical
-        - Evidence-based when possible
-        - Non-judgmental and supportive
-        - Clear and concise
-        - Match the {template_type} tone
-        """
+        **Requirements:**
+        - Sound like a real mom talking to a friend, not a robot
+        - Start with a strong, relatable hook/question
+        - Describe the struggle naturally within the flow
+        - Share ONE simple, actionable tip or mindset shift
+        - End with encouragement
+        - Maximum 50 words, very concise
+        - DO NOT use labels like "Problem:" or "Solution:"
+        - Write in a single, flowing paragraph
+
+        **Example Style:**
+        "Ugh, is bedtime taking forever at your house too? I used to get so stressed when my kids kept coming out of their rooms. Now I use a '3 things' rule: one hug, one drink, one story. Then lights out. It's been a game-changer!"
+
+        Write ONLY the script text, nothing else."""
         
         try:
-            # Try new Google GenAI API first
-            if NEW_GENAI_AVAILABLE:
-                genai_new.configure(api_key=os.environ["GEMINI_API_KEY"])
-                model = genai_new.GenerativeModel('gemini-2.5-flash')
-                response = model.generate_content(prompt)
-                result_text = response.text
-            else:
-                # Fallback to old API
-                genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-                model = genai.GenerativeModel('gemini-2.5-flash')
-                response = model.generate_content(prompt)
-                result_text = response.text
+            genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            response = model.generate_content(prompt)
             
-            if result_text.count('|') == 2:
-                problem, solution, hook = result_text.strip().split('|')
-                problem, solution, hook = problem.strip(), solution.strip(), hook.strip()
-                
-                # Check if this topic has been used before
-                if not post_history.is_duplicate_topic(problem) and not post_history.is_duplicate_content(problem, solution):
-                    return problem, solution, hook, template_type
-                else:
-                    print(f"Duplicate topic detected: {problem}. Trying again...")
+            voiceover_script = response.text.strip()
+            
+            # Check for duplicates
+            if not post_history.is_duplicate_content(voiceover_script):
+                return voiceover_script
+            else:
+                print(f"Duplicate content detected. Trying again...")
         except Exception as e:
             print(f"Gemini API error: {e}")
             continue
     
-    # Fallback if AI fails
-    fallback_issues = [
-        ("Kids refusing to brush teeth", "Make it a game - have a 'toothbrush race' or use fun character brushes", "Struggling with toothbrush tantrums?", 'question'),
-        ("Endless 'why' questions", "Answer with 'What do you think?' to encourage critical thinking", "I used to get so frustrated with constant questions...", 'confession'),
-        ("Messy playroom chaos", "Use picture labels on bins and have 5-minute nightly clean-up races", "The organization challenge every mom faces", 'challenge'),
-        ("Morning routine taking forever", "Create a visual checklist with photos for each step", "What no one tells you about morning routines", 'reveal'),
-        ("Kids fighting in the car", "Assign 'car jobs' like DJ or navigator to prevent boredom", "When my kids wouldn't stop fighting in the car...", 'story'),
+    # Fallback scripts
+    fallback_scripts = [
+        "Is your kid suddenly a picky eater? Mine went from eating everything to just plain pasta. The trick? Serve a 'safe food' they like, plus one new thing, with zero pressure. It takes the mealtime power struggle off the table.",
+        "Morning routines feeling impossible? I was always yelling 'hurry up!'. Now we do a 5-minute 'ready check' where they show me shoes, coat, and backpack. Turns it into a game and saves my sanity.",
+        "Tired of the toy explosion? My living room was a disaster zone. Now we do a '10-item pickup' to a fun song before bath time. They think it's a race, and my house isn't a total wreck anymore."
     ]
     
-    for problem, solution, hook, fallback_type in fallback_issues:
-        if not post_history.is_duplicate_topic(problem):
-            return problem, solution, hook, fallback_type
+    for script in fallback_scripts:
+        if not post_history.is_duplicate_content(script):
+            return script
     
-    return None, None, None, None
+    return None
 
-def escape_text(text):
-    """Escape text for use in FFmpeg filter strings"""
-    # Escape single quotes by replacing them with '\''
-    text = text.replace("'", "'\\''")
-    # Remove other problematic characters
-    text = re.sub(r'[^\w\s.,!?-]', '', text)
-    return text
-
-def get_background_image(hook, problem, template_type):
+def get_background_image(script):
     """Get background image - try Pixabay first, then AI"""
     temp_dir = tempfile.mkdtemp()
     image_path = os.path.join(temp_dir, "background.jpg")
     
-    # Template-specific search terms
-    template_keywords = {
-        'question': ["worried mother", "concerned parent", "problem solving"],
-        'confession': ["honest moment", "real parenting", "authentic mother"],
-        'challenge': ["overcoming challenge", "determined mom", "persistent parent"],
-        'reveal': ["surprise moment", "discovery", "lightbulb moment"],
-        'story': ["storytelling", "family moment", "personal journey"],
-        'secret': ["secret sharing", "whispering", "confidential"],
-        'warning': ["warning sign", "caution", "protective mother"],
-        'promise': ["hope", "solution", "happy resolution"]
-    }
+    # Extract keywords for image search
+    keywords = ["mother", "parenting", "family", "kids"]
+    for word in ["bedtime", "sleep"]:
+        if word in script.lower():
+            keywords = ["bedtime", "mother child", "sleeping child"]
+            break
+    for word in ["eat", "food", "meal"]:
+        if word in script.lower():
+            keywords = ["family dinner", "child eating", "healthy food"]
+            break
+    for word in ["toy", "mess", "clean"]:
+        if word in script.lower():
+            keywords = ["playroom", "toys", "cleaning"]
+            break
     
-    # Create a search prompt for Pixabay
-    keyword = random.choice(template_keywords.get(template_type, ["mother child"]))
-    pixabay_prompt = f"{keyword} {problem}"
+    pixabay_prompt = random.choice(keywords)
     
     print(f"Trying Pixabay for: {pixabay_prompt}")
     
@@ -290,7 +152,7 @@ def get_background_image(hook, problem, template_type):
         return image_path
     
     # If Pixabay fails, try AI image generation
-    ai_prompt = f"mother dealing with {problem.lower()}, {template_type} moment, emotional, realistic, vertical, 4k, golden hour lighting"
+    ai_prompt = f"mother with child, happy, loving, {pixabay_prompt}, realistic photo, vertical, 4k, warm lighting"
     
     print(f"Trying AI image generation: {ai_prompt}")
     
@@ -298,8 +160,8 @@ def get_background_image(hook, problem, template_type):
         print("✅ AI image generated successfully")
         return image_path
     
-    # If both fail, skip image
-    print("❌ Could not get image from Pixabay or AI")
+    # If both fail
+    print("❌ Could not get image")
     return None
 
 def get_pixabay_image(prompt, output_path):
@@ -315,10 +177,9 @@ def get_pixabay_image(prompt, output_path):
                 "q": prompt,
                 "image_type": "photo",
                 "orientation": "vertical",
-                "per_page": 30,
+                "per_page": 20,
                 "safesearch": "true",
-                "category": "people",
-                "editors_choice": "true"
+                "category": "people"
             },
             timeout=30
         )
@@ -326,13 +187,7 @@ def get_pixabay_image(prompt, output_path):
         if response.status_code == 200:
             images = response.json().get('hits', [])
             if images:
-                # Filter for vertical images
-                vertical_images = [img for img in images if img.get('imageHeight', 0) > img.get('imageWidth', 1)]
-                if vertical_images:
-                    image_url = random.choice(vertical_images)['largeImageURL']
-                else:
-                    image_url = random.choice(images)['largeImageURL']
-                
+                image_url = random.choice(images)['largeImageURL']
                 img_response = requests.get(image_url, timeout=30)
                 if img_response.status_code == 200:
                     with open(output_path, 'wb') as f:
@@ -346,7 +201,6 @@ def get_pixabay_image(prompt, output_path):
 def get_ai_generated_image(prompt, output_path):
     """Generate AI image using Pollinations.ai"""
     try:
-        # Clean up the prompt for URL
         clean_prompt = prompt.replace(" ", "%20").replace(",", "%2C")
         api_url = f"https://image.pollinations.ai/prompt/{clean_prompt}?width=1080&height=1920"
         
@@ -361,7 +215,7 @@ def get_ai_generated_image(prompt, output_path):
     return False
 
 async def edge_tts_generate(text, path, voice):
-    """Generate speech using Edge TTS with specified voice"""
+    """Generate speech using Edge TTS"""
     try:
         tts = edge_tts.Communicate(text, voice)
         await tts.save(path)
@@ -375,41 +229,27 @@ def gtts_generate(text, path):
     try:
         tts = gTTS(text=text, lang='en', slow=False)
         tts.save(path)
-        time.sleep(1)  # Ensure file is written
+        time.sleep(1)
         return True
     except Exception as e:
         print(f"gTTS failed: {e}")
         return False
 
-def create_voiceover(hook, problem, solution, template_type):
-    """Create voiceover with template-specific delivery"""
+def create_voiceover(script):
+    """Create voiceover with natural delivery"""
     temp_dir = tempfile.mkdtemp()
     
     # Use empathetic female voice
     voice = "en-US-AriaNeural"
-    
-    # Template-specific delivery styles
-    delivery_styles = {
-        'question': f"{hook} I know it's tough. {problem} Here's what actually works: {solution}",
-        'confession': f"{hook} {problem} But then I discovered this: {solution}",
-        'challenge': f"{hook} {problem} Here's how to overcome it: {solution}",
-        'reveal': f"{hook} {problem} The solution surprised me too: {solution}",
-        'story': f"{hook} {problem} Here's what changed everything: {solution}",
-        'secret': f"{hook} {problem} Here's the secret fix: {solution}",
-        'warning': f"{hook} {problem} Do this instead: {solution}",
-        'promise': f"{hook} {problem} I promise this will help: {solution}"
-    }
-    
-    spoken_text = delivery_styles.get(template_type, f"{hook} {problem} {solution}")
     output_path = os.path.join(temp_dir, "voiceover.mp3")
     
-    print(f"Creating voiceover with {template_type} style...")
+    print("Creating voiceover...")
     
     # Try Edge TTS first if available
     if EDGE_TTS_AVAILABLE:
         print("Trying Edge TTS...")
         try:
-            success = asyncio.run(edge_tts_generate(spoken_text, output_path, voice))
+            success = asyncio.run(edge_tts_generate(script, output_path, voice))
             if success:
                 print("✅ Voiceover created with Edge TTS")
                 return output_path
@@ -418,7 +258,7 @@ def create_voiceover(hook, problem, solution, template_type):
     
     # Fallback to gTTS
     print("Falling back to gTTS...")
-    if gtts_generate(spoken_text, output_path):
+    if gtts_generate(script, output_path):
         print("✅ Voiceover created with gTTS")
         return output_path
     
@@ -434,205 +274,61 @@ def get_audio_duration(audio_path):
         ], capture_output=True, text=True, check=True)
         return float(result.stdout.strip())
     except:
-        return 12  # Slightly longer fallback
+        return 15  # Fallback duration
 
-def get_template_layout(template_type, hook, problem, solution):
-    """Get different layouts based on template type"""
-    
-    # Use ONLY standard FFmpeg color names
-    gold_colors = ["gold", "yellow", "orange", "khaki"]
-    black_colors = ["black", "gray", "dimgray", "darkslategray"]
-    
-    primary_gold = random.choice(gold_colors)
-    primary_black = random.choice(black_colors)
-    
-    # Template-specific layouts
-    layouts = {
-        'question': {
-            'title': "MOM QUESTION",
-            'hook_prefix': "🤔 ",
-            'problem_prefix': "💡 Issue: ",
-            'solution_prefix': "✅ Fix: ",
-            'bg_overlay': "color=black@0.3",
-            'title_y': 200,
-            'hook_y': 350,
-            'problem_y': 650,
-            'solution_y': 950,
-            'cta_y': 1500  # Lower CTA position
-        },
-        'confession': {
-            'title': "MOM CONFESSION",
-            'hook_prefix': "💬 ",
-            'problem_prefix': "😓 Struggle: ",
-            'solution_prefix': "✨ Discovery: ",
-            'bg_overlay': "color=black@0.4",
-            'title_y': 180,
-            'hook_y': 320,
-            'problem_y': 600,
-            'solution_y': 900,
-            'cta_y': 1550
-        },
-        'challenge': {
-            'title': "PARENTING CHALLENGE",
-            'hook_prefix': "⚡ ",
-            'problem_prefix': "🔥 Problem: ",
-            'solution_prefix': "🏆 Solution: ",
-            'bg_overlay': "color=black@0.2",
-            'title_y': 220,
-            'hook_y': 380,
-            'problem_y': 700,
-            'solution_y': 1000,
-            'cta_y': 1600
-        },
-        'reveal': {
-            'title': "MOM REVEAL",
-            'hook_prefix': "🔍 ",
-            'problem_prefix': "📝 Reality: ",
-            'solution_prefix': "💎 Truth: ",
-            'bg_overlay': "color=black@0.35",
-            'title_y': 190,
-            'hook_y': 340,
-            'problem_y': 620,
-            'solution_y': 920,
-            'cta_y': 1580
-        },
-        'story': {
-            'title': "MOM STORY",
-            'hook_prefix': "📖 ",
-            'problem_prefix': "🎭 Scene: ",
-            'solution_prefix': "🌟 Ending: ",
-            'bg_overlay': "color=black@0.25",
-            'title_y': 210,
-            'hook_y': 360,
-            'problem_y': 640,
-            'solution_y': 940,
-            'cta_y': 1650
-        },
-        'secret': {
-            'title': "MOM SECRET",
-            'hook_prefix': "🤫 ",
-            'problem_prefix': "⚠️ Problem: ",
-            'solution_prefix': "🔑 Secret: ",
-            'bg_overlay': "color=black@0.45",
-            'title_y': 180,
-            'hook_y': 330,
-            'problem_y': 610,
-            'solution_y': 910,
-            'cta_y': 1570
-        },
-        'warning': {
-            'title': "MOM WARNING",
-            'hook_prefix': "🚨 ",
-            'problem_prefix': "❌ Don't: ",
-            'solution_prefix': "✅ Do: ",
-            'bg_overlay': "color=black@0.4",
-            'title_y': 200,
-            'hook_y': 350,
-            'problem_y': 630,
-            'solution_y': 930,
-            'cta_y': 1620
-        },
-        'promise': {
-            'title': "MOM PROMISE",
-            'hook_prefix': "🤝 ",
-            'problem_prefix': "💭 Struggle: ",
-            'solution_prefix': "🤲 Promise: ",
-            'bg_overlay': "color=black@0.3",
-            'title_y': 190,
-            'hook_y': 340,
-            'problem_y': 620,
-            'solution_y': 920,
-            'cta_y': 1590
-        }
-    }
-    
-    layout = layouts.get(template_type, layouts['question'])
-    
-    # Wrap text
-    wrapped_hook = textwrap.fill(hook, width=35)
-    wrapped_problem = textwrap.fill(problem, width=40)
-    wrapped_solution = textwrap.fill(solution, width=40)
-    
-    return {
-        'title': layout['title'],
-        'hook': f"{layout['hook_prefix']}{wrapped_hook}",
-        'problem': f"{layout['problem_prefix']}{wrapped_problem}",
-        'solution': f"{layout['solution_prefix']}{wrapped_solution}",
-        'bg_overlay': layout['bg_overlay'],
-        'primary_gold': primary_gold,
-        'primary_black': primary_black,
-        'title_y': layout['title_y'],
-        'hook_y': layout['hook_y'],
-        'problem_y': layout['problem_y'],
-        'solution_y': layout['solution_y'],
-        'cta_y': layout['cta_y']
-    }
-
-def create_vertical_video(hook, problem, solution, template_type, output_path):
-    """Create vertical video with dynamic template layouts"""
+def create_vertical_video(script, output_path):
+    """Create vertical video with text overlay - FIXED VERSION"""
     temp_dir = tempfile.mkdtemp()
+    voice_path = os.path.join(temp_dir, "voiceover.mp3")
     
-    # Create voiceover
-    voice_path = create_voiceover(hook, problem, solution, template_type)
-    if voice_path is None:
+    if not create_voiceover(script):
         print("❌ Failed to create voiceover")
         return False
 
-    # Get actual duration from the voiceover file
+    # Get actual duration
     duration = get_audio_duration(voice_path)
     print(f"Video duration: {duration:.2f} seconds")
     
-    bg_image = get_background_image(hook, problem, template_type)
+    bg_image = get_background_image(script)
     
     if bg_image is None:
         print("❌ Skipping video creation due to no background image")
         return False
     
-    # Vertical format for Shorts/Reels (9:16 aspect ratio)
+    # Vertical format
     width, height = 1080, 1920
-
-    if os.path.exists(bg_image):
-        # Use the obtained image
-        input_source = ['-loop', '1', '-i', bg_image]
-        video_filters = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},format=yuv420p"
-    else:
-        print("❌ Background image file not found")
-        return False
-
-    # Get layout configuration
-    layout = get_template_layout(template_type, hook, problem, solution)
     
-    # Escape text for FFmpeg
-    escaped_title = escape_text(layout['title'])
-    escaped_hook = escape_text(layout['hook'])
-    escaped_problem = escape_text(layout['problem'])
-    escaped_solution = escape_text(layout['solution'])
+    # Prepare text for display (split into lines)
+    lines = textwrap.wrap(script, width=40)
+    if len(lines) > 4:  # Limit display lines
+        lines = lines[:4]
     
-    # Create a filter script file
-    filter_script = os.path.join(temp_dir, "filter.txt")
-    with open(filter_script, 'w') as f:
-        # Base video filter with dark overlay
-        f.write(f"""[0:v]{video_filters},{layout['bg_overlay']}[v];
-[v]drawtext=text='{escaped_title}':fontcolor={layout['primary_gold']}:fontsize=80:font='Arial':box=1:boxcolor={layout['primary_black']}@0.7:boxborderw=10:x=(w-text_w)/2:y={layout['title_y']},
-drawtext=text='{escaped_hook}':fontcolor=white:fontsize=60:font='Arial':box=1:boxcolor={layout['primary_gold']}@0.5:boxborderw=8:x=(w-text_w)/2:y={layout['hook_y']},
-drawtext=text='{escaped_problem}':fontcolor=white:fontsize=52:font='Arial':box=1:boxcolor={layout['primary_black']}@0.6:boxborderw=6:x=(w-text_w)/2:y={layout['problem_y']},
-drawtext=text='{escaped_solution}':fontcolor={layout['primary_gold']}:fontsize=56:font='Arial':box=1:boxcolor={layout['primary_black']}@0.8:boxborderw=8:x=(w-text_w)/2:y={layout['solution_y']},
-drawtext=text='Follow for more mom wisdom':fontcolor={layout['primary_gold']}:fontsize=38:font='Arial':box=1:boxcolor={layout['primary_black']}@0.9:boxborderw=4:x=(w-text_w)/2:y={layout['cta_y']}""")
+    # Create text overlay command
+    drawtext_filters = []
+    y_start = 300
+    line_height = 100
     
+    for i, line in enumerate(lines):
+        # Escape single quotes for shell
+        line_escaped = line.replace("'", "'\\''")
+        y_pos = y_start + (i * line_height)
+        drawtext_filters.append(f"drawtext=text='{line_escaped}':fontcolor=#FFD700:fontsize=60:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:box=1:boxcolor=#000000@0.6:boxborderw=5:x=(w-text_w)/2:y={y_pos}")
+    
+    # Join all filters
+    filter_chain = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},"
+    filter_chain += ','.join(drawtext_filters)
+    
+    # SIMPLE, RELIABLE FFMPEG COMMAND - This is the fix for no sound/text
     ffmpeg_cmd = [
         'ffmpeg', '-y',
-        *input_source,
+        '-loop', '1',
+        '-i', bg_image,
         '-i', voice_path,
-        '-filter_complex', 
-        f"""movie='{bg_image}',scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},format=yuv420p,{layout['bg_overlay']}[bg];
-        [bg]drawtext=text='{escaped_title}':fontcolor={layout['primary_gold']}:fontsize=80:font='Arial':box=1:boxcolor={layout['primary_black']}@0.7:boxborderw=10:x=(w-text_w)/2:y={layout['title_y']},
-        drawtext=text='{escaped_hook}':fontcolor=white:fontsize=60:font='Arial':box=1:boxcolor={layout['primary_gold']}@0.5:boxborderw=8:x=(w-text_w)/2:y={layout['hook_y']},
-        drawtext=text='{escaped_problem}':fontcolor=white:fontsize=52:font='Arial':box=1:boxcolor={layout['primary_black']}@0.6:boxborderw=6:x=(w-text_w)/2:y={layout['problem_y']},
-        drawtext=text='{escaped_solution}':fontcolor={layout['primary_gold']}:fontsize=56:font='Arial':box=1:boxcolor={layout['primary_black']}@0.8:boxborderw=8:x=(w-text_w)/2:y={layout['solution_y']},
-        drawtext=text='Follow for more mom wisdom':fontcolor={layout['primary_gold']}:fontsize=38:font='Arial':box=1:boxcolor={layout['primary_black']}@0.9:boxborderw=4:x=(w-text_w)/2:y={layout['cta_y']}[v]""",
-        '-map', '[v]',
+        '-filter_complex', filter_chain,
+        '-map', '0:v',
         '-map', '1:a',
-        '-c:v', 'libx264', '-c:a', 'aac',
+        '-c:v', 'libx264',
+        '-c:a', 'aac',
         '-t', str(duration),
         '-shortest',
         '-pix_fmt', 'yuv420p',
@@ -640,135 +336,113 @@ drawtext=text='Follow for more mom wisdom':fontcolor={layout['primary_gold']}:fo
         output_path
     ]
     
+    print("Running FFmpeg command...")
     try:
-        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, check=False)
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
         if result.returncode != 0:
             print(f"FFmpeg stderr: {result.stderr}")
             print(f"FFmpeg stdout: {result.stdout}")
             
-            # Try simpler approach if complex filter fails
-            print("Trying simpler FFmpeg approach...")
-            return create_simple_video(bg_image, voice_path, duration, escaped_title, escaped_hook, escaped_problem, escaped_solution, layout, output_path)
+            # Try even simpler approach
+            print("Trying alternative simple approach...")
+            return create_simple_video_fallback(bg_image, voice_path, duration, script, output_path)
+        
+        # Verify the output file has audio
+        if os.path.exists(output_path):
+            # Check if video has audio stream
+            check_cmd = ['ffprobe', '-i', output_path, '-show_streams', '-select_streams', 'a', '-loglevel', 'error']
+            check_result = subprocess.run(check_cmd, capture_output=True, text=True)
+            if check_result.returncode != 0:
+                print("⚠️ Warning: Output video may not have audio track")
+            else:
+                print("✅ Video has audio track")
         
         return True
     except Exception as e:
         print(f"FFmpeg error: {e}")
         return False
 
-def create_simple_video(bg_image, voice_path, duration, title, hook, problem, solution, layout, output_path):
-    """Create video using a simpler approach"""
+def create_simple_video_fallback(bg_image, voice_path, duration, script, output_path):
+    """Fallback video creation without complex filters"""
     try:
-        # Create a temporary text image
         temp_dir = tempfile.mkdtemp()
         
-        # Create individual text images
-        width, height = 1080, 1920
-        
-        # Create base video with image
-        base_video = os.path.join(temp_dir, "base.mp4")
-        base_cmd = [
+        # First create a textless video
+        temp_video = os.path.join(temp_dir, "temp.mp4")
+        cmd1 = [
             'ffmpeg', '-y',
             '-loop', '1',
             '-i', bg_image,
-            '-c:v', 'libx264',
-            '-t', str(duration),
-            '-vf', f'scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}',
-            '-pix_fmt', 'yuv420p',
-            base_video
-        ]
-        
-        subprocess.run(base_cmd, check=True, capture_output=True)
-        
-        # Overlay text using simpler method
-        filter_cmd = f"""color=black@0.3[overlay];
-        [0:v][overlay]overlay=0:0[base];
-        [base]drawtext=text='{title}':fontcolor={layout['primary_gold']}:fontsize=80:x=(w-text_w)/2:y={layout['title_y']},
-        drawtext=text='{hook}':fontcolor=white:fontsize=60:x=(w-text_w)/2:y={layout['hook_y']},
-        drawtext=text='{problem}':fontcolor=white:fontsize=52:x=(w-text_w)/2:y={layout['problem_y']},
-        drawtext=text='{solution}':fontcolor={layout['primary_gold']}:fontsize=56:x=(w-text_w)/2:y={layout['solution_y']},
-        drawtext=text='Follow for more mom wisdom':fontcolor={layout['primary_gold']}:fontsize=38:x=(w-text_w)/2:y={layout['cta_y']}"""
-        
-        final_cmd = [
-            'ffmpeg', '-y',
-            '-i', base_video,
             '-i', voice_path,
-            '-filter_complex', filter_cmd,
             '-c:v', 'libx264',
             '-c:a', 'aac',
+            '-t', str(duration),
             '-shortest',
             '-pix_fmt', 'yuv420p',
+            temp_video
+        ]
+        
+        subprocess.run(cmd1, check=True, capture_output=True)
+        
+        # Add text as a separate, simpler step
+        lines = textwrap.wrap(script, width=40)
+        if len(lines) > 3:
+            lines = lines[:3]
+        
+        drawtext_parts = []
+        y_start = 400
+        for i, line in enumerate(lines):
+            line_escaped = line.replace("'", "'\\''")
+            y_pos = y_start + (i * 120)
+            drawtext_parts.append(f"drawtext=text='{line_escaped}':fontcolor=#FFD700:fontsize=70:box=1:boxcolor=#000000@0.7:x=(w-text_w)/2:y={y_pos}")
+        
+        filter_text = ','.join(drawtext_parts)
+        
+        cmd2 = [
+            'ffmpeg', '-y',
+            '-i', temp_video,
+            '-vf', filter_text,
+            '-c:v', 'libx264',
+            '-c:a', 'copy',
             output_path
         ]
         
-        subprocess.run(final_cmd, check=True)
+        subprocess.run(cmd2, check=True, capture_output=True)
         return True
+        
     except Exception as e:
-        print(f"Simple video creation failed: {e}")
+        print(f"Fallback video creation failed: {e}")
         return False
 
-def generate_hashtags(problem, solution, template_type):
-    """Generate relevant mom/parenting hashtags with template variations"""
-    
-    # Template-specific hashtag sets
-    template_hashtags = {
-        'question': ["#MomQuestions", "#ParentingQandA", "#AskAMom"],
-        'confession': ["#MomConfessions", "#RealParenting", "#MomTruths"],
-        'challenge': ["#ParentingChallenges", "#MomStruggles", "#OvercomingParenting"],
-        'reveal': ["#ParentingReveals", "#MomSecretsRevealed", "#TruthAboutParenting"],
-        'story': ["#MomStories", "#ParentingJourney", "#MyMomStory"],
-        'secret': ["#MomSecrets", "#ParentingHacks", "#SecretMomTips"],
-        'warning': ["#MomWarnings", "#ParentingAdvice", "#WhatNotToDo"],
-        'promise': ["#MomPromises", "#ParentingSolutions", "#GuaranteedParenting"]
-    }
-    
+def generate_hashtags(script):
+    """Generate relevant hashtags"""
     base_hashtags = [
-        "#MomWisdom", "#ParentingTips", "#Motherhood", 
+        "#MomHacks", "#ParentingTips", "#Motherhood", 
         "#RaisingKids", "#FamilyLife", "#MomLife",
-        "#ParentingAdvice", "#MomHacks", "#PracticalParenting",
-        "#ParentingWin", "#MomSupport", "#ToddlerTips"
+        "#ParentingAdvice", "#PracticalParenting", "#ParentingWin"
     ]
     
-    # Add template-specific hashtags
-    hashtags = template_hashtags.get(template_type, []) + base_hashtags
+    script_lower = script.lower()
     
-    # Add problem-specific hashtags
-    problem_lower = problem.lower()
+    if any(word in script_lower for word in ["bedtime", "sleep"]):
+        base_hashtags.extend(["#BedtimeRoutine", "#SleepTraining"])
+    elif any(word in script_lower for word in ["eat", "food", "meal"]):
+        base_hashtags.extend(["#PickyEater", "#Mealtime"])
+    elif any(word in script_lower for word in ["toy", "mess", "clean"]):
+        base_hashtags.extend(["#CleanUp", "#HomeOrganization"])
     
-    if any(word in problem_lower for word in ["bedtime", "sleep"]):
-        hashtags.extend(["#BedtimeStruggles", "#SleepTraining", "#ToddlerSleep"])
-    elif any(word in problem_lower for word in ["eat", "food", "meal"]):
-        hashtags.extend(["#PickyEater", "#Mealtime", "#KidsNutrition"])
-    elif any(word in problem_lower for word in ["tantrum", "meltdown", "behavior"]):
-        hashtags.extend(["#Tantrums", "#ChildBehavior", "#GentleParenting"])
-    elif any(word in problem_lower for word in ["sibling", "fight"]):
-        hashtags.extend(["#SiblingRivalry", "#Siblings", "#FamilyDynamics"])
-    
-    return " ".join(hashtags[:15])
+    return " ".join(base_hashtags[:12])
 
-def post_to_facebook(video_path, hook, problem, solution, template_type):
+def post_to_facebook(video_path, script):
     try:
-        hashtags = generate_hashtags(problem, solution, template_type)
-        
-        # Template-specific emojis
-        template_emojis = {
-            'question': "🤔",
-            'confession': "💬",
-            'challenge': "⚡",
-            'reveal': "🔍",
-            'story': "📖",
-            'secret': "🤫",
-            'warning': "🚨",
-            'promise': "🤝"
-        }
-        
-        emoji = template_emojis.get(template_type, "🤱")
+        hashtags = generate_hashtags(script)
         
         with open(video_path, 'rb') as video_file:
             response = requests.post(
                 f"https://graph.facebook.com/v19.0/{os.environ['FB_PAGE_ID']}/videos",
                 params={
                     "access_token": os.environ["FB_PAGE_TOKEN"],
-                    "description": f"{emoji} {hook}\n\n💡 PROBLEM: {problem}\n\n✅ SOLUTION: {solution}\n\n{hashtags}\n\n👇 Follow for daily mom wisdom!"
+                    "description": f"{script}\n\n{hashtags}\n\n👇 Follow for more real mom tips!"
                 },
                 files={"source": video_file},
                 timeout=60
@@ -784,59 +458,44 @@ def post_to_facebook(video_path, hook, problem, solution, template_type):
         return False
 
 def main():
-    print("=== Mom Wisdom Video Creator ===")
-    print("Creating unique problem-solution videos with varied templates...")
+    print("=== Mom Wisdom Reel Creator ===")
+    print("Creating natural, engaging parenting reels...")
     
     # Initialize post history
     post_history = PostHistory()
     
-    # Cleanup old posts (keep last 30 days)
-    cutoff_date = datetime.now().timestamp() - (30 * 24 * 60 * 60)
-    new_history = {}
-    for post_id, post_data in post_history.history.items():
-        post_date = datetime.fromisoformat(post_data['date']).timestamp()
-        if post_date > cutoff_date:
-            new_history[post_id] = post_data
-    post_history.history = new_history
-    post_history.save_history()
+    # Generate natural voiceover script
+    voiceover_script = generate_voiceover_script(post_history)
     
-    # Generate unique mom issue and solution
-    problem, solution, hook, template_type = generate_mom_issue_solution(post_history)
-    
-    if problem is None or solution is None or hook is None:
-        print("❌ Could not generate a unique mom issue after multiple attempts")
+    if voiceover_script is None:
+        print("❌ Could not generate a unique script")
         return
     
-    print(f"\n🎭 TEMPLATE: {template_type.upper()}")
-    print(f"🎯 HOOK: {hook}")
-    print(f"💡 PROBLEM: {problem}")
-    print(f"✅ SOLUTION: {solution}")
+    print(f"\n🎙️ VOICEOVER SCRIPT:")
+    print(f"\"{voiceover_script}\"")
 
-    video_path = f"mom_{template_type}_shorts.mp4"
-    if create_vertical_video(hook, problem, solution, template_type, video_path):
-        print(f"✅ {template_type.upper()} video created: {video_path}")
+    video_path = "mom_reel.mp4"
+    if create_vertical_video(voiceover_script, video_path):
+        print(f"✅ Video created: {video_path}")
         
         # Add to post history
-        post_history.add_post(problem, solution, hook, template_type, video_path)
+        post_history.add_post(voiceover_script, video_path)
         
         if all(key in os.environ for key in ["FB_PAGE_ID", "FB_PAGE_TOKEN"]):
-            print("📤 Posting to Facebook Shorts...")
-            if post_to_facebook(video_path, hook, problem, solution, template_type):
+            print("📤 Posting to Facebook...")
+            if post_to_facebook(video_path, voiceover_script):
                 print("✅ Post completed successfully!")
             else:
                 print("❌ Failed to post to Facebook")
         else:
             print("ℹ️ Facebook credentials not found - video saved locally")
 
-        # Save description with hashtags
-        hashtags = generate_hashtags(problem, solution, template_type)
+        # Save description
+        hashtags = generate_hashtags(voiceover_script)
         with open("video_description.txt", "w") as f:
-            f.write(f"🎭 {template_type.upper()} FORMAT\n\n")
-            f.write(f"🎯 {hook}\n\n")
-            f.write(f"💡 PROBLEM: {problem}\n\n")
-            f.write(f"✅ SOLUTION: {solution}\n\n")
+            f.write(f"{voiceover_script}\n\n")
             f.write(f"{hashtags}\n\n")
-            f.write("👇 Follow for daily mom wisdom!")
+            f.write("👇 Follow for more real mom tips!")
     else:
         print("❌ Failed to create video - skipping")
 
