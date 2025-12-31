@@ -3,7 +3,7 @@ name: Parenting Video Creator
 on:
   schedule:
     # Runs three times daily at 9 AM, 1 PM, and 5 PM Pacific Time
-    - cron: '0 16,20 * * *'
+    - cron: '0 16 * * *'
   workflow_dispatch:
 
 jobs:
