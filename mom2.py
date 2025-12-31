@@ -1,87 +1,48 @@
-#!/usr/bin/env python3
-"""
-Motivational Moms Post Generator:
-Generate parenting/mom motivational posts using Gemini,
-create images with Pixabay backgrounds, and post to Facebook.
-"""
-
 import os
-import random
 import requests
-from io import BytesIO
-from PIL import Image, ImageDraw, ImageFont
-import hashlib
-from datetime import datetime
-import json
+import random
 import textwrap
+from datetime import datetime
+from PIL import Image, ImageDraw, ImageFont
 
 # ================================
 # CONFIGURATION
 # ================================
+FB_PAGE_TOKEN = os.environ.get('FB_PAGE_TOKEN')
+FB_PAGE_ID = os.environ.get('FB_PAGE_ID')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+PIXABAY_KEY = os.environ.get('PIXABAY_KEY')
 
-FB_PAGE_TOKEN = os.environ.get("FB_PAGE_TOKEN")
-FB_PAGE_ID = os.environ.get("FB_PAGE_ID")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-PIXABAY_KEY = os.environ.get("PIXABAY_KEY")
-POST_HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "posted_parenting.json")
+# Pixabay image query options
+PIXABAY_QUERIES = ["parents", "mother child", "nature", "flowers"]
 
-HASHTAGS = [
-    "#MomLife", "#ParentingMotivation", "#MomStrong", "#ParentingJourney",
-    "#FamilyFirst", "#MomPower", "#ParentingWisdom", "#MomGoals"
+# Random post parameters
+TONES = ["encouraging", "uplifting", "motivational", "inspirational", "hopeful"]
+TOPICS = ["parenting", "self-care", "bonding", "resilience", "overcoming challenges"]
+HOOKS = ["Remember:", "Never forget:", "Keep in mind:", "Always remember:", "A gentle reminder:"]
+ENDINGS = ["You’ve got this!", "Keep shining!", "Stay strong!", "Every day counts.", "Your effort matters."]
+SUBJECTS = [
+    "encouragement on tough parenting days",
+    "celebrating small wins as a mom",
+    "finding peace amidst chaos",
+    "bonding with children in meaningful ways",
+    "self-care for busy parents",
+    "overcoming guilt and perfectionism",
+    "finding joy in simple moments",
+    "resilience and perseverance for moms"
 ]
 
-PIXABAY_CATEGORIES = ["parents", "nature", "flowers"]
+# Hashtags for captions
+HASHTAGS = ["#Parenting", "#MomLife", "#Motivation", "#SelfCare", "#Inspiration", "#Family"]
+
+# Font path (adjust if needed)
+FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
 # ================================
-# HELPER FUNCTIONS
+# UTILITY FUNCTIONS
 # ================================
-
-def log(msg):
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
-
-def load_posted_posts():
+def call_gemini(prompt):
     try:
-        if os.path.exists(POST_HISTORY_FILE):
-            with open(POST_HISTORY_FILE, "r") as f:
-                content = f.read().strip()
-                return json.loads(content) if content else []
-        return []
-    except Exception as e:
-        log(f"Error loading post history: {e}")
-        return []
-
-def save_post(post_text):
-    posted_posts = load_posted_posts()
-    post_hash = hashlib.md5(post_text.encode()).hexdigest()
-    if post_hash not in posted_posts:
-        posted_posts.append(post_hash)
-        os.makedirs(os.path.dirname(POST_HISTORY_FILE), exist_ok=True)
-        with open(POST_HISTORY_FILE, "w") as f:
-            json.dump(posted_posts, f)
-        return True
-    return False
-
-def is_duplicate(post_text):
-    posted_posts = load_posted_posts()
-    post_hash = hashlib.md5(post_text.encode()).hexdigest()
-    return post_hash in posted_posts
-
-# ================================
-# POST GENERATION
-# ================================
-
-def generate_post_text():
-    prompt = """
-Generate a motivational, uplifting, and inspiring post for moms.
-Rules:
-- No personal pronouns (I, me, my, we, our)
-- Include 2-3 relevant emojis for caption
-- Max 250 characters
-- Make it positive, encouraging, and relatable
-Return only the post text.
-"""
-    try:
-        log("Generating post text via Gemini...")
         response = requests.post(
             "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent",
             params={"key": GEMINI_API_KEY},
@@ -92,111 +53,136 @@ Return only the post text.
         if response.status_code == 200:
             data = response.json()
             if "candidates" in data and data["candidates"]:
-                text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                log("Post generated successfully")
-                return text
+                return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        print(f"Gemini error: {response.status_code} {response.text}")
     except Exception as e:
-        log(f"Gemini generation error: {e}")
-    return "Moms are superheroes 💪 Keep shining every day!"
+        print("Gemini API call failed:", e)
+    return None
 
-def get_pixabay_image():
-    log("Fetching image from Pixabay...")
-    category = random.choice(PIXABAY_CATEGORIES)
-    url = f"https://pixabay.com/api/?key={PIXABAY_KEY}&q={category}&image_type=photo&orientation=horizontal&safesearch=true&per_page=50"
+def generate_random_post_text():
+    tone = random.choice(TONES)
+    topic = random.choice(TOPICS)
+    hook = random.choice(HOOKS)
+    ending = random.choice(ENDINGS)
+    subject = random.choice(SUBJECTS)
+    seed = random.randint(1000, 9999)
+
+    prompt = f"""
+Generate a motivational post for moms.
+Tone: {tone}
+Focus: {topic}
+Subject: {subject}
+Hook: {hook}
+Ending: {ending}
+Rules:
+- No personal pronouns (I, me, my, we, our)
+- Max 250 characters
+- Use different wording each time
+- Random seed: {seed}
+Return only the post text.
+"""
+    post_text = call_gemini(prompt)
+    if not post_text:
+        post_text = f"{hook} {subject.capitalize()}. {ending}"
+    print("Generated post text:", post_text)
+    return post_text
+
+def pick_pixabay_image():
+    query = random.choice(PIXABAY_QUERIES)
+    url = f"https://pixabay.com/api/?key={PIXABAY_KEY}&q={query}&image_type=photo&orientation=horizontal&per_page=50"
     try:
-        response = requests.get(url, timeout=30).json()
-        if response.get("hits"):
-            image_url = random.choice(response["hits"])["largeImageURL"]
-            image_data = requests.get(image_url, timeout=30).content
-            log(f"Image fetched from Pixabay ({category})")
-            return Image.open(BytesIO(image_data)).convert("RGB")
+        r = requests.get(url, timeout=10)
+        data = r.json()
+        if data["hits"]:
+            image_url = random.choice(data["hits"])["largeImageURL"]
+            print(f"Picked Pixabay image for '{query}': {image_url}")
+            return image_url
     except Exception as e:
-        log(f"Pixabay fetch error: {e}")
-    # fallback: blank background
-    return Image.new("RGB", (1200, 1200), (255, 255, 255))
+        print("Pixabay API error:", e)
+    return None
 
-def create_image(post_text):
-    log("Creating image with text...")
-    img = get_pixabay_image()
-    width, height = img.size
-    draw = ImageDraw.Draw(img)
-
+def download_image(url, path="post_image.jpg"):
     try:
-        font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-        font = ImageFont.truetype(font_path, size=int(width/20))
-    except Exception:
-        font = ImageFont.load_default()
+        r = requests.get(url, stream=True, timeout=15)
+        if r.status_code == 200:
+            with open(path, 'wb') as f:
+                for chunk in r.iter_content(1024):
+                    f.write(chunk)
+            print("Image downloaded:", path)
+            return path
+    except Exception as e:
+        print("Failed to download image:", e)
+    return None
 
-    wrapped_text = textwrap.fill(post_text, width=30)
-    bbox = draw.textbbox((0, 0), wrapped_text, font=font)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-    x = (width - text_width) // 2
-    y = (height - text_height) // 2
+def add_text_to_image(image_path, text):
+    try:
+        img = Image.open(image_path).convert("RGB")
+        draw = ImageDraw.Draw(img)
+        font_size = 40
+        font = ImageFont.truetype(FONT_PATH, font_size)
 
-    # Random semi-transparent box behind text
-    box_color = tuple(random.randint(0, 200) for _ in range(3)) + (180,)
-    overlay = Image.new('RGBA', img.size, (0,0,0,0))
-    overlay_draw = ImageDraw.Draw(overlay)
-    overlay_draw.rectangle([x-20, y-20, x+text_width+20, y+text_height+20], fill=box_color)
-    img = Image.alpha_composite(img.convert("RGBA"), overlay)
+        img_width, img_height = img.size
+        margin = 50
+        text_wrapped = textwrap.fill(text, width=30)
+        text_width, text_height = draw.multiline_textsize(text_wrapped, font=font)
+        x0 = random.randint(margin, img_width - text_width - margin)
+        y0 = random.randint(margin, img_height - text_height - margin)
+        x1, y1 = x0 + text_width + 20, y0 + text_height + 20
+        bg_color = tuple(random.randint(200, 255) for _ in range(3))
+        draw.rectangle([x0, y0, x1, y1], fill=bg_color)
+        draw.multiline_text((x0 + 10, y0 + 10), text_wrapped, fill="black", font=font)
+        img.save("post_final.jpg")
+        print("Text added to image: post_final.jpg")
+        return "post_final.jpg"
+    except Exception as e:
+        print("Failed to add text to image:", e)
+        return image_path
 
-    # Draw text
-    draw = ImageDraw.Draw(img)
-    draw.text((x, y), wrapped_text, fill=(0,0,0), font=font, align='center')
-
-    output = BytesIO()
-    img.convert("RGB").save(output, format="JPEG", quality=95)
-    log("Image created successfully")
-    return output.getvalue()
-
-def create_caption(post_text):
+def generate_caption(post_text):
     hashtags = " ".join(random.sample(HASHTAGS, 4))
-    emojis = "".join(random.sample(["💪", "❤️", "🌸", "🌼", "🌟", "✨", "🌿"], 3))
-    return f"{post_text}\n\n{emojis} {hashtags}"
+    emojis = "".join(random.choices(["🌸", "💪", "🌞", "🌈", "👩‍👧‍👦"], k=3))
+    caption = f"{post_text}\n\n{emojis} {hashtags}"
+    print("Generated caption:", caption)
+    return caption
 
-def post_to_facebook(image_data, caption):
-    log("Posting to Facebook...")
-    if not FB_PAGE_TOKEN or not FB_PAGE_ID:
-        log("Facebook credentials not set")
-        return False
-
-    url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/photos"
-    files = {'source': ('mom_post.jpg', image_data, 'image/jpeg')}
-    data = {'message': caption, 'access_token': FB_PAGE_TOKEN}
-
+def post_to_facebook(image_path, caption):
     try:
-        response = requests.post(url, files=files, data=data, timeout=30)
-        if response.status_code == 200:
-            result = response.json()
-            save_post(caption)
-            log(f"Post successfully published: {result.get('id')}")
+        print("Posting to Facebook...")
+        files = {"source": open(image_path, "rb")}
+        data = {"caption": caption, "access_token": FB_PAGE_TOKEN}
+        url = f"https://graph.facebook.com/v17.0/{FB_PAGE_ID}/photos"
+        r = requests.post(url, files=files, data=data, timeout=30)
+        if r.status_code == 200:
+            print("✅ Successfully posted to Facebook")
             return True
         else:
-            log(f"Facebook API error {response.status_code}: {response.text}")
-            return False
+            print("❌ Facebook post failed:", r.status_code, r.text)
     except Exception as e:
-        log(f"Error posting to Facebook: {e}")
-        return False
+        print("Facebook posting error:", e)
+    return False
 
 # ================================
 # MAIN EXECUTION
 # ================================
-
 def main():
-    log("Motivational Moms Bot Starting...")
+    print("Motivational Moms Bot Starting...")
+
     if not FB_PAGE_TOKEN or not FB_PAGE_ID or not GEMINI_API_KEY or not PIXABAY_KEY:
-        log("❌ Missing required secrets")
+        print("❌ Missing environment variables")
         return
 
-    post_text = generate_post_text()
-    if is_duplicate(post_text):
-        log("Generated post is a duplicate, skipping...")
+    post_text = generate_random_post_text()
+    image_url = pick_pixabay_image()
+    if not image_url:
+        print("❌ No image found, exiting")
         return
-
-    image = create_image(post_text)
-    caption = create_caption(post_text)
-    post_to_facebook(image, caption)
+    image_path = download_image(image_url)
+    if not image_path:
+        print("❌ Image download failed, exiting")
+        return
+    final_image = add_text_to_image(image_path, post_text)
+    caption = generate_caption(post_text)
+    post_to_facebook(final_image, caption)
 
 if __name__ == "__main__":
     main()
