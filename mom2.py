@@ -2,17 +2,18 @@
 """
 Motivational Moms Post Generator:
 Generate parenting/mom motivational posts using Gemini,
-create images with random color text boxes, and post to Facebook.
+create images with Pixabay backgrounds, and post to Facebook.
 """
 
 import os
 import random
 import requests
 from io import BytesIO
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+from PIL import Image, ImageDraw, ImageFont
 import hashlib
 from datetime import datetime
 import json
+import textwrap
 
 # ================================
 # CONFIGURATION
@@ -21,12 +22,15 @@ import json
 FB_PAGE_TOKEN = os.environ.get("FB_PAGE_TOKEN")
 FB_PAGE_ID = os.environ.get("FB_PAGE_ID")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+PIXABAY_KEY = os.environ.get("PIXABAY_KEY")
 POST_HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "posted_parenting.json")
 
 HASHTAGS = [
     "#MomLife", "#ParentingMotivation", "#MomStrong", "#ParentingJourney",
     "#FamilyFirst", "#MomPower", "#ParentingWisdom", "#MomGoals"
 ]
+
+PIXABAY_CATEGORIES = ["parents", "nature", "flowers"]
 
 # ================================
 # HELPER FUNCTIONS
@@ -62,12 +66,16 @@ def is_duplicate(post_text):
     post_hash = hashlib.md5(post_text.encode()).hexdigest()
     return post_hash in posted_posts
 
+# ================================
+# POST GENERATION
+# ================================
+
 def generate_post_text():
     prompt = """
 Generate a motivational, uplifting, and inspiring post for moms.
 Rules:
 - No personal pronouns (I, me, my, we, our)
-- Include 2-3 relevant emojis
+- Include 2-3 relevant emojis for caption
 - Max 250 characters
 - Make it positive, encouraging, and relatable
 Return only the post text.
@@ -89,43 +97,63 @@ Return only the post text.
                 return text
     except Exception as e:
         log(f"Gemini generation error: {e}")
-    return "Moms are superheroes 💪❤️ Keep shining every day! #MomLife #ParentingMotivation"
+    return "Moms are superheroes 💪 Keep shining every day!"
+
+def get_pixabay_image():
+    log("Fetching image from Pixabay...")
+    category = random.choice(PIXABAY_CATEGORIES)
+    url = f"https://pixabay.com/api/?key={PIXABAY_KEY}&q={category}&image_type=photo&orientation=horizontal&safesearch=true&per_page=50"
+    try:
+        response = requests.get(url, timeout=30).json()
+        if response.get("hits"):
+            image_url = random.choice(response["hits"])["largeImageURL"]
+            image_data = requests.get(image_url, timeout=30).content
+            log(f"Image fetched from Pixabay ({category})")
+            return Image.open(BytesIO(image_data)).convert("RGB")
+    except Exception as e:
+        log(f"Pixabay fetch error: {e}")
+    # fallback: blank background
+    return Image.new("RGB", (1200, 1200), (255, 255, 255))
 
 def create_image(post_text):
-    log("Creating image for post...")
-    width, height = 1200, 1200
-    bg_color = (random.randint(50, 200), random.randint(50, 200), random.randint(50, 200))
-    background = Image.new('RGB', (width, height), (255, 255, 255))
+    log("Creating image with text...")
+    img = get_pixabay_image()
+    width, height = img.size
+    draw = ImageDraw.Draw(img)
 
-    draw = ImageDraw.Draw(background)
     try:
         font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-        font = ImageFont.truetype(font_path, 60)
+        font = ImageFont.truetype(font_path, size=int(width/20))
     except Exception:
         font = ImageFont.load_default()
 
-    # Wrap text
-    import textwrap
-    wrapped_text = textwrap.fill(post_text, width=25)
+    wrapped_text = textwrap.fill(post_text, width=30)
     bbox = draw.textbbox((0, 0), wrapped_text, font=font)
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
     x = (width - text_width) // 2
     y = (height - text_height) // 2
 
-    # Random color box behind text
-    box_color = (random.randint(100, 255), random.randint(100, 255), random.randint(100, 255))
-    draw.rectangle([x-30, y-30, x+text_width+30, y+text_height+30], fill=box_color)
+    # Random semi-transparent box behind text
+    box_color = tuple(random.randint(0, 200) for _ in range(3)) + (180,)
+    overlay = Image.new('RGBA', img.size, (0,0,0,0))
+    overlay_draw = ImageDraw.Draw(overlay)
+    overlay_draw.rectangle([x-20, y-20, x+text_width+20, y+text_height+20], fill=box_color)
+    img = Image.alpha_composite(img.convert("RGBA"), overlay)
+
+    # Draw text
+    draw = ImageDraw.Draw(img)
     draw.text((x, y), wrapped_text, fill=(0,0,0), font=font, align='center')
 
     output = BytesIO()
-    background.save(output, format="JPEG", quality=95)
+    img.convert("RGB").save(output, format="JPEG", quality=95)
     log("Image created successfully")
     return output.getvalue()
 
 def create_caption(post_text):
     hashtags = " ".join(random.sample(HASHTAGS, 4))
-    return f"{post_text}\n\n{hashtags}"
+    emojis = "".join(random.sample(["💪", "❤️", "🌸", "🌼", "🌟", "✨", "🌿"], 3))
+    return f"{post_text}\n\n{emojis} {hashtags}"
 
 def post_to_facebook(image_data, caption):
     log("Posting to Facebook...")
@@ -157,7 +185,7 @@ def post_to_facebook(image_data, caption):
 
 def main():
     log("Motivational Moms Bot Starting...")
-    if not FB_PAGE_TOKEN or not FB_PAGE_ID or not GEMINI_API_KEY:
+    if not FB_PAGE_TOKEN or not FB_PAGE_ID or not GEMINI_API_KEY or not PIXABAY_KEY:
         log("❌ Missing required secrets")
         return
 
