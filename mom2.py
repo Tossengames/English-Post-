@@ -2,7 +2,6 @@ import os
 import requests
 import random
 import time
-import json
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
@@ -34,7 +33,7 @@ POST_TOPICS = [
 # Hashtags pool
 HASHTAGS_POOL = ["#MomLife", "#Parenting", "#Motivation", "#Family", "#SelfCare", "#Love", "#DailyInspiration"]
 
-# Font path
+# Font path (include this TTF in repo)
 FONT_PATH = "fonts/OpenSans-Bold.ttf"
 
 # ================================
@@ -86,8 +85,8 @@ def add_text_to_image(image_url, post_text):
     img = Image.open(BytesIO(response.content)).convert("RGB")
     draw = ImageDraw.Draw(img)
 
-    # Random text box background color
-    bg_color = tuple(random.choices(range(100, 256), k=3))  # pastel color
+    # Random pastel color for text box
+    bg_color = tuple(random.choices(range(150, 256), k=3))  # light color
     font_size = max(20, img.width // 25)
     try:
         font = ImageFont.truetype(FONT_PATH, font_size)
@@ -101,7 +100,8 @@ def add_text_to_image(image_url, post_text):
     line = ""
     for word in words:
         test_line = f"{line} {word}".strip()
-        w, h = draw.textsize(test_line, font=font)
+        bbox = draw.textbbox((0, 0), test_line, font=font)
+        w = bbox[2] - bbox[0]
         if w > img.width * 0.8:
             lines.append(line)
             line = word
@@ -116,14 +116,16 @@ def add_text_to_image(image_url, post_text):
     box_x = int(img.width * 0.075)
     box_y = int(img.height * 0.75 - box_height / 2)
 
-    # Draw rectangle
-    draw.rectangle([box_x, box_y, box_x + box_width, box_y + box_height], fill=bg_color + (200,), outline=None)
+    # Draw rectangle (semi-transparent)
+    rectangle = Image.new("RGBA", (box_width, box_height), bg_color + (200,))
+    img.paste(rectangle, (box_x, box_y), rectangle)
 
     # Draw text
     y_text = box_y + 10
     for line in lines:
-        w, h = draw.textsize(line, font=font)
-        x_text = box_x + (box_width - w)/2
+        bbox = draw.textbbox((0,0), line, font=font)
+        w = bbox[2] - bbox[0]
+        x_text = box_x + (box_width - w) / 2
         draw.text((x_text, y_text), line, font=font, fill="black")
         y_text += line_height
 
@@ -142,9 +144,10 @@ def generate_caption(post_text):
 def post_to_facebook(image_path, caption):
     print("[INFO] Posting to Facebook...")
     url = f"https://graph.facebook.com/v17.0/{FB_PAGE_ID}/photos"
-    files = {"source": open(image_path, "rb")}
-    data = {"caption": caption, "access_token": FB_PAGE_TOKEN}
-    response = requests.post(url, files=files, data=data, timeout=30)
+    with open(image_path, "rb") as img_file:
+        files = {"source": img_file}
+        data = {"caption": caption, "access_token": FB_PAGE_TOKEN}
+        response = requests.post(url, files=files, data=data, timeout=30)
     if response.status_code == 200:
         print("[INFO] Successfully posted to Facebook!")
     else:
