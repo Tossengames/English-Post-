@@ -1,60 +1,66 @@
 import os
 import requests
 import random
-import textwrap
-from PIL import Image, ImageDraw, ImageFont
-import io
+import time
+import json
 from datetime import datetime
+from PIL import Image, ImageDraw, ImageFont
+from io import BytesIO
 
 # ================================
 # CONFIGURATION
 # ================================
-PIXABAY_KEY = os.environ.get('PIXABAY_KEY')
-FACEBOOK_PAGE_TOKEN = os.environ.get('FB_PAGE_TOKEN')
-FACEBOOK_PAGE_ID = os.environ.get('FB_PAGE_ID')
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
-# Pixabay queries for images
-PIXABAY_QUERIES = ["parents", "nature", "flowers", "mother child", "family outdoors"]
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+PIXABAY_KEY = os.environ.get("PIXABAY_KEY")
+FB_PAGE_TOKEN = os.environ.get("FB_PAGE_TOKEN")
+FB_PAGE_ID = os.environ.get("FB_PAGE_ID")
 
-# Motivational topics parameters
+# Pixabay queries
+PIXABAY_QUERIES = ["parents", "nature", "flowers", "mom", "family"]
+
+# Motivational post topics
 POST_TOPICS = [
-    "parenting struggles",
+    "parenting struggle",
     "self-care for moms",
-    "family bonding",
-    "life lessons for kids",
-    "overcoming challenges",
-    "finding balance"
+    "encouragement after tough days",
+    "balancing work and family",
+    "finding small joys",
+    "overcoming mom guilt",
+    "celebrating small wins",
+    "perseverance and patience"
 ]
 
-# Hashtags to choose from
-HASHTAGS = ["#MomLife", "#Parenting", "#Motivation", "#Family", "#Inspiration", "#SelfCare"]
+# Hashtags pool
+HASHTAGS_POOL = ["#MomLife", "#Parenting", "#Motivation", "#Family", "#SelfCare", "#Love", "#DailyInspiration"]
+
+# Font path
+FONT_PATH = "fonts/OpenSans-Bold.ttf"
 
 # ================================
-# FUNCTIONS
+# UTILITY FUNCTIONS
 # ================================
 
-def get_random_pixabay_image():
+def pick_random_pixabay_image():
     query = random.choice(PIXABAY_QUERIES)
-    url = f"https://pixabay.com/api/?key={PIXABAY_KEY}&q={query}&image_type=photo&orientation=horizontal&safesearch=true&per_page=50"
-    response = requests.get(url, timeout=30)
+    url = f"https://pixabay.com/api/?key={PIXABAY_KEY}&q={query}&image_type=photo&orientation=horizontal&per_page=50"
+    response = requests.get(url, timeout=15)
     data = response.json()
-    if data.get("hits"):
-        image_url = random.choice(data["hits"])["largeImageURL"]
-        print(f"[INFO] Selected Pixabay image: {image_url}")
-        return image_url
-    print("[WARN] No image found, using fallback")
-    return None
+    hits = data.get("hits", [])
+    if not hits:
+        print("[WARN] No images found, using fallback image")
+        return None
+    image_url = random.choice(hits)["largeImageURL"]
+    print(f"[INFO] Selected Pixabay image: {image_url}")
+    return image_url
 
-def generate_motivational_text():
-    topic = random.choice(POST_TOPICS)
+def generate_gemini_post(topic):
     prompt = f"""
-Generate a motivational, uplifting post for moms. Topic: {topic}.
-Rules:
+Create a short motivational post for moms (150-200 chars). Topic: {topic}.
+- Do not use first-person (I, me, we, my, our)
 - Keep it encouraging and positive
-- No first-person pronouns
-- Max 200 characters
-Return only the post text.
+- Include 1-2 emojis at the end
+- Return only the post text
 """
     try:
         response = requests.post(
@@ -64,86 +70,106 @@ Return only the post text.
             json={"contents":[{"parts":[{"text": prompt}]}]},
             timeout=30
         )
-        data = response.json()
-        if "candidates" in data and data["candidates"]:
+        if response.status_code == 200:
+            data = response.json()
             text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-            print(f"[INFO] Generated post text: {text}")
             return text
+        else:
+            print("[WARN] Gemini API failed, using fallback text")
     except Exception as e:
-        print(f"[ERROR] AI generation failed: {e}")
-    fallback_text = "Every mom is doing their best, and that’s enough. 💖"
-    print(f"[INFO] Using fallback text: {fallback_text}")
-    return fallback_text
+        print("[ERROR] Gemini request failed:", e)
+    # fallback
+    return "Every mom is doing their best, and that’s enough 💖"
 
-def add_text_to_image(image_url, text):
+def add_text_to_image(image_url, post_text):
+    response = requests.get(image_url, timeout=15)
+    img = Image.open(BytesIO(response.content)).convert("RGB")
+    draw = ImageDraw.Draw(img)
+
+    # Random text box background color
+    bg_color = tuple(random.choices(range(100, 256), k=3))  # pastel color
+    font_size = max(20, img.width // 25)
     try:
-        response = requests.get(image_url, timeout=30)
-        image = Image.open(io.BytesIO(response.content)).convert("RGB")
-    except Exception as e:
-        print(f"[ERROR] Failed to download image: {e}")
-        image = Image.new("RGB", (1080, 1080), (255, 255, 255))
-
-    draw = ImageDraw.Draw(image)
-    width, height = image.size
-
-    # Random background box color
-    box_color = tuple(random.randint(200, 255) for _ in range(3))
-    font_size = max(30, width // 25)
-    font = ImageFont.truetype("arial.ttf", font_size)
+        font = ImageFont.truetype(FONT_PATH, font_size)
+    except OSError:
+        print("[WARN] Font not found, using default")
+        font = ImageFont.load_default()
 
     # Wrap text
-    wrapped_text = textwrap.fill(text, width=25)
-    text_width, text_height = draw.multiline_textsize(wrapped_text, font=font)
+    lines = []
+    words = post_text.split()
+    line = ""
+    for word in words:
+        test_line = f"{line} {word}".strip()
+        w, h = draw.textsize(test_line, font=font)
+        if w > img.width * 0.8:
+            lines.append(line)
+            line = word
+        else:
+            line = test_line
+    lines.append(line)
 
-    # Random position
-    x = random.randint(20, max(20, width - text_width - 20))
-    y = random.randint(20, max(20, height - text_height - 20))
+    # Calculate box size
+    line_height = font.getsize("A")[1] + 10
+    box_height = line_height * len(lines) + 20
+    box_width = int(img.width * 0.85)
+    box_x = int(img.width * 0.075)
+    box_y = int(img.height * 0.75 - box_height / 2)
 
-    # Draw background box
-    draw.rectangle(
-        [x-10, y-10, x + text_width + 10, y + text_height + 10],
-        fill=box_color
-    )
+    # Draw rectangle
+    draw.rectangle([box_x, box_y, box_x + box_width, box_y + box_height], fill=bg_color + (200,), outline=None)
+
     # Draw text
-    draw.multiline_text((x, y), wrapped_text, fill=(0,0,0), font=font)
+    y_text = box_y + 10
+    for line in lines:
+        w, h = draw.textsize(line, font=font)
+        x_text = box_x + (box_width - w)/2
+        draw.text((x_text, y_text), line, font=font, fill="black")
+        y_text += line_height
 
-    final_path = "post_final.jpg"
-    image.save(final_path)
-    print(f"[INFO] Image saved with text: {final_path}")
-    return final_path
+    # Save image
+    filename = f"post_{int(time.time())}.jpg"
+    img.save(filename)
+    print(f"[INFO] Image saved: {filename}")
+    return filename
 
-def generate_caption():
-    hashtags = random.sample(HASHTAGS, 4)
-    emojis = random.sample(["💖","🌸","✨","🌼","😊","🌿"], 3)
-    caption = " ".join(emojis) + " " + " ".join(hashtags)
-    print(f"[INFO] Generated caption: {caption}")
+def generate_caption(post_text):
+    hashtags = random.sample(HASHTAGS_POOL, 4)
+    emojis = random.sample(["💖","🌸","✨","🌼","🌷","🌞","🌟"], 2)
+    caption = f"{post_text} {' '.join(emojis)} {' '.join(hashtags)}"
     return caption
 
 def post_to_facebook(image_path, caption):
-    try:
-        with open(image_path, "rb") as img_file:
-            files = {"source": img_file}
-            data = {"caption": caption, "access_token": FACEBOOK_PAGE_TOKEN}
-            response = requests.post(f"https://graph.facebook.com/{FACEBOOK_PAGE_ID}/photos", files=files, data=data)
-            if response.status_code == 200:
-                print("[INFO] Successfully posted to Facebook!")
-            else:
-                print(f"[ERROR] Facebook post failed: {response.text}")
-    except Exception as e:
-        print(f"[ERROR] Posting to Facebook failed: {e}")
+    print("[INFO] Posting to Facebook...")
+    url = f"https://graph.facebook.com/v17.0/{FB_PAGE_ID}/photos"
+    files = {"source": open(image_path, "rb")}
+    data = {"caption": caption, "access_token": FB_PAGE_TOKEN}
+    response = requests.post(url, files=files, data=data, timeout=30)
+    if response.status_code == 200:
+        print("[INFO] Successfully posted to Facebook!")
+    else:
+        print("[ERROR] Facebook post failed:", response.text)
 
 # ================================
 # MAIN EXECUTION
 # ================================
 
 def main():
-    print(f"[INFO] Script started at {datetime.now()}")
-    post_text = generate_motivational_text()
-    image_url = get_random_pixabay_image()
+    print("[INFO] Mom Motivational Bot Starting...")
+    topic = random.choice(POST_TOPICS)
+    post_text = generate_gemini_post(topic)
+    print("[INFO] Generated Post:", post_text)
+
+    image_url = pick_random_pixabay_image()
+    if not image_url:
+        print("[ERROR] No image available, exiting.")
+        return
+
     image_path = add_text_to_image(image_url, post_text)
-    caption = generate_caption()
+    caption = generate_caption(post_text)
+    print("[INFO] Generated Caption:", caption)
+
     post_to_facebook(image_path, caption)
-    print(f"[INFO] Script finished at {datetime.now()}")
 
 if __name__ == "__main__":
     main()
