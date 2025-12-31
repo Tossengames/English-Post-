@@ -1,29 +1,51 @@
 #!/usr/bin/env python3
 """
-Funny Parenting Post Generator: Fetch Reddit RSS, generate humorous parenting content,
-create images using Pixabay backgrounds, and post to Facebook Page.
+Parenting Humor Post Generator:
+Fetch Reddit/Parenting RSS, generate humorous posts using Gemini,
+create images using Pixabay backgrounds, and post to Facebook.
+Detailed logging included.
 """
 
 import os
 import requests
 import random
-import textwrap
+import time
 import json
-import hashlib
+import feedparser
+from datetime import datetime
+import re
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
-import feedparser
-import time
+import hashlib
 
-# File to store posted posts for duplication check
+# ================================
+# CONFIGURATION
+# ================================
+
+FB_PAGE_TOKEN = os.environ.get("FB_PAGE_TOKEN")
+FB_PAGE_ID = os.environ.get("FB_PAGE_ID")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 POST_HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "posted_parenting.json")
 
-# Reddit RSS feeds for parenting humor
 RSS_FEEDS = [
     "https://www.reddit.com/r/ParentingHumor/.rss",
     "https://www.reddit.com/r/funny/.rss",
     "https://www.reddit.com/r/MomForAMinute/.rss",
 ]
+
+HASHTAGS = [
+    "#ParentingHumor", "#MomLife", "#DadLife", "#FunnyKids",
+    "#ParentingStruggles", "#Humor", "#Toddlers", "#LifeWithKids"
+]
+
+PIXABAY_CATEGORIES = ["funny", "parenting", "kids", "home", "family"]
+
+# ================================
+# HELPER FUNCTIONS
+# ================================
+
+def log(msg):
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
 
 def load_posted_posts():
     try:
@@ -32,7 +54,8 @@ def load_posted_posts():
                 content = f.read().strip()
                 return json.loads(content) if content else []
         return []
-    except Exception:
+    except Exception as e:
+        log(f"Error loading post history: {e}")
         return []
 
 def save_post(post_text):
@@ -51,31 +74,32 @@ def is_duplicate(post_text):
     post_hash = hashlib.md5(post_text.encode()).hexdigest()
     return post_hash in posted_posts
 
-def fetch_reddit_posts():
+def fetch_rss_posts():
+    log("Fetching RSS posts...")
     all_posts = []
-    headers = {"User-Agent": "FunnyParentBot/1.0"}
+    headers = {"User-Agent": "ParentHumorBot/1.0"}
     for feed_url in RSS_FEEDS:
         try:
             feed = feedparser.parse(feed_url)
             for entry in feed.entries[:10]:
                 title = entry.title
-                # Exclude posts with first-person references
+                # Exclude first-person references
                 if any(word in title.lower() for word in ["i ", "my ", "me "]):
                     continue
                 all_posts.append(title)
         except Exception as e:
-            print(f"Error fetching {feed_url}: {e}")
+            log(f"Error parsing {feed_url}: {e}")
     random.shuffle(all_posts)
+    log(f"Fetched {len(all_posts)} valid posts")
     return all_posts
 
 def get_pixabay_image():
     api_key = os.environ.get("PIXABAY_KEY")
     if not api_key:
-        print("PIXABAY_KEY not set")
+        log("PIXABAY_KEY not set")
         return None
 
-    categories = ["funny", "parenting", "kids", "home", "office"]
-    category = random.choice(categories)
+    category = random.choice(PIXABAY_CATEGORIES)
     url = "https://pixabay.com/api/"
     params = {
         "key": api_key,
@@ -88,17 +112,17 @@ def get_pixabay_image():
     }
     try:
         response = requests.get(url, params=params, timeout=15)
-        if response.status_code == 200:
-            data = response.json()
-            if data['hits']:
-                image_url = random.choice(data['hits'])["largeImageURL"]
-                img_response = requests.get(image_url, timeout=15)
-                return BytesIO(img_response.content)
+        data = response.json()
+        if data.get("hits"):
+            image_url = random.choice(data["hits"])["largeImageURL"]
+            img_response = requests.get(image_url, timeout=15)
+            return BytesIO(img_response.content)
     except Exception as e:
-        print(f"Error fetching Pixabay image: {e}")
+        log(f"Error fetching Pixabay image: {e}")
     return None
 
 def create_image(post_text):
+    log("Creating image for post...")
     width, height = 1200, 1200
     image_bytes = get_pixabay_image()
     if image_bytes:
@@ -116,6 +140,8 @@ def create_image(post_text):
     except Exception:
         font = ImageFont.load_default()
 
+    # Wrap text
+    import textwrap
     wrapped_text = textwrap.fill(post_text, width=25)
     bbox = draw.textbbox((0, 0), wrapped_text, font=font)
     text_width = bbox[2] - bbox[0]
@@ -129,59 +155,100 @@ def create_image(post_text):
 
     output = BytesIO()
     background.save(output, format="JPEG", quality=95)
+    log("Image created successfully")
     return output.getvalue()
 
+def generate_post_text(posts):
+    if not posts:
+        return "Nothing funny trending in parenting right now… stay tuned! 😅"
+
+    article = random.choice(posts)
+    summary = re.sub(r"<[^>]+>", "", article)[:200]
+
+    prompt = f"""
+Generate a funny, witty, parenting humor post.
+
+Topic: {article}
+Details: {summary}
+
+Rules:
+- Keep it funny, no personal pronouns
+- Include 3-5 emojis
+- Include 3-5 relevant hashtags at the end
+- Max 250 characters
+Return only the post text.
+"""
+    try:
+        log("Generating post text via Gemini...")
+        response = requests.post(
+            "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent",
+            params={"key": GEMINI_API_KEY},
+            headers={"Content-Type": "application/json"},
+            json={"contents": [{"parts": [{"text": prompt}]}]},
+            timeout=30
+        )
+        if response.status_code == 200:
+            data = response.json()
+            if "candidates" in data and data["candidates"]:
+                text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                log("Post generated successfully")
+                return text
+    except Exception as e:
+        log(f"Gemini generation error: {e}")
+    return f"{article} 🤣 #ParentingHumor"
+
 def create_caption(post_text):
-    captions = [
-        "😂 Parenting never comes with a manual.",
-        "🤣 Because raising kids is basically stand-up comedy.",
-        "👶 When tiny humans take over the house.",
-        "💡 Share if you’ve survived the toddler negotiations!"
-    ]
-    caption = f"{post_text}\n\n{random.choice(captions)}"
-    return caption
+    hashtags = " ".join(random.sample(HASHTAGS, 4))
+    return f"{post_text}\n\n{hashtags}"
 
 def post_to_facebook(image_data, caption):
-    page_id = os.environ.get("FB_PAGE_ID")
-    token = os.environ.get("FB_PAGE_TOKEN")
-    if not page_id or not token:
-        print("Facebook credentials not set")
+    log("Posting to Facebook...")
+    if not FB_PAGE_TOKEN or not FB_PAGE_ID:
+        log("Facebook credentials not set")
         return False
 
-    url = f"https://graph.facebook.com/v19.0/{page_id}/photos"
+    url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/photos"
     files = {'source': ('parenting.jpg', image_data, 'image/jpeg')}
-    data = {'message': caption, 'access_token': token}
+    data = {'message': caption, 'access_token': FB_PAGE_TOKEN}
 
     try:
         response = requests.post(url, files=files, data=data, timeout=30)
         if response.status_code == 200:
             result = response.json()
             save_post(caption)
-            print(f"Posted successfully: {result.get('id')}")
+            log(f"Post successfully published: {result.get('id')}")
             return True
         else:
-            print(f"Facebook API error: {response.status_code}")
-            print(response.text)
+            log(f"Facebook API error {response.status_code}: {response.text}")
             return False
     except Exception as e:
-        print(f"Error posting to Facebook: {e}")
+        log(f"Error posting to Facebook: {e}")
         return False
 
+# ================================
+# MAIN EXECUTION
+# ================================
+
 def main():
-    print("Fetching Reddit posts...")
-    posts = fetch_reddit_posts()
+    log("Parenting Humor Bot Starting...")
+    if not FB_PAGE_TOKEN or not FB_PAGE_ID or not GEMINI_API_KEY:
+        log("❌ Missing required secrets")
+        return
+
+    posts = fetch_rss_posts()
     if not posts:
-        print("No valid posts found.")
+        log("No posts fetched from RSS feeds")
         return
 
     for post_text in posts:
         if not is_duplicate(post_text):
-            image = create_image(post_text)
-            caption = create_caption(post_text)
+            text = generate_post_text([post_text])
+            image = create_image(text)
+            caption = create_caption(text)
             post_to_facebook(image, caption)
             break
     else:
-        print("All posts are duplicates.")
+        log("All posts are duplicates")
 
 if __name__ == "__main__":
     main()
