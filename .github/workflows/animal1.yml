@@ -1,0 +1,32 @@
+name: Animal Image Auto Poster
+
+on:
+  schedule:
+    - cron: "0 8,20 * * *"   # runs at 08:00 and 20:00 UTC
+  workflow_dispatch:
+
+jobs:
+  post-animals:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pillow
+
+      - name: 🐾 Run animal posting script
+        env:
+          PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+        run: |
+          python animal1.py
