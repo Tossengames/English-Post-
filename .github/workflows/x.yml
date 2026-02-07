@@ -1,0 +1,38 @@
+name: Download and Post Animal Images
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+jobs:
+  download-post:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+        
+    - name: Run Pixabay Image Downloader
+      env:
+        PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
+        FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+        FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+      run: |
+        python x.py
+        
+    - name: Save used images tracking
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add posted_animals.json
+        git diff --quiet && git diff --staged --quiet || git commit -m "Update used images list"
+        git push
