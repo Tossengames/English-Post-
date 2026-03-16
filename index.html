@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Still Moments</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Jost:wght@200;300;400&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --rose:  #f2e4df;
+    --sage:  #dce8e0;
+    --mist:  #dde4ec;
+    --cream: #f7f3ee;
+    --stone: #b0a89e;
+    --ink:   #3d3530;
+    --blush: #e8cfc8;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Jost', sans-serif;
+    font-weight: 300;
+    background: #1e1b18;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.12;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .orb-1 { width:600px;height:600px;background:var(--rose);  top:-150px; left:-200px; }
+  .orb-2 { width:500px;height:500px;background:var(--sage);  bottom:-100px; right:-150px; }
+  .orb-3 { width:350px;height:350px;background:var(--mist);  top:40%; left:55%; }
+
+  /* ── Phone shell ── */
+  .phone-wrap {
+    position: relative;
+    z-index: 1;
+    --ph: min(96vh, calc(96vw * 16 / 9));
+    --pw: calc(var(--ph) * 9 / 16);
+    width:  var(--pw);
+    height: var(--ph);
+    border-radius: calc(var(--pw) * 0.075);
+    background: #0d0d0d;
+    box-shadow:
+      0 0 0 2px #4a4a4a,
+      0 0 0 7px #1a1a1a,
+      0 50px 120px rgba(0,0,0,0.8),
+      inset 0 0 0 2px #2a2a2a;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .phone-wrap::before {
+    content: '';
+    position: absolute;
+    top: calc(var(--pw) * 0.025);
+    left: 50%;
+    transform: translateX(-50%);
+    width:  calc(var(--pw) * 0.28);
+    height: calc(var(--pw) * 0.065);
+    background: #0d0d0d;
+    border-radius: 20px;
+    z-index: 100;
+  }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    background: #111;
+  }
+
+  /* ── Blurred bg layer ── */
+  #bgVideo {
+    position: absolute;
+    inset: -8%;
+    width: 116%;
+    height: 116%;
+    object-fit: cover;
+    filter: blur(24px) brightness(0.45) saturate(1.4);
+    z-index: 1;
+    opacity: 0;
+    transition: opacity 1.2s ease;
+  }
+
+  /* ── Foreground portrait crop ── */
+  #fgVideo {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center center;
+    z-index: 2;
+    opacity: 0;
+    transition: opacity 1.4s ease;
+  }
+
+  /* ── Fade overlay ── */
+  #fadeOverlay {
+    position: absolute;
+    inset: 0;
+    background: #0d0d0d;
+    z-index: 6;
+    opacity: 1;
+    pointer-events: none;
+    transition: opacity 1.3s ease;
+  }
+
+  /* ── Status pill ── */
+  .status-pill {
+    position: absolute;
+    top: 7%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 40px;
+    padding: 8px 20px;
+    white-space: nowrap;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--stone);
+    flex-shrink: 0;
+    transition: background 0.4s;
+  }
+  .status-dot.searching { background: #e8cfc8; animation: pulse 1s infinite; }
+  .status-dot.found     { background: #c8e8d0; animation: pulse 0.6s infinite; }
+  .status-dot.ready     { background: #a8d8b0; animation: none; }
+  .status-dot.playing   { background: #f2e4df; animation: beat 0.9s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.25} }
+  @keyframes beat  { 0%,100%{transform:scale(1)}50%{transform:scale(1.5)} }
+  .status-text {
+    font-size: clamp(10px, 1.6vw, 15px);
+    font-weight: 200;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.82);
+    text-transform: uppercase;
+  }
+
+  /* ── Spinner ── */
+  .spinner {
+    display: none;
+    position: absolute;
+    top: calc(7% + 44px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    width: 28px; height: 28px;
+    border: 2px solid rgba(255,255,255,0.1);
+    border-top-color: var(--blush);
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+  }
+  .spinner.visible { display: block; }
+  @keyframes spin { to { transform: translateX(-50%) rotate(360deg); } }
+
+  /* ── Watermark ── */
+  .watermark {
+    position: absolute;
+    bottom: 12%;
+    right: 5%;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0,0,0,0.3);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 30px;
+    padding: 6px 14px 6px 10px;
+    opacity: 0;
+    transition: opacity 1s ease 0.8s;
+  }
+  .watermark.visible { opacity: 1; }
+  .wm-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--blush);
+    flex-shrink: 0;
+  }
+  .watermark span {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: clamp(11px, 1.8vw, 17px);
+    color: rgba(255,255,255,0.85);
+    letter-spacing: 0.04em;
+  }
+
+  /* ── Progress bar ── */
+  .progress-wrap {
+    position: absolute;
+    bottom: 8%;
+    left: 6%; right: 6%;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+  .progress-wrap.visible { opacity: 1; }
+  .progress-track {
+    width: 100%;
+    height: 2px;
+    background: rgba(255,255,255,0.18);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--blush), var(--sage));
+    border-radius: 4px;
+    transition: width 0.25s linear;
+  }
+  .progress-time {
+    margin-top: 8px;
+    font-size: clamp(9px, 1.4vw, 13px);
+    font-weight: 200;
+    color: rgba(255,255,255,0.45);
+    text-align: right;
+    letter-spacing: 0.06em;
+  }
+
+  /* ── Center UI ── */
+  .center-ui {
+    position: absolute;
+    inset: 0;
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(20px, 4vh, 40px);
+    transition: opacity 0.6s ease;
+  }
+  .center-ui.hidden { opacity: 0; pointer-events: none; }
+
+  .site-title h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: clamp(36px, 9vw, 88px);
+    color: rgba(255,255,255,0.92);
+    letter-spacing: 0.06em;
+    line-height: 1.05;
+    text-align: center;
+  }
+  .site-title p {
+    font-size: clamp(9px, 1.6vw, 15px);
+    font-weight: 200;
+    color: rgba(255,255,255,0.38);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    text-align: center;
+    margin-top: 10px;
+  }
+
+  .play-btn {
+    width:  clamp(70px, 14vw, 120px);
+    height: clamp(70px, 14vw, 120px);
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+    border: 1.5px solid rgba(255,255,255,0.3);
+    backdrop-filter: blur(10px);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    outline: none;
+    color: white;
+  }
+  .play-btn:disabled { opacity: 0.35; cursor: default; }
+  .play-btn:not(:disabled):hover {
+    background: rgba(255,255,255,0.18);
+    border-color: rgba(255,255,255,0.65);
+    transform: scale(1.07);
+  }
+  .play-btn svg {
+    width: clamp(28px, 5vw, 44px);
+    height: clamp(28px, 5vw, 44px);
+    fill: white;
+    margin-left: 5px;
+  }
+  .play-btn.gone { display: none; }
+
+  .next-btn {
+    display: none;
+    padding: clamp(14px,2.5vh,22px) clamp(36px,7vw,60px);
+    border-radius: 60px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.28);
+    backdrop-filter: blur(10px);
+    color: rgba(255,255,255,0.88);
+    font-family: 'Jost', sans-serif;
+    font-weight: 200;
+    font-size: clamp(11px, 2vw, 18px);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .next-btn.visible { display: block; }
+  .next-btn:hover {
+    background: rgba(255,255,255,0.18);
+    border-color: rgba(255,255,255,0.65);
+    transform: scale(1.04);
+  }
+
+  @media (max-width: 540px) {
+    body { background: #0d0d0d; }
+    .orb { display: none; }
+    .phone-wrap {
+      --ph: 100svh;
+      --pw: 100vw;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    .phone-wrap::before { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<div class="phone-wrap">
+  <div class="screen">
+    <video id="bgVideo" muted playsinline loop></video>
+    <video id="fgVideo" muted playsinline></video>
+    <div id="fadeOverlay"></div>
+
+    <div class="status-pill">
+      <div class="status-dot searching" id="statusDot"></div>
+      <span class="status-text" id="statusText">Searching</span>
+    </div>
+    <div class="spinner" id="spinner"></div>
+
+    <div class="watermark" id="watermark">
+      <div class="wm-dot"></div>
+      <span>© Still Moments</span>
+    </div>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-time" id="progressTime"></div>
+    </div>
+
+    <div class="center-ui" id="centerUI">
+      <div class="site-title">
+        <h1>Still<br/>Moments</h1>
+        <p>breathe &amp; be present</p>
+      </div>
+      <button class="play-btn" id="playBtn" disabled>
+        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <button class="next-btn" id="nextBtn">Next Moment</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+//  CONFIG  — change these to go to production
+// ════════════════════════════════════════════
+const PIXABAY_KEY   = '50973339-3e27fd59ddfd9c68378e78753';
+
+const CLIP_DURATION = 10;   // ← change to 30 for production
+const SKIP_HEAD     = 15;   // seconds to always skip from the start
+const SKIP_TAIL     = 10;   // seconds to always skip from the end
+// minimum video length = SKIP_HEAD + CLIP_DURATION + SKIP_TAIL
+const MIN_DURATION  = SKIP_HEAD + CLIP_DURATION + SKIP_TAIL; // 35s for testing
+
+const SEARCH_TERMS = [
+  'nature walk forest',
+  'rain village relaxing',
+  'peaceful river stream',
+  'mountain path walking',
+  'garden rain morning',
+  'countryside walk silent',
+  'forest path meditation',
+  'rainy street calm',
+  'lake reflection peaceful',
+  'sunset nature walk',
+  'bamboo forest wind',
+  'waterfall nature calm',
+  'misty morning field',
+  'snow village peaceful',
+  'autumn leaves path',
+];
+
+// ════════════════════════════════════════════
+const bgVideo   = document.getElementById('bgVideo');
+const fgVideo   = document.getElementById('fgVideo');
+const fadeOv    = document.getElementById('fadeOverlay');
+const statusDot = document.getElementById('statusDot');
+const statusTxt = document.getElementById('statusText');
+const spinner   = document.getElementById('spinner');
+const watermark = document.getElementById('watermark');
+const progressW = document.getElementById('progressWrap');
+const progressF = document.getElementById('progressFill');
+const progressT = document.getElementById('progressTime');
+const centerUI  = document.getElementById('centerUI');
+const playBtn   = document.getElementById('playBtn');
+const nextBtn   = document.getElementById('nextBtn');
+
+let clipTimer        = null;
+let progressInterval = null;
+let clipStart        = 0;
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function setStatus(state, text) {
+  statusDot.className = 'status-dot ' + state;
+  statusTxt.textContent = text;
+}
+
+// ── Main fetch loop ──────────────────────────
+async function fetchVideo() {
+  setStatus('searching', 'Searching');
+  spinner.classList.add('visible');
+  playBtn.disabled = true;
+  playBtn.classList.remove('gone');
+  nextBtn.classList.remove('visible');
+  watermark.classList.remove('visible');
+  progressW.classList.remove('visible');
+  bgVideo.style.opacity = '0';
+  fgVideo.style.opacity = '0';
+  fadeOv.style.opacity  = '1';
+
+  const terms = shuffle(SEARCH_TERMS);
+
+  for (const term of terms) {
+    try {
+      const page = Math.floor(Math.random() * 5) + 1;
+      const url  = `https://pixabay.com/api/videos/?key=${PIXABAY_KEY}`
+                 + `&q=${encodeURIComponent(term)}&video_type=film&per_page=20&page=${page}`;
+
+      const res  = await fetch(url);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (!data.hits?.length) continue;
+
+      const hits = shuffle(data.hits);
+
+      for (const hit of hits) {
+        const videoUrl =
+          hit.videos?.large?.url  ||
+          hit.videos?.medium?.url ||
+          hit.videos?.small?.url  ||
+          null;
+        if (!videoUrl) continue;
+
+        setStatus('found', 'Validating…');
+        const ok = await validateAndLoad(videoUrl);
+        if (ok) {
+          spinner.classList.remove('visible');
+          return;
+        }
+      }
+    } catch (_) { /* silent, try next */ }
+  }
+
+  setStatus('searching', 'Retrying…');
+  setTimeout(fetchVideo, 3000);
+}
+
+// ── Validate & pick random window ────────────
+// Valid window = anything between SKIP_HEAD and (duration - SKIP_TAIL - CLIP_DURATION)
+// This means every run gets a truly random, different slice of the video.
+function validateAndLoad(url) {
+  return new Promise(resolve => {
+    const probe       = document.createElement('video');
+    probe.preload     = 'metadata';
+    probe.crossOrigin = 'anonymous';
+    probe.muted       = true;
+
+    const bail = setTimeout(() => { probe.src = ''; resolve(false); }, 9000);
+
+    probe.onloadedmetadata = () => {
+      clearTimeout(bail);
+      const dur = probe.duration;
+
+      // Reject if too short to fit skip-head + clip + skip-tail
+      if (!dur || !isFinite(dur) || dur < MIN_DURATION) {
+        probe.src = '';
+        resolve(false);
+        return;
+      }
+
+      // Usable zone: from SKIP_HEAD up to (dur - SKIP_TAIL - CLIP_DURATION)
+      const zoneStart = SKIP_HEAD;
+      const zoneEnd   = dur - SKIP_TAIL - CLIP_DURATION;
+
+      // Pick a truly random start within that zone
+      clipStart = zoneStart + Math.random() * (zoneEnd - zoneStart);
+      clipStart = Math.floor(clipStart * 10) / 10; // round to 1 decimal
+
+      probe.src = '';
+      loadVideos(url);
+      resolve(true);
+    };
+
+    probe.onerror = () => { clearTimeout(bail); resolve(false); };
+    probe.src = url;
+  });
+}
+
+// ── Load bg + fg ─────────────────────────────
+function loadVideos(url) {
+  bgVideo.src = url;
+  fgVideo.src = url;
+  bgVideo.currentTime = clipStart;
+  fgVideo.currentTime = clipStart;
+
+  let bgReady = false, fgReady = false;
+  function onReady() {
+    if (bgReady && fgReady) {
+      setStatus('ready', 'Ready to play');
+      playBtn.disabled = false;
+    }
+  }
+  bgVideo.oncanplay = () => { bgReady = true; onReady(); };
+  fgVideo.oncanplay = () => { fgReady = true; onReady(); };
+}
+
+// ── Play clip ────────────────────────────────
+function playClip() {
+  if (playBtn.disabled) return;
+
+  centerUI.classList.add('hidden');
+  clearTimeout(clipTimer);
+  clearInterval(progressInterval);
+
+  bgVideo.currentTime = clipStart;
+  fgVideo.currentTime = clipStart;
+  fadeOv.style.opacity  = '1';
+  bgVideo.style.opacity = '0';
+  fgVideo.style.opacity = '0';
+
+  bgVideo.play().catch(() => {});
+  fgVideo.play().catch(() => {});
+
+  setStatus('playing', 'Playing');
+  watermark.classList.add('visible');
+  progressW.classList.add('visible');
+  progressF.style.width = '0%';
+  progressT.textContent = `0s / ${CLIP_DURATION}s`;
+
+  // Fade IN
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      fadeOv.style.opacity  = '0';
+      bgVideo.style.opacity = '1';
+      fgVideo.style.opacity = '1';
+    }, 100);
+  });
+
+  // Progress ticker
+  let elapsed = 0;
+  progressInterval = setInterval(() => {
+    elapsed += 0.25;
+    const pct = Math.min((elapsed / CLIP_DURATION) * 100, 100);
+    progressF.style.width = pct + '%';
+    progressT.textContent = `${Math.min(Math.floor(elapsed), CLIP_DURATION)}s / ${CLIP_DURATION}s`;
+  }, 250);
+
+  // Start fade OUT 1.5s before end
+  clipTimer = setTimeout(() => {
+    fadeOv.style.opacity  = '1';
+    bgVideo.style.opacity = '0';
+    fgVideo.style.opacity = '0';
+  }, (CLIP_DURATION - 1.5) * 1000);
+
+  // End of clip
+  setTimeout(() => {
+    bgVideo.pause();
+    fgVideo.pause();
+    clearInterval(progressInterval);
+    watermark.classList.remove('visible');
+    progressW.classList.remove('visible');
+    setStatus('ready', 'Finished');
+    showEndScreen();
+  }, CLIP_DURATION * 1000);
+}
+
+// ── End screen ───────────────────────────────
+function showEndScreen() {
+  centerUI.classList.remove('hidden');
+  playBtn.classList.add('gone');
+  nextBtn.classList.add('visible');
+  setTimeout(() => { fadeOv.style.opacity = '0'; }, 200);
+}
+
+// ── Buttons ──────────────────────────────────
+playBtn.addEventListener('click', playClip);
+
+nextBtn.addEventListener('click', () => {
+  clearTimeout(clipTimer);
+  clearInterval(progressInterval);
+  bgVideo.pause();
+  fgVideo.pause();
+  fetchVideo();
+});
+
+// ── Boot ─────────────────────────────────────
+fetchVideo();
+</script>
+</body>
+</html>
