@@ -1,0 +1,243 @@
+name: 🎬 Record Still Moments & Post to Facebook
+
+on:
+  workflow_dispatch:
+    inputs:
+      caption:
+        description: 'Facebook post caption (optional)'
+        required: false
+        default: 'A still moment to breathe. 🌿 #StillMoments #Relaxation #NatureVibes'
+  schedule:
+    - cron: '0 9 * * *'
+
+jobs:
+  record-and-post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            ffmpeg \
+            xvfb \
+            libnss3 \
+            libatk-bridge2.0-0 \
+            libdrm2 \
+            libxkbcommon0 \
+            libgbm1 \
+            libasound2 \
+            libpulse0 \
+            pulseaudio \
+            xdg-utils
+
+      - name: Install Node packages
+        run: |
+          npm init -y
+          npm install puppeteer
+
+      - name: Start virtual audio
+        run: |
+          pulseaudio --start --log-target=syslog || true
+          sleep 2
+
+      - name: Record Still Moments clip
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+        run: |
+          Xvfb :99 -screen 0 414x736x24 &
+          export DISPLAY=:99
+          sleep 2
+
+          cat > record.mjs << 'EOF'
+          import puppeteer from 'puppeteer';
+          import { execSync, spawn } from 'child_process';
+
+          const CLIP_SECS  = 10;
+          const READY_WAIT = 35000;
+          const SITE_URL   = process.env.SITE_URL;
+          const DISPLAY    = process.env.DISPLAY || ':99';
+          const VIEWPORT   = { width: 414, height: 736 };
+
+          if (!SITE_URL) {
+            console.error('❌ SITE_URL secret is not set!');
+            process.exit(1);
+          }
+
+          console.log('🚀 Launching browser…');
+          const browser = await puppeteer.launch({
+            headless: true,
+            args: [
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--autoplay-policy=no-user-gesture-required',
+              '--use-fake-ui-for-media-stream',
+              '--allow-running-insecure-content',
+              '--disable-web-security',
+              `--window-size=${VIEWPORT.width},${VIEWPORT.height}`,
+            ],
+          });
+
+          const page = await browser.newPage();
+          await page.setViewport(VIEWPORT);
+
+          console.log('📺 Opening:', SITE_URL);
+          await page.goto(SITE_URL, { waitUntil: 'networkidle2', timeout: 60000 });
+
+          console.log('⏳ Waiting for "Ready to play"…');
+          try {
+            await page.waitForFunction(
+              () => document.getElementById('statusText')?.textContent?.includes('Ready'),
+              { timeout: READY_WAIT }
+            );
+            console.log('✅ Video is ready');
+          } catch {
+            console.log('⚠️  Timed out waiting — attempting to play anyway');
+          }
+
+          console.log('🎥 Starting FFmpeg…');
+          const ffmpeg = spawn('ffmpeg', [
+            '-y',
+            '-f', 'x11grab',
+            '-framerate', '30',
+            '-video_size', `${VIEWPORT.width}x${VIEWPORT.height}`,
+            '-i', `${DISPLAY}.0+0,0`,
+            '-f', 'pulse',
+            '-i', 'default',
+            '-c:v', 'libx264',
+            '-preset', 'fast',
+            '-crf', '20',
+            '-c:a', 'aac',
+            '-b:a', '128k',
+            '-t', String(CLIP_SECS + 5),
+            '-pix_fmt', 'yuv420p',
+            'raw_capture.mp4',
+          ], { stdio: ['pipe', 'inherit', 'inherit'] });
+
+          await new Promise(r => setTimeout(r, 800));
+
+          try {
+            await page.waitForSelector('#playBtn:not([disabled])', { timeout: 4000 });
+            await page.click('#playBtn');
+            console.log('▶️  Clicked play');
+          } catch {
+            console.log('⚠️  Could not click play button');
+          }
+
+          await new Promise(r => setTimeout(r, (CLIP_SECS + 3) * 1000));
+
+          ffmpeg.stdin.write('q');
+          await new Promise(r => ffmpeg.on('close', r));
+          console.log('🎬 FFmpeg done');
+
+          execSync(
+            'ffmpeg -y -i raw_capture.mp4 -t ' + CLIP_SECS + ' -c copy still_moments_final.mp4',
+            { stdio: 'inherit' }
+          );
+
+          await browser.close();
+          console.log('✅ Saved: still_moments_final.mp4');
+          EOF
+
+          node record.mjs
+
+      - name: Post video to Facebook Page
+        env:
+          FB_PAGE_ID:    ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          CAPTION:       ${{ github.event.inputs.caption || 'A still moment to breathe. 🌿 #StillMoments #Relaxation #NatureVibes' }}
+        run: |
+          cat > post_facebook.mjs << 'EOF'
+          import { readFileSync, statSync } from 'fs';
+
+          const PAGE_ID    = process.env.FB_PAGE_ID;
+          const PAGE_TOKEN = process.env.FB_PAGE_TOKEN;
+          const CAPTION    = process.env.CAPTION;
+          const VIDEO_FILE = 'still_moments_final.mp4';
+          const BASE_URL   = 'https://graph.facebook.com/v19.0';
+
+          if (!PAGE_ID || !PAGE_TOKEN) {
+            console.error('❌ FB_PAGE_ID or FB_PAGE_TOKEN secret is not set!');
+            process.exit(1);
+          }
+
+          const fileSize = statSync(VIDEO_FILE).size;
+          console.log(`📤 Uploading ${(fileSize / 1024 / 1024).toFixed(2)} MB to Facebook…`);
+
+          const initRes  = await fetch(`${BASE_URL}/${PAGE_ID}/videos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              upload_phase: 'start',
+              file_size:    fileSize,
+              access_token: PAGE_TOKEN,
+            }),
+          });
+          const initData = await initRes.json();
+          if (!initData.upload_session_id) {
+            console.error('❌ Upload session failed:', JSON.stringify(initData));
+            process.exit(1);
+          }
+          const { upload_session_id, video_id, start_offset, end_offset } = initData;
+          console.log('📡 Session started. Video ID:', video_id);
+
+          const videoBytes = readFileSync(VIDEO_FILE);
+          const chunk      = videoBytes.slice(Number(start_offset), Number(end_offset));
+
+          const form = new FormData();
+          form.append('upload_phase',      'transfer');
+          form.append('upload_session_id', upload_session_id);
+          form.append('start_offset',      String(start_offset));
+          form.append('video_file_chunk',  new Blob([chunk], { type: 'video/mp4' }), 'clip.mp4');
+          form.append('access_token',      PAGE_TOKEN);
+
+          const transferRes  = await fetch(`${BASE_URL}/${PAGE_ID}/videos`, { method: 'POST', body: form });
+          const transferData = await transferRes.json();
+          if (transferData.error) {
+            console.error('❌ Transfer failed:', JSON.stringify(transferData));
+            process.exit(1);
+          }
+          console.log('📦 Transfer complete');
+
+          const finishRes  = await fetch(`${BASE_URL}/${PAGE_ID}/videos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              upload_phase:      'finish',
+              upload_session_id,
+              description:       CAPTION,
+              published:         true,
+              access_token:      PAGE_TOKEN,
+            }),
+          });
+          const finishData = await finishRes.json();
+
+          if (finishData.success || finishData.id) {
+            console.log('✅ Posted to Facebook!');
+            console.log('🔗 https://www.facebook.com/' + PAGE_ID + '/videos/' + video_id);
+          } else {
+            console.error('❌ Publish failed:', JSON.stringify(finishData));
+            process.exit(1);
+          }
+          EOF
+
+          node post_facebook.mjs
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## 🌿 Still Moments" >> $GITHUB_STEP_SUMMARY
+          echo "- 🕐 $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✂️ Skip head: 15s | Skip tail: 10s | Clip: 10s" >> $GITHUB_STEP_SUMMARY
+          echo "- 📱 Viewport: 414×736 (9:16)" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎲 Random window picked fresh every run" >> $GITHUB_STEP_SUMMARY
