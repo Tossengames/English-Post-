@@ -1,4 +1,4 @@
-name: 🎬 Still Moments — FFmpeg Post to Facebook
+name: Still Moments 1
 
 on:
   workflow_dispatch:
