@@ -41,7 +41,6 @@
   .orb-2 { width:500px;height:500px;background:var(--sage);  bottom:-100px; right:-150px; }
   .orb-3 { width:350px;height:350px;background:var(--mist);  top:40%; left:55%; }
 
-  /* ── Phone shell ── */
   .phone-wrap {
     position: relative;
     z-index: 1;
@@ -80,7 +79,6 @@
     background: #111;
   }
 
-  /* ── Blurred bg layer ── */
   #bgVideo {
     position: absolute;
     inset: -8%;
@@ -93,7 +91,6 @@
     transition: opacity 1.2s ease;
   }
 
-  /* ── Foreground portrait crop ── */
   #fgVideo {
     position: absolute;
     top: 0; left: 0;
@@ -106,7 +103,6 @@
     transition: opacity 1.4s ease;
   }
 
-  /* ── Fade overlay ── */
   #fadeOverlay {
     position: absolute;
     inset: 0;
@@ -117,7 +113,6 @@
     transition: opacity 1.3s ease;
   }
 
-  /* ── Status pill ── */
   .status-pill {
     position: absolute;
     top: 7%;
@@ -155,7 +150,6 @@
     text-transform: uppercase;
   }
 
-  /* ── Spinner ── */
   .spinner {
     display: none;
     position: absolute;
@@ -172,7 +166,6 @@
   .spinner.visible { display: block; }
   @keyframes spin { to { transform: translateX(-50%) rotate(360deg); } }
 
-  /* ── Watermark ── */
   .watermark {
     position: absolute;
     bottom: 12%;
@@ -190,12 +183,7 @@
     transition: opacity 1s ease 0.8s;
   }
   .watermark.visible { opacity: 1; }
-  .wm-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--blush);
-    flex-shrink: 0;
-  }
+  .wm-dot { width:6px;height:6px;border-radius:50%;background:var(--blush);flex-shrink:0; }
   .watermark span {
     font-family: 'Cormorant Garamond', serif;
     font-style: italic;
@@ -204,7 +192,6 @@
     letter-spacing: 0.04em;
   }
 
-  /* ── Progress bar ── */
   .progress-wrap {
     position: absolute;
     bottom: 8%;
@@ -215,15 +202,12 @@
   }
   .progress-wrap.visible { opacity: 1; }
   .progress-track {
-    width: 100%;
-    height: 2px;
+    width: 100%; height: 2px;
     background: rgba(255,255,255,0.18);
-    border-radius: 4px;
-    overflow: hidden;
+    border-radius: 4px; overflow: hidden;
   }
   .progress-fill {
-    height: 100%;
-    width: 0%;
+    height: 100%; width: 0%;
     background: linear-gradient(90deg, var(--blush), var(--sage));
     border-radius: 4px;
     transition: width 0.25s linear;
@@ -237,7 +221,6 @@
     letter-spacing: 0.06em;
   }
 
-  /* ── Center UI ── */
   .center-ui {
     position: absolute;
     inset: 0;
@@ -271,8 +254,8 @@
   }
 
   .play-btn {
-    width:  clamp(70px, 14vw, 120px);
-    height: clamp(70px, 14vw, 120px);
+    width: clamp(70px,14vw,120px);
+    height: clamp(70px,14vw,120px);
     border-radius: 50%;
     background: rgba(255,255,255,0.08);
     border: 1.5px solid rgba(255,255,255,0.3);
@@ -280,8 +263,7 @@
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
     transition: all 0.3s ease;
-    outline: none;
-    color: white;
+    outline: none; color: white;
   }
   .play-btn:disabled { opacity: 0.35; cursor: default; }
   .play-btn:not(:disabled):hover {
@@ -290,10 +272,9 @@
     transform: scale(1.07);
   }
   .play-btn svg {
-    width: clamp(28px, 5vw, 44px);
-    height: clamp(28px, 5vw, 44px);
-    fill: white;
-    margin-left: 5px;
+    width: clamp(28px,5vw,44px);
+    height: clamp(28px,5vw,44px);
+    fill: white; margin-left: 5px;
   }
   .play-btn.gone { display: none; }
 
@@ -307,7 +288,7 @@
     color: rgba(255,255,255,0.88);
     font-family: 'Jost', sans-serif;
     font-weight: 200;
-    font-size: clamp(11px, 2vw, 18px);
+    font-size: clamp(11px,2vw,18px);
     letter-spacing: 0.18em;
     text-transform: uppercase;
     cursor: pointer;
@@ -324,10 +305,8 @@
     body { background: #0d0d0d; }
     .orb { display: none; }
     .phone-wrap {
-      --ph: 100svh;
-      --pw: 100vw;
-      border-radius: 0;
-      box-shadow: none;
+      --ph: 100svh; --pw: 100vw;
+      border-radius: 0; box-shadow: none;
     }
     .phone-wrap::before { display: none; }
   }
@@ -378,15 +357,13 @@
 
 <script>
 // ════════════════════════════════════════════
-//  CONFIG  — change these to go to production
+//  CONFIG
 // ════════════════════════════════════════════
 const PIXABAY_KEY   = '50973339-3e27fd59ddfd9c68378e78753';
-
 const CLIP_DURATION = 10;   // ← change to 30 for production
-const SKIP_HEAD     = 15;   // seconds to always skip from the start
-const SKIP_TAIL     = 10;   // seconds to always skip from the end
-// minimum video length = SKIP_HEAD + CLIP_DURATION + SKIP_TAIL
-const MIN_DURATION  = SKIP_HEAD + CLIP_DURATION + SKIP_TAIL; // 35s for testing
+const SKIP_HEAD     = 15;   // always skip this many seconds from start
+const SKIP_TAIL     = 10;   // always skip this many seconds from end
+const MIN_DURATION  = SKIP_HEAD + CLIP_DURATION + SKIP_TAIL;
 
 const SEARCH_TERMS = [
   'nature walk forest',
@@ -407,6 +384,12 @@ const SEARCH_TERMS = [
 ];
 
 // ════════════════════════════════════════════
+//  window.STILL_META — read by GitHub Actions
+//  Set once a valid video + start time is found
+//  { url, start, duration, clipDuration }
+// ════════════════════════════════════════════
+window.STILL_META = null;
+
 const bgVideo   = document.getElementById('bgVideo');
 const fgVideo   = document.getElementById('fgVideo');
 const fadeOv    = document.getElementById('fadeOverlay');
@@ -439,7 +422,6 @@ function setStatus(state, text) {
   statusTxt.textContent = text;
 }
 
-// ── Main fetch loop ──────────────────────────
 async function fetchVideo() {
   setStatus('searching', 'Searching');
   spinner.classList.add('visible');
@@ -451,6 +433,7 @@ async function fetchVideo() {
   bgVideo.style.opacity = '0';
   fgVideo.style.opacity = '0';
   fadeOv.style.opacity  = '1';
+  window.STILL_META     = null;
 
   const terms = shuffle(SEARCH_TERMS);
 
@@ -459,20 +442,16 @@ async function fetchVideo() {
       const page = Math.floor(Math.random() * 5) + 1;
       const url  = `https://pixabay.com/api/videos/?key=${PIXABAY_KEY}`
                  + `&q=${encodeURIComponent(term)}&video_type=film&per_page=20&page=${page}`;
-
       const res  = await fetch(url);
       if (!res.ok) continue;
       const data = await res.json();
       if (!data.hits?.length) continue;
 
-      const hits = shuffle(data.hits);
-
-      for (const hit of hits) {
+      for (const hit of shuffle(data.hits)) {
         const videoUrl =
           hit.videos?.large?.url  ||
           hit.videos?.medium?.url ||
-          hit.videos?.small?.url  ||
-          null;
+          hit.videos?.small?.url  || null;
         if (!videoUrl) continue;
 
         setStatus('found', 'Validating…');
@@ -482,16 +461,13 @@ async function fetchVideo() {
           return;
         }
       }
-    } catch (_) { /* silent, try next */ }
+    } catch (_) {}
   }
 
   setStatus('searching', 'Retrying…');
   setTimeout(fetchVideo, 3000);
 }
 
-// ── Validate & pick random window ────────────
-// Valid window = anything between SKIP_HEAD and (duration - SKIP_TAIL - CLIP_DURATION)
-// This means every run gets a truly random, different slice of the video.
 function validateAndLoad(url) {
   return new Promise(resolve => {
     const probe       = document.createElement('video');
@@ -505,20 +481,26 @@ function validateAndLoad(url) {
       clearTimeout(bail);
       const dur = probe.duration;
 
-      // Reject if too short to fit skip-head + clip + skip-tail
       if (!dur || !isFinite(dur) || dur < MIN_DURATION) {
         probe.src = '';
         resolve(false);
         return;
       }
 
-      // Usable zone: from SKIP_HEAD up to (dur - SKIP_TAIL - CLIP_DURATION)
+      // Pick random window within safe zone
       const zoneStart = SKIP_HEAD;
       const zoneEnd   = dur - SKIP_TAIL - CLIP_DURATION;
+      clipStart = Math.floor((zoneStart + Math.random() * (zoneEnd - zoneStart)) * 10) / 10;
 
-      // Pick a truly random start within that zone
-      clipStart = zoneStart + Math.random() * (zoneEnd - zoneStart);
-      clipStart = Math.floor(clipStart * 10) / 10; // round to 1 decimal
+      // ── Expose metadata for GitHub Actions to read ──
+      window.STILL_META = {
+        url:          url,
+        start:        clipStart,
+        duration:     dur,
+        clipDuration: CLIP_DURATION,
+        skipHead:     SKIP_HEAD,
+        skipTail:     SKIP_TAIL,
+      };
 
       probe.src = '';
       loadVideos(url);
@@ -530,7 +512,6 @@ function validateAndLoad(url) {
   });
 }
 
-// ── Load bg + fg ─────────────────────────────
 function loadVideos(url) {
   bgVideo.src = url;
   fgVideo.src = url;
@@ -548,10 +529,8 @@ function loadVideos(url) {
   fgVideo.oncanplay = () => { fgReady = true; onReady(); };
 }
 
-// ── Play clip ────────────────────────────────
 function playClip() {
   if (playBtn.disabled) return;
-
   centerUI.classList.add('hidden');
   clearTimeout(clipTimer);
   clearInterval(progressInterval);
@@ -571,7 +550,6 @@ function playClip() {
   progressF.style.width = '0%';
   progressT.textContent = `0s / ${CLIP_DURATION}s`;
 
-  // Fade IN
   requestAnimationFrame(() => {
     setTimeout(() => {
       fadeOv.style.opacity  = '0';
@@ -580,7 +558,6 @@ function playClip() {
     }, 100);
   });
 
-  // Progress ticker
   let elapsed = 0;
   progressInterval = setInterval(() => {
     elapsed += 0.25;
@@ -589,14 +566,12 @@ function playClip() {
     progressT.textContent = `${Math.min(Math.floor(elapsed), CLIP_DURATION)}s / ${CLIP_DURATION}s`;
   }, 250);
 
-  // Start fade OUT 1.5s before end
   clipTimer = setTimeout(() => {
     fadeOv.style.opacity  = '1';
     bgVideo.style.opacity = '0';
     fgVideo.style.opacity = '0';
   }, (CLIP_DURATION - 1.5) * 1000);
 
-  // End of clip
   setTimeout(() => {
     bgVideo.pause();
     fgVideo.pause();
@@ -608,7 +583,6 @@ function playClip() {
   }, CLIP_DURATION * 1000);
 }
 
-// ── End screen ───────────────────────────────
 function showEndScreen() {
   centerUI.classList.remove('hidden');
   playBtn.classList.add('gone');
@@ -616,9 +590,7 @@ function showEndScreen() {
   setTimeout(() => { fadeOv.style.opacity = '0'; }, 200);
 }
 
-// ── Buttons ──────────────────────────────────
 playBtn.addEventListener('click', playClip);
-
 nextBtn.addEventListener('click', () => {
   clearTimeout(clipTimer);
   clearInterval(progressInterval);
@@ -627,7 +599,6 @@ nextBtn.addEventListener('click', () => {
   fetchVideo();
 });
 
-// ── Boot ─────────────────────────────────────
 fetchVideo();
 </script>
 </body>
