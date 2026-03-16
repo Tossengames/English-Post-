@@ -1,50 +1,43 @@
-name: Still Moments 1
+name: still-moments-post
 
 on:
   workflow_dispatch:
     inputs:
       caption:
-        description: 'Facebook post caption (optional)'
+        description: 'Post caption'
         required: false
-        default: 'A still moment to breathe. 🌿 #StillMoments #Relaxation #NatureVibes'
+        default: 'A still moment to breathe. #StillMoments #Relaxation #NatureVibes'
   schedule:
     - cron: '0 9 * * *'
 
 jobs:
-  record-and-post:
+  post:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install system dependencies
+      - name: deps
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libgbm1
-
-      - name: Install Node packages
-        run: |
           npm init -y
           npm install puppeteer
 
-      - name: Get video metadata from site
-        id: get_meta
+      - name: get-meta
+        id: meta
         run: |
-          cat > get_meta.mjs << 'EOF'
+          cat > get_meta.mjs << 'SCRIPT'
           import puppeteer from 'puppeteer';
           import { writeFileSync } from 'fs';
 
           const SITE_URL   = 'https://tossengames.github.io/English-Post-/';
           const READY_WAIT = 40000;
-
-          console.log('🚀 Launching browser to read video metadata…');
 
           const browser = await puppeteer.launch({
             headless: true,
@@ -59,17 +52,15 @@ jobs:
           const page = await browser.newPage();
           page.on('console', () => {});
 
-          console.log('📺 Opening site:', SITE_URL);
           await page.goto(SITE_URL, { waitUntil: 'networkidle2', timeout: 60000 });
 
-          console.log('⏳ Waiting for video metadata…');
           try {
             await page.waitForFunction(
               () => window.STILL_META !== null && window.STILL_META.url,
               { timeout: READY_WAIT }
             );
           } catch {
-            console.error('❌ Timed out waiting for STILL_META');
+            console.error('Timed out waiting for STILL_META');
             await browser.close();
             process.exit(1);
           }
@@ -77,151 +68,118 @@ jobs:
           const meta = await page.evaluate(() => window.STILL_META);
           await browser.close();
 
-          console.log('✅ Got metadata:');
-          console.log('   URL:  ', meta.url);
-          console.log('   Start:', meta.start, 's');
-          console.log('   Clip: ', meta.clipDuration, 's');
+          console.log('url:', meta.url);
+          console.log('start:', meta.start);
+          console.log('clip:', meta.clipDuration);
 
-          const output = process.env.GITHUB_OUTPUT;
-          writeFileSync(output, [
-            `VIDEO_URL=${meta.url}`,
-            `START_TIME=${meta.start}`,
-            `CLIP_DURATION=${meta.clipDuration}`,
-          ].join('\n'), { flag: 'a' });
-
-          console.log('📝 Metadata written to GitHub outputs');
-          EOF
-
+          writeFileSync(
+            process.env.GITHUB_OUTPUT,
+            `VIDEO_URL=${meta.url}\nSTART_TIME=${meta.start}\nCLIP_DURATION=${meta.clipDuration}\n`,
+            { flag: 'a' }
+          );
+          SCRIPT
           node get_meta.mjs
 
-      - name: Process video with FFmpeg
+      - name: ffmpeg
         run: |
-          VIDEO_URL="${{ steps.get_meta.outputs.VIDEO_URL }}"
-          START="${{ steps.get_meta.outputs.START_TIME }}"
-          DURATION="${{ steps.get_meta.outputs.CLIP_DURATION }}"
+          URL="${{ steps.meta.outputs.VIDEO_URL }}"
+          START="${{ steps.meta.outputs.START_TIME }}"
+          DUR="${{ steps.meta.outputs.CLIP_DURATION }}"
+          FETCH=$(echo "$DUR + 5" | bc)
+          FADEOUT=$(echo "$DUR - 1.5" | bc)
 
-          echo "🎬 Processing: start=${START}s duration=${DURATION}s"
+          ffmpeg -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4
 
-          FETCH_DURATION=$(echo "$DURATION + 5" | bc)
-
-          ffmpeg -y \
-            -ss "$START" \
-            -i "$VIDEO_URL" \
-            -t "$FETCH_DURATION" \
-            -c copy \
-            source_clip.mp4
-
-          FADE_OUT=$(echo "$DURATION - 1.5" | bc)
-
-          ffmpeg -y \
-            -i source_clip.mp4 \
-            -filter_complex "
-              [0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5,setsar=1[bg];
-              [0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black@0,setsar=1[fg];
-              [bg][fg]overlay=0:0[composed];
-              [composed]drawtext=text='© Still Moments':fontcolor=white@0.75:fontsize=42:fontstyle=italic:x=w-tw-50:y=h-th-160:shadowcolor=black@0.5:shadowx=2:shadowy=2,fade=t=in:st=0:d=1,fade=t=out:st=${FADE_OUT}:d=1.5[out]
-            " \
-            -map "[out]" \
-            -map 0:a? \
-            -t "$DURATION" \
-            -c:v libx264 \
-            -preset fast \
-            -crf 23 \
-            -c:a aac \
-            -b:a 128k \
+          ffmpeg -y -i source.mp4 \
+            -filter_complex "\
+              [0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5,setsar=1[bg];\
+              [0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black@0,setsar=1[fg];\
+              [bg][fg]overlay=0:0[composed];\
+              [composed]drawtext=text='Still Moments':fontcolor=white@0.75:fontsize=42:x=w-tw-50:y=h-th-160:shadowcolor=black@0.5:shadowx=2:shadowy=2,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5[out]" \
+            -map "[out]" -map 0:a? \
+            -t "$DUR" \
+            -c:v libx264 -preset fast -crf 23 \
+            -c:a aac -b:a 128k \
             -movflags +faststart \
             -pix_fmt yuv420p \
-            still_moments_final.mp4
+            final.mp4
 
-          echo "✅ Done"
-          ls -lh still_moments_final.mp4
+          ls -lh final.mp4
 
-      - name: Post video to Facebook Page
+      - name: post-fb
         env:
           FB_PAGE_ID:    ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          CAPTION:       ${{ github.event.inputs.caption || 'A still moment to breathe. 🌿 #StillMoments #Relaxation #NatureVibes' }}
+          CAPTION:       ${{ github.event.inputs.caption || 'A still moment to breathe. #StillMoments #Relaxation #NatureVibes' }}
         run: |
-          cat > post_facebook.mjs << 'EOF'
+          cat > post.mjs << 'SCRIPT'
           import { readFileSync, statSync } from 'fs';
 
           const PAGE_ID    = process.env.FB_PAGE_ID;
           const PAGE_TOKEN = process.env.FB_PAGE_TOKEN;
           const CAPTION    = process.env.CAPTION;
-          const VIDEO_FILE = 'still_moments_final.mp4';
-          const BASE_URL   = 'https://graph.facebook.com/v19.0';
+          const FILE       = 'final.mp4';
+          const API        = 'https://graph.facebook.com/v19.0';
 
           if (!PAGE_ID || !PAGE_TOKEN) {
-            console.error('❌ FB_PAGE_ID or FB_PAGE_TOKEN secret is not set!');
+            console.error('Missing FB_PAGE_ID or FB_PAGE_TOKEN');
             process.exit(1);
           }
 
-          const fileSize = statSync(VIDEO_FILE).size;
-          console.log(`📤 Uploading ${(fileSize / 1024 / 1024).toFixed(2)} MB to Facebook…`);
+          const fileSize = statSync(FILE).size;
+          console.log('Uploading', (fileSize / 1024 / 1024).toFixed(2), 'MB');
 
-          const initRes = await fetch(`${BASE_URL}/${PAGE_ID}/videos`, {
+          const initRes = await fetch(`${API}/${PAGE_ID}/videos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               upload_phase: 'start',
-              file_size:    fileSize,
+              file_size: fileSize,
               access_token: PAGE_TOKEN,
             }),
           });
-          const initData = await initRes.json();
-          if (!initData.upload_session_id) {
-            console.error('❌ Upload session failed:', JSON.stringify(initData));
+          const init = await initRes.json();
+          if (!init.upload_session_id) {
+            console.error('Session failed:', JSON.stringify(init));
             process.exit(1);
           }
-          const { upload_session_id, video_id, start_offset, end_offset } = initData;
-          console.log('📡 Session started. Video ID:', video_id);
 
-          const videoBytes = readFileSync(VIDEO_FILE);
-          const chunk      = videoBytes.slice(Number(start_offset), Number(end_offset));
-          const form       = new FormData();
-          form.append('upload_phase',      'transfer');
+          const { upload_session_id, video_id, start_offset, end_offset } = init;
+          const bytes = readFileSync(FILE);
+          const chunk = bytes.slice(Number(start_offset), Number(end_offset));
+
+          const form = new FormData();
+          form.append('upload_phase', 'transfer');
           form.append('upload_session_id', upload_session_id);
-          form.append('start_offset',      String(start_offset));
-          form.append('video_file_chunk',  new Blob([chunk], { type: 'video/mp4' }), 'clip.mp4');
-          form.append('access_token',      PAGE_TOKEN);
+          form.append('start_offset', String(start_offset));
+          form.append('video_file_chunk', new Blob([chunk], { type: 'video/mp4' }), 'clip.mp4');
+          form.append('access_token', PAGE_TOKEN);
 
-          const transferRes  = await fetch(`${BASE_URL}/${PAGE_ID}/videos`, { method: 'POST', body: form });
-          const transferData = await transferRes.json();
-          if (transferData.error) {
-            console.error('❌ Transfer failed:', JSON.stringify(transferData));
+          const xferRes = await fetch(`${API}/${PAGE_ID}/videos`, { method: 'POST', body: form });
+          const xfer    = await xferRes.json();
+          if (xfer.error) {
+            console.error('Transfer failed:', JSON.stringify(xfer));
             process.exit(1);
           }
-          console.log('📦 Transfer complete');
 
-          const finishRes = await fetch(`${BASE_URL}/${PAGE_ID}/videos`, {
+          const finishRes = await fetch(`${API}/${PAGE_ID}/videos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              upload_phase:      'finish',
+              upload_phase: 'finish',
               upload_session_id,
-              description:       CAPTION,
-              published:         true,
-              access_token:      PAGE_TOKEN,
+              description: CAPTION,
+              published: true,
+              access_token: PAGE_TOKEN,
             }),
           });
-          const finishData = await finishRes.json();
+          const finish = await finishRes.json();
 
-          if (finishData.success || finishData.id) {
-            console.log('✅ Posted to Facebook!');
-            console.log('🔗 https://www.facebook.com/' + PAGE_ID + '/videos/' + video_id);
+          if (finish.success || finish.id) {
+            console.log('Posted. Video ID:', video_id);
           } else {
-            console.error('❌ Publish failed:', JSON.stringify(finishData));
+            console.error('Publish failed:', JSON.stringify(finish));
             process.exit(1);
           }
-          EOF
-
-          node post_facebook.mjs
-
-      - name: Job summary
-        if: always()
-        run: |
-          echo "## 🌿 Still Moments" >> $GITHUB_STEP_SUMMARY
-          echo "- 🕐 $(date -u)" >> $GITHUB_STEP_SUMMARY
-          echo "- 🎬 Source: ${{ steps.get_meta.outputs.VIDEO_URL }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ✂️ Start: ${{ steps.get_meta.outputs.START_TIME }}s | Clip: ${{ steps.get_meta.outputs.CLIP_DURATION }}s" >> $GITHUB_STEP_SUMMARY
-          echo "- 📱 Output: 1080×1920 with blur bg + watermark burned in" >> $GITHUB_STEP_SUMMARY
+          SCRIPT
+          node post.mjs
