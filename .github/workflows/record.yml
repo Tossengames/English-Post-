@@ -1,4 +1,4 @@
-name: 🎬 Record Still Moments & Post to Facebook
+name: 🎬 Still Moments — FFmpeg Post to Facebook
 
 on:
   workflow_dispatch:
@@ -27,53 +27,25 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y \
-            ffmpeg \
-            xvfb \
-            libnss3 \
-            libatk-bridge2.0-0 \
-            libdrm2 \
-            libxkbcommon0 \
-            libgbm1 \
-            libasound2 \
-            libpulse0 \
-            pulseaudio \
-            xdg-utils
+          sudo apt-get install -y ffmpeg libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libgbm1
 
       - name: Install Node packages
         run: |
           npm init -y
           npm install puppeteer
 
-      - name: Start virtual audio
+      - name: Get video metadata from site
+        id: get_meta
         run: |
-          pulseaudio --start --log-target=syslog || true
-          sleep 2
-
-      - name: Record Still Moments clip
-        env:
-          SITE_URL: ${{ secrets.SITE_URL }}
-        run: |
-          Xvfb :99 -screen 0 414x736x24 &
-          export DISPLAY=:99
-          sleep 2
-
-          cat > record.mjs << 'EOF'
+          cat > get_meta.mjs << 'EOF'
           import puppeteer from 'puppeteer';
-          import { execSync, spawn } from 'child_process';
+          import { writeFileSync } from 'fs';
 
-          const CLIP_SECS  = 10;
-          const READY_WAIT = 35000;
-          const SITE_URL   = process.env.SITE_URL;
-          const DISPLAY    = process.env.DISPLAY || ':99';
-          const VIEWPORT   = { width: 414, height: 736 };
+          const SITE_URL   = 'https://tossengames.github.io/English-Post-/';
+          const READY_WAIT = 40000;
 
-          if (!SITE_URL) {
-            console.error('❌ SITE_URL secret is not set!');
-            process.exit(1);
-          }
+          console.log('🚀 Launching browser to read video metadata…');
 
-          console.log('🚀 Launching browser…');
           const browser = await puppeteer.launch({
             headless: true,
             args: [
@@ -81,75 +53,88 @@ jobs:
               '--disable-setuid-sandbox',
               '--disable-dev-shm-usage',
               '--autoplay-policy=no-user-gesture-required',
-              '--use-fake-ui-for-media-stream',
-              '--allow-running-insecure-content',
-              '--disable-web-security',
-              `--window-size=${VIEWPORT.width},${VIEWPORT.height}`,
             ],
           });
 
           const page = await browser.newPage();
-          await page.setViewport(VIEWPORT);
+          page.on('console', () => {});
 
-          console.log('📺 Opening:', SITE_URL);
+          console.log('📺 Opening site:', SITE_URL);
           await page.goto(SITE_URL, { waitUntil: 'networkidle2', timeout: 60000 });
 
-          console.log('⏳ Waiting for "Ready to play"…');
+          console.log('⏳ Waiting for video metadata…');
           try {
             await page.waitForFunction(
-              () => document.getElementById('statusText')?.textContent?.includes('Ready'),
+              () => window.STILL_META !== null && window.STILL_META.url,
               { timeout: READY_WAIT }
             );
-            console.log('✅ Video is ready');
           } catch {
-            console.log('⚠️  Timed out waiting — attempting to play anyway');
+            console.error('❌ Timed out waiting for STILL_META');
+            await browser.close();
+            process.exit(1);
           }
 
-          console.log('🎥 Starting FFmpeg…');
-          const ffmpeg = spawn('ffmpeg', [
-            '-y',
-            '-f', 'x11grab',
-            '-framerate', '30',
-            '-video_size', `${VIEWPORT.width}x${VIEWPORT.height}`,
-            '-i', `${DISPLAY}.0+0,0`,
-            '-f', 'pulse',
-            '-i', 'default',
-            '-c:v', 'libx264',
-            '-preset', 'fast',
-            '-crf', '20',
-            '-c:a', 'aac',
-            '-b:a', '128k',
-            '-t', String(CLIP_SECS + 5),
-            '-pix_fmt', 'yuv420p',
-            'raw_capture.mp4',
-          ], { stdio: ['pipe', 'inherit', 'inherit'] });
-
-          await new Promise(r => setTimeout(r, 800));
-
-          try {
-            await page.waitForSelector('#playBtn:not([disabled])', { timeout: 4000 });
-            await page.click('#playBtn');
-            console.log('▶️  Clicked play');
-          } catch {
-            console.log('⚠️  Could not click play button');
-          }
-
-          await new Promise(r => setTimeout(r, (CLIP_SECS + 3) * 1000));
-
-          ffmpeg.stdin.write('q');
-          await new Promise(r => ffmpeg.on('close', r));
-          console.log('🎬 FFmpeg done');
-
-          execSync(
-            'ffmpeg -y -i raw_capture.mp4 -t ' + CLIP_SECS + ' -c copy still_moments_final.mp4',
-            { stdio: 'inherit' }
-          );
-
+          const meta = await page.evaluate(() => window.STILL_META);
           await browser.close();
-          console.log('✅ Saved: still_moments_final.mp4');
+
+          console.log('✅ Got metadata:');
+          console.log('   URL:  ', meta.url);
+          console.log('   Start:', meta.start, 's');
+          console.log('   Clip: ', meta.clipDuration, 's');
+
+          const output = process.env.GITHUB_OUTPUT;
+          writeFileSync(output, [
+            `VIDEO_URL=${meta.url}`,
+            `START_TIME=${meta.start}`,
+            `CLIP_DURATION=${meta.clipDuration}`,
+          ].join('\n'), { flag: 'a' });
+
+          console.log('📝 Metadata written to GitHub outputs');
           EOF
 
-          node record.mjs
+          node get_meta.mjs
+
+      - name: Process video with FFmpeg
+        run: |
+          VIDEO_URL="${{ steps.get_meta.outputs.VIDEO_URL }}"
+          START="${{ steps.get_meta.outputs.START_TIME }}"
+          DURATION="${{ steps.get_meta.outputs.CLIP_DURATION }}"
+
+          echo "🎬 Processing: start=${START}s duration=${DURATION}s"
+
+          FETCH_DURATION=$(echo "$DURATION + 5" | bc)
+
+          ffmpeg -y \
+            -ss "$START" \
+            -i "$VIDEO_URL" \
+            -t "$FETCH_DURATION" \
+            -c copy \
+            source_clip.mp4
+
+          FADE_OUT=$(echo "$DURATION - 1.5" | bc)
+
+          ffmpeg -y \
+            -i source_clip.mp4 \
+            -filter_complex "
+              [0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5,setsar=1[bg];
+              [0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black@0,setsar=1[fg];
+              [bg][fg]overlay=0:0[composed];
+              [composed]drawtext=text='© Still Moments':fontcolor=white@0.75:fontsize=42:fontstyle=italic:x=w-tw-50:y=h-th-160:shadowcolor=black@0.5:shadowx=2:shadowy=2,fade=t=in:st=0:d=1,fade=t=out:st=${FADE_OUT}:d=1.5[out]
+            " \
+            -map "[out]" \
+            -map 0:a? \
+            -t "$DURATION" \
+            -c:v libx264 \
+            -preset fast \
+            -crf 23 \
+            -c:a aac \
+            -b:a 128k \
+            -movflags +faststart \
+            -pix_fmt yuv420p \
+            still_moments_final.mp4
+
+          echo "✅ Done"
+          ls -lh still_moments_final.mp4
 
       - name: Post video to Facebook Page
         env:
@@ -174,7 +159,7 @@ jobs:
           const fileSize = statSync(VIDEO_FILE).size;
           console.log(`📤 Uploading ${(fileSize / 1024 / 1024).toFixed(2)} MB to Facebook…`);
 
-          const initRes  = await fetch(`${BASE_URL}/${PAGE_ID}/videos`, {
+          const initRes = await fetch(`${BASE_URL}/${PAGE_ID}/videos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -193,8 +178,7 @@ jobs:
 
           const videoBytes = readFileSync(VIDEO_FILE);
           const chunk      = videoBytes.slice(Number(start_offset), Number(end_offset));
-
-          const form = new FormData();
+          const form       = new FormData();
           form.append('upload_phase',      'transfer');
           form.append('upload_session_id', upload_session_id);
           form.append('start_offset',      String(start_offset));
@@ -209,7 +193,7 @@ jobs:
           }
           console.log('📦 Transfer complete');
 
-          const finishRes  = await fetch(`${BASE_URL}/${PAGE_ID}/videos`, {
+          const finishRes = await fetch(`${BASE_URL}/${PAGE_ID}/videos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -238,6 +222,6 @@ jobs:
         run: |
           echo "## 🌿 Still Moments" >> $GITHUB_STEP_SUMMARY
           echo "- 🕐 $(date -u)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✂️ Skip head: 15s | Skip tail: 10s | Clip: 10s" >> $GITHUB_STEP_SUMMARY
-          echo "- 📱 Viewport: 414×736 (9:16)" >> $GITHUB_STEP_SUMMARY
-          echo "- 🎲 Random window picked fresh every run" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎬 Source: ${{ steps.get_meta.outputs.VIDEO_URL }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✂️ Start: ${{ steps.get_meta.outputs.START_TIME }}s | Clip: ${{ steps.get_meta.outputs.CLIP_DURATION }}s" >> $GITHUB_STEP_SUMMARY
+          echo "- 📱 Output: 1080×1920 with blur bg + watermark burned in" >> $GITHUB_STEP_SUMMARY
