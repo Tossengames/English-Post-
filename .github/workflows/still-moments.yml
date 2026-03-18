@@ -1,19 +1,19 @@
-name: still-moments-post q
+name: still-moments-post d
 
 "on":
   workflow_dispatch:
     inputs:
       caption:
-        description: "Post caption"
+        description: "Post caption (leave empty for random)"
         required: false
-        default: "A still moment to breathe."
+        default: ""
   schedule:
     - cron: "0 9 * * *"
 
 jobs:
   post:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 8
 
     steps:
       - name: install-deps
@@ -27,7 +27,7 @@ jobs:
           PIXABAY_KEY: "50973339-3e27fd59ddfd9c68378e78753"
         run: |
           set -e
-          CLIP=10
+          CLIP=30
           SKIP_HEAD=15
           SKIP_TAIL=10
           MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
@@ -79,7 +79,39 @@ jobs:
           IDX=$((RANDOM % ${#TRACKS[@]}))
           MURL="${TRACKS[$IDX]}"
           echo "music_url=$MURL" >> "$GITHUB_OUTPUT"
-          echo "Selected track index: $IDX"
+          echo "Selected track: $IDX"
+
+      - name: pick-caption
+        id: caption
+        run: |
+          INPUT_CAPTION="${{ github.event.inputs.caption }}"
+          if [ -n "$INPUT_CAPTION" ]; then
+            echo "caption=$INPUT_CAPTION" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CAPTIONS=(
+            "Close your eyes. Let it pass. 🌿 #StillMoments #Relaxation #Calm #MindfulLiving #NatureVibes"
+            "Breathe in. Breathe out. Nothing else matters right now. 🍃 #StillMoments #Peaceful #NatureWalk #Mindfulness #Chill"
+            "Some moments are meant to be felt, not rushed. 🌊 #StillMoments #SlowDown #NatureLovers #Tranquil #Relax"
+            "Let the world slow down with you. 🌸 #StillMoments #Calm #NatureHeals #PeacefulMind #Breathe"
+            "This is your reminder to just be. 🌲 #StillMoments #BePresent #NatureTherapy #Mindful #QuietMoment"
+            "Peace is not a place. It is a moment like this. 🌅 #StillMoments #InnerPeace #NatureVibes #Serenity #Zen"
+            "Stillness is not emptiness. It is everything. 🍂 #StillMoments #Stillness #ForestBathing #NatureWalk #Peaceful"
+            "You do not need to go anywhere. Just stay here for a moment. 🌧 #StillMoments #RainyDay #Cozy #NatureSound #SlowLife"
+            "The forest does not hurry, yet everything is accomplished. 🌳 #StillMoments #ForestWalk #NatureQuotes #Mindfulness #Grounded"
+            "Let nature do what therapy cannot. 🏞 #StillMoments #HealingNature #WalkInNature #Tranquility #MindBody"
+            "Find your quiet. Find yourself. 🌙 #StillMoments #QuietTime #EveningVibes #NatureLovers #SoulFood"
+            "Not all those who wander are lost. Some are just breathing. 🌾 #StillMoments #Wander #NatureWalk #FreeSoul #Mindful"
+            "Rain washes everything clean, including the mind. 🌧 #StillMoments #RainVibes #NatureSounds #Peaceful #Reset"
+            "A walk in nature is a walk back to yourself. 🛤 #StillMoments #NatureWalk #FindYourself #OutdoorLife #Calm"
+            "Slow down. The best things in life are not rushed. 🌺 #StillMoments #SlowLiving #NatureHeals #Breathe #Present"
+          )
+
+          IDX=$((RANDOM % ${#CAPTIONS[@]}))
+          PICKED="${CAPTIONS[$IDX]}"
+          echo "caption=$PICKED" >> "$GITHUB_OUTPUT"
+          echo "Picked caption: $PICKED"
 
       - name: process-video
         run: |
@@ -125,7 +157,7 @@ jobs:
         env:
           PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          CAPTION: ${{ github.event.inputs.caption || 'A still moment to breathe.' }}
+          CAPTION: ${{ steps.caption.outputs.caption }}
         run: |
           set -e
           FILE="final.mp4"
