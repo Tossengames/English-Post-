@@ -1,4 +1,4 @@
-name: still-moments-post 3
+name: still-moments-post s
 
 "on":
   workflow_dispatch:
@@ -30,12 +30,12 @@ jobs:
           PIXABAY_KEY: "50973339-3e27fd59ddfd9c68378e78753"
         run: |
           set -e
-          CLIP=15
+          CLIP=25
           SKIP_HEAD=15
           SKIP_TAIL=10
           MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
           VIDEO_URL=""
-          TERMS="nature walk forest|rain village relaxing|peaceful river stream|mountain path walking|garden rain morning|forest path meditation|rainy street calm|lake reflection peaceful|sunset nature walk|waterfall nature calm|cute cat playing|cute dog funny|baby animals cute|wild animals nature|cute puppies|funny kittens|wild deer forest|baby deer nature|cute rabbit garden|wild fox nature|bear cubs playing|elephant nature wild|birds nature singing|cute hamster|wild horses running"
+          TERMS="nature walk forest|rain village relaxing|peaceful river stream|mountain path walking|garden rain morning|forest path meditation|rainy street calm|lake reflection peaceful|sunset nature walk|waterfall nature calm|misty morning field|snow village peaceful|autumn leaves path|countryside road walk|cherry blossom walk"
           IFS='|' read -ra TERM_ARR <<< "$TERMS"
           for TERM in $(printf "%s\n" "${TERM_ARR[@]}" | shuf); do
             PAGE=$((RANDOM % 5 + 1))
@@ -108,11 +108,6 @@ jobs:
             "Rain washes everything clean, including the mind. 🌧 #StillMoments #RainVibes #NatureSounds #Peaceful #Reset"
             "A walk in nature is a walk back to yourself. 🛤 #StillMoments #NatureWalk #FindYourself #OutdoorLife #Calm"
             "Slow down. The best things in life are not rushed. 🌺 #StillMoments #SlowLiving #NatureHeals #Breathe #Present"
-            "This little one made my whole day. 🐾 #CuteAnimals #AnimalsOfInstagram #NatureLovers #AWW #PetsOfInstagram"
-            "Nature never goes out of style. 🦊 #WildAnimals #NaturePhotography #WildLife #AnimalsLovers #EarthBeautiful"
-            "Stop scrolling and just watch this. 🐻 #CuteAnimals #WildLife #NatureVibes #AWW #AnimalsOfInstagram"
-            "The purest thing you will see today. 🐶 #CutePets #DogsOfInstagram #CatsOfInstagram #PetLovers #AWW"
-            "Wild and free. Just like we should be. 🦌 #WildAnimals #NatureLovers #WildLife #FreeSpirit #EarthDay"
           )
           IDX=$((RANDOM % ${#CAPTIONS[@]}))
           PICKED="${CAPTIONS[$IDX]}"
@@ -131,6 +126,13 @@ jobs:
           echo "Downloading video segment..."
           ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4
 
+          VID_STREAM=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
+          if [ -z "$VID_STREAM" ]; then
+            echo "Partial download — retrying with re-encode..."
+            ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" \
+              -c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p source.mp4
+          fi
+
           HAS_VIDEO_AUDIO=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
           echo "Video native audio: ${HAS_VIDEO_AUDIO:-none}"
           echo "Using music: $MUSIC_FILE"
@@ -142,8 +144,10 @@ jobs:
           echo "Music start: ${MSTART}s of ${MDUR}s total"
 
           ffmpeg -hide_banner -loglevel error -y \
-            -stream_loop -1 -ss "$MSTART" -i "$MUSIC_FILE" \
-            -t "$FETCH" music_clip.mp3
+            -stream_loop -1 -i "$MUSIC_FILE" \
+            -ss "$MSTART" -t "$FETCH" \
+            -ac 2 -ar 44100 \
+            music_clip.mp3
 
           VFILTER="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5[vout]"
 
