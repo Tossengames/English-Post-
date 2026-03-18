@@ -1,4 +1,4 @@
-name: still-moments-post c
+name: still-moments-post v
 
 "on":
   workflow_dispatch:
@@ -79,41 +79,88 @@ jobs:
           FETCH=$(echo "$DUR + 5" | bc)
           FADEOUT=$(echo "$DUR - 1.5" | bc)
 
+          echo "Downloading video segment..."
           ffmpeg -hide_banner -loglevel error \
             -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4
 
-          HAS_AUDIO=$(ffprobe -v error -select_streams a:0 \
-            -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
+          echo "Fetching music from Pixabay..."
+          MUSIC_TERMS="ambient relaxing|meditation peaceful|nature calm|piano gentle|lofi calm|zen ambient"
+          IFS='|' read -ra MUSIC_ARR <<< "$MUSIC_TERMS"
+          SHUFFLED_MUSIC=($(printf "%s\n" "${MUSIC_ARR[@]}" | shuf))
+          MUSIC_URL=""
+          MUSIC_DUR=0
 
-          echo "Audio track: ${HAS_AUDIO:-none}"
+          for MTERM in "${SHUFFLED_MUSIC[@]}"; do
+            MENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$MTERM")
+            MPAGE=$((RANDOM % 3 + 1))
+            MRESP=$(curl -sf --max-time 15 "https://pixabay.com/api/?key=50973339-3e27fd59ddfd9c68378e78753&q=${MENCODED}&media_type=music&per_page=20&page=${MPAGE}" 2>/dev/null) || continue
+            MCOUNT=$(echo "$MRESP" | jq -r '.hits | length' 2>/dev/null) || continue
+            [ "$MCOUNT" -eq 0 ] && continue
+
+            for mi in $(seq 0 $((MCOUNT - 1)) | shuf); do
+              MDUR=$(echo "$MRESP" | jq -r ".hits[$mi].duration" 2>/dev/null)
+              [[ "$MDUR" =~ ^[0-9]+$ ]] || continue
+              [ "$MDUR" -lt 35 ] && continue
+
+              MURL=$(echo "$MRESP" | jq -r ".hits[$mi].audio_download_url // .hits[$mi].audio_url // empty" 2>/dev/null)
+              [ -z "$MURL" ] || [ "$MURL" = "null" ] && continue
+
+              MUSIC_URL="$MURL"
+              MUSIC_DUR="$MDUR"
+              echo "Music found: duration=${MDUR}s"
+              break 2
+            done
+          done
+
+          if [ -z "$MUSIC_URL" ]; then
+            echo "No music found — using silence fallback"
+            EXTRA_INPUT="-f lavfi -i aevalsrc=0:channel_layout=stereo:sample_rate=44100"
+            AUDIO_FILTER=";[1:a]anull[aout]"
+            AUDIO_MAP="-map [aout]"
+            INPUT_INDEX=1
+          else
+            echo "Downloading music..."
+            curl -sf --max-time 30 -L "$MUSIC_URL" -o music_full.mp3
+
+            MZONE_END=$((MUSIC_DUR - 10 - DUR))
+            [ "$MZONE_END" -le 10 ] && MZONE_END=10
+            MRANGE=$((MZONE_END - 10))
+            [ "$MRANGE" -le 0 ] && MRANGE=1
+            MSTART=$((10 + RANDOM % MRANGE))
+            echo "Music start: ${MSTART}s"
+
+            ffmpeg -hide_banner -loglevel error \
+              -y -ss "$MSTART" -i music_full.mp3 -t "$FETCH" music_clip.mp3
+
+            EXTRA_INPUT="-i music_clip.mp3"
+            INPUT_INDEX=1
+
+            HAS_VIDEO_AUDIO=$(ffprobe -v error -select_streams a:0 \
+              -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
+
+            if [ -n "$HAS_VIDEO_AUDIO" ]; then
+              AUDIO_FILTER=";[0:a]volume=1.0[va];[1:a]volume=0.3[ma];[va][ma]amix=inputs=2:duration=first[aout]"
+              AUDIO_MAP="-map [aout]"
+            else
+              AUDIO_FILTER=";[1:a]afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[aout]"
+              AUDIO_MAP="-map [aout]"
+            fi
+          fi
 
           FILTER="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5,setsar=1[bg];\
           [0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black@0,setsar=1[fg];\
           [bg][fg]overlay=0:0[composed];\
-          [composed]drawtext=text='Still Moments':fontcolor=white@0.75:fontsize=42:x=w-tw-50:y=h-th-160:shadowcolor=black@0.5:shadowx=2:shadowy=2,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5[out]"
+          [composed]drawtext=text='Still Moments':fontcolor=white@0.75:fontsize=42:x=w-tw-50:y=h-th-160:shadowcolor=black@0.5:shadowx=2:shadowy=2,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5[out]${AUDIO_FILTER}"
 
-          if [ -n "$HAS_AUDIO" ]; then
-            ffmpeg -hide_banner -loglevel error \
-              -y -i source.mp4 \
-              -filter_complex "$FILTER" \
-              -map "[out]" -map "0:a" \
-              -t "$DUR" \
-              -c:v libx264 -preset fast -crf 23 \
-              -c:a aac -b:a 128k \
-              -movflags +faststart -pix_fmt yuv420p \
-              final.mp4
-          else
-            ffmpeg -hide_banner -loglevel error \
-              -y -i source.mp4 \
-              -f lavfi -i aevalsrc=0:channel_layout=stereo:sample_rate=44100 \
-              -filter_complex "$FILTER" \
-              -map "[out]" -map "1:a" \
-              -t "$DUR" \
-              -c:v libx264 -preset fast -crf 23 \
-              -c:a aac -b:a 128k \
-              -movflags +faststart -pix_fmt yuv420p \
-              final.mp4
-          fi
+          ffmpeg -hide_banner -loglevel error \
+            -y -i source.mp4 $EXTRA_INPUT \
+            -filter_complex "$FILTER" \
+            -map "[out]" $AUDIO_MAP \
+            -t "$DUR" \
+            -c:v libx264 -preset fast -crf 23 \
+            -c:a aac -b:a 128k \
+            -movflags +faststart -pix_fmt yuv420p \
+            final.mp4
 
           ls -lh final.mp4
 
