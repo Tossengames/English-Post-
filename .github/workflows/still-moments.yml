@@ -1,4 +1,4 @@
-name: still-moments-post x
+name: still-moments-post x1
 
 "on":
   workflow_dispatch:
@@ -19,11 +19,11 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
 
-      - name: cache apt
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: ffmpeg bc jq python3
-          version: 1.0
+      - name: install-deps
+        timeout-minutes: 3
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg bc jq python3
 
       - name: find-video
         id: vid
@@ -97,31 +97,26 @@ jobs:
             exit 0
           fi
           CAPTIONS=(
-            "Close your eyes. Let it pass. 🌿 #StillMoments #Relaxation #Calm #MindfulLiving #NatureVibes"
-            "Breathe in. Breathe out. Nothing else matters right now. 🍃 #StillMoments #Peaceful #NatureWalk #Mindfulness #Chill"
-            "Some moments are meant to be felt, not rushed. 🌊 #StillMoments #SlowDown #NatureLovers #Tranquil #Relax"
-            "Let the world slow down with you. 🌸 #StillMoments #Calm #NatureHeals #PeacefulMind #Breathe"
-            "This is your reminder to just be. 🌲 #StillMoments #BePresent #NatureTherapy #Mindful #QuietMoment"
-            "Peace is not a place. It is a moment like this. 🌅 #StillMoments #InnerPeace #NatureVibes #Serenity #Zen"
-            "Stillness is not emptiness. It is everything. 🍂 #StillMoments #Stillness #ForestBathing #NatureWalk #Peaceful"
-            "You do not need to go anywhere. Just stay here for a moment. 🌧 #StillMoments #RainyDay #Cozy #NatureSound #SlowLife"
-            "The forest does not hurry, yet everything is accomplished. 🌳 #StillMoments #ForestWalk #NatureQuotes #Mindfulness #Grounded"
-            "Let nature do what therapy cannot. 🏞 #StillMoments #HealingNature #WalkInNature #Tranquility #MindBody"
-            "Find your quiet. Find yourself. 🌙 #StillMoments #QuietTime #EveningVibes #NatureLovers #SoulFood"
-            "Not all those who wander are lost. Some are just breathing. 🌾 #StillMoments #Wander #NatureWalk #FreeSoul #Mindful"
-            "Rain washes everything clean, including the mind. 🌧 #StillMoments #RainVibes #NatureSounds #Peaceful #Reset"
-            "A walk in nature is a walk back to yourself. 🛤 #StillMoments #NatureWalk #FindYourself #OutdoorLife #Calm"
-            "Slow down. The best things in life are not rushed. 🌺 #StillMoments #SlowLiving #NatureHeals #Breathe #Present"
-            "That sound of rain though. 🌧 #ASMR #RainSounds #Cozy #ASMRCommunity #Satisfying"
-            "Watch this until the end. 🔥 #Satisfying #CozyVibes #ASMR #Relaxing #StillMoments"
-            "This is what peace sounds like. 🌊 #ASMR #OceanVibes #Satisfying #Peaceful #NatureSounds"
-            "The city never looked this beautiful. 🌃 #CityWalk #NightVibes #CityLights #UrbanLife #Aesthetic"
-            "Tokyo at night hits different. 🏙 #Tokyo #CityWalk #NightAesthetic #Japan #CityVibes"
-            "Cozy season is every season. ☕ #CozyVibes #CoffeeShop #Aesthetic #SlowLiving #Hygge"
-            "Nature does not rush and yet everything falls into place. 🌸 #NatureWalk #Timelapse #EarthBeautiful #Peaceful #Zen"
-            "The ocean has no memory of yesterday. 🌊 #Underwater #OceanVibes #NatureLovers #BlueWorld #Calm"
-            "From above everything looks like art. 🚁 #DroneShots #AerialView #EarthFromAbove #NaturePhotography #Cinematic"
-            "Some places heal you without saying a word. 🌲 #ForestTherapy #NatureHeals #Mindful #OutdoorLife #Grounded"
+            "Take a breath. 🤍 #Aesthetic #Peaceful #Vibes"
+            "You needed this. 🤍 #DailyEscape #Aesthetic #Chill"
+            "Just watch. ✨ #Satisfying #Aesthetic #Vibes"
+            "Soft life. 🤍 #SoftLife #Aesthetic #Chill"
+            "Reset. ✨ #DailyReset #Peaceful #Mindful"
+            "Save this. 🤍 #Aesthetic #Vibes #DailyMoments"
+            "Play on repeat. ✨ #Satisfying #Aesthetic #Chill"
+            "Slow down. 🤍 #SlowLiving #Peaceful #Aesthetic"
+            "Feel this. ✨ #Vibes #Aesthetic #Mood"
+            "Stay here a moment. 🤍 #Peaceful #Aesthetic #Chill"
+            "No words needed. ✨ #Aesthetic #Satisfying #Mood"
+            "This one is for you. 🤍 #DailyMoments #Aesthetic #Vibes"
+            "Quiet is everything. 🕊 #Calm #Aesthetic #Chill"
+            "Just be. 🤍 #Mindful #Peaceful #Aesthetic"
+            "Breathe. ✨ #Breathe #Peaceful #DailyReset"
+            "Made for your bad days. 🤍 #YouGotThis #Aesthetic #Mood"
+            "Pause everything. ✨ #DailyEscape #Peaceful #Vibes"
+            "Watch till the end. 🫧 #Satisfying #Aesthetic #Chill"
+            "This hits different. 🤍 #Aesthetic #Mood #Vibes"
+            "For your peace. 🕊 #Peaceful #DailyReset #Aesthetic"
           )
           IDX=$((RANDOM % ${#CAPTIONS[@]}))
           PICKED="${CAPTIONS[$IDX]}"
