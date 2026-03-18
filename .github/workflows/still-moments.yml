@@ -1,52 +1,141 @@
-      - name: fetch-video
+name: still-moments-post
+
+on:
+  workflow_dispatch:
+    inputs:
+      caption:
+        description: 'Post caption (Optional)'
+        required: false
+        default: 'A still moment to breathe. #StillMoments #Relaxation'
+  schedule:
+    - cron: '0 7 * * *'
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg jq curl python3
+          # Note: bc and curl are usually pre-installed, but keeping for safety
+
+      - name: Fetch Video from Pixabay
         id: video
         env:
           PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
         run: |
           set -e
+
           CLIP=10
           SKIP_HEAD=15
           SKIP_TAIL=10
           MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
 
-          # ... (your TERMS array and loop logic here) ...
+          TERMS=(
+            "nature walk forest"
+            "rain village relaxing"
+            "peaceful river stream"
+            "mountain path walking"
+            "garden rain morning"
+            "countryside walk silent"
+            "forest path meditation"
+            "rainy street calm"
+            "lake reflection peaceful"
+            "sunset nature walk"
+          )
+
+          FINAL_URL=""
+          FINAL_START=0
+
+          # Shuffle terms to get variety each day
+          SHUFFLED_TERMS=$(printf "%s\n" "${TERMS[@]}" | shuf)
+
+          while IFS= read -r TERM; do
+            echo "Searching for: $TERM"
+            # URL encode the search term using python
+            ENCODED_TERM=$(python3 -c "import urllib.parse; print(urllib.parse.quote('''$TERM'''))")
+            API="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=${ENCODED_TERM}&per_page=10&video_type=film"
+
+            RESPONSE=$(curl -s "$API")
+            COUNT=$(echo "$RESPONSE" | jq '.hits | length')
+
+            if [ "$COUNT" -eq 0 ] || [ "$COUNT" = "null" ]; then continue; fi
+
+            # Loop through results for this term
+            for i in $(seq 0 $((COUNT - 1))); do
+              DUR=$(echo "$RESPONSE" | jq -r ".hits[$i].duration")
+
+              if [ -z "$DUR" ] || [ "$DUR" = "null" ] || [ "$DUR" -lt "$MIN_DUR" ]; then continue; fi
+
+              URL=$(echo "$RESPONSE" | jq -r ".hits[$i].videos.medium.url")
+              if [ -z "$URL" ] || [ "$URL" = "null" ]; then continue; fi
+
+              # Logic for random start point within safe bounds
+              ZONE_START=$SKIP_HEAD
+              ZONE_END=$((DUR - SKIP_TAIL - CLIP))
+              RANGE=$((ZONE_END - ZONE_START))
+              
+              FINAL_START=$((ZONE_START + RANDOM % RANGE))
+              FINAL_URL="$URL"
+              
+              echo "Found valid video: $FINAL_URL"
+              break 2
+            done
+          done <<< "$SHUFFLED_TERMS"
 
           if [ -z "$FINAL_URL" ]; then
-            echo "No valid video found"
+            echo "Error: No suitable video found today."
             exit 1
           fi
 
-          # Correct way to set outputs for the next step
-          echo "url=${FINAL_URL}" >> $GITHUB_OUTPUT
-          echo "start=${START_TIME}" >> $GITHUB_OUTPUT
-          echo "clip=${CLIP}" >> $GITHUB_OUTPUT
+          # EXPORTING TO GITHUB_OUTPUT (Critical for next steps)
+          echo "url=$FINAL_URL" >> $GITHUB_OUTPUT
+          echo "start=$FINAL_START" >> $GITHUB_OUTPUT
+          echo "clip=$CLIP" >> $GITHUB_OUTPUT
 
-      - name: process-video
+      - name: Process Video with FFmpeg
         run: |
           set -e
-          # Reference the outputs correctly
+          
           URL="${{ steps.video.outputs.url }}"
           START="${{ steps.video.outputs.start }}"
           DUR="${{ steps.video.outputs.clip }}"
 
+          echo "Downloading and processing..."
           curl -L "$URL" -o input.mp4
 
-          # Added -b:v and -maxrate to ensure Facebook accepts the upload size
+          # Scaling to 1080x1920 (Vertical/Reels format)
+          # Positioned text to be clear of social media UI overlays
           ffmpeg -y -i input.mp4 -ss "$START" -t "$DUR" \
-            -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,drawtext=text='Still Moments':fontcolor=white@0.7:fontsize=48:x=(w-tw)/2:y=h-th-200" \
-            -c:v libx264 -preset fast -crf 23 -b:v 2M -maxrate 2M -bufsize 4M \
-            -pix_fmt yuv420p \
+            -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,drawtext=text='Still Moments':fontcolor=white@0.6:fontsize=50:x=(w-tw)/2:y=h-th-250" \
+            -c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p \
+            -c:a aac -b:a 128k \
             output.mp4
 
-      - name: post-facebook
+      - name: Post to Facebook
         env:
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          # Handles both manual trigger and scheduled run captions
+          # Logic to handle both manual inputs and scheduled triggers
           CAPTION: ${{ github.event.inputs.caption || 'A still moment to breathe. #StillMoments #Relaxation' }}
         run: |
-          # Use -v for verbose output to debug FB errors if they happen
-          curl -v -X POST "https://graph.facebook.com/v19.0/${FB_PAGE_ID}/videos" \
+          set -e
+          echo "Uploading to Facebook Page..."
+          
+          RESPONSE=$(curl -s -X POST "https://graph.facebook.com/v19.0/${FB_PAGE_ID}/videos" \
             -F "access_token=${FB_PAGE_TOKEN}" \
             -F "source=@output.mp4" \
-            -F "description=${CAPTION}"
+            -F "description=${CAPTION}")
+
+          if echo "$RESPONSE" | grep -q "error"; then
+            echo "Facebook API Error: $RESPONSE"
+            exit 1
+          else
+            echo "Success! Video ID: $(echo "$RESPONSE" | jq -r '.id')"
+          fi
