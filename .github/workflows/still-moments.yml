@@ -1,4 +1,4 @@
-name: still-moments-post g
+name: still-moments-post 1
 
 "on":
   workflow_dispatch:
@@ -30,7 +30,7 @@ jobs:
           PIXABAY_KEY: "50973339-3e27fd59ddfd9c68378e78753"
         run: |
           set -e
-          CLIP=30
+          CLIP=15
           SKIP_HEAD=15
           SKIP_TAIL=10
           MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
@@ -130,11 +130,18 @@ jobs:
           echo "Video native audio: ${HAS_VIDEO_AUDIO:-none}"
           echo "Using music: $MUSIC_FILE"
 
+          # Get music duration and pick random start
           MDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$MUSIC_FILE" 2>/dev/null | cut -d. -f1)
-          MMAX=$((MDUR - DUR - 5))
-          [ "$MMAX" -le 10 ] && MMAX=10
-          MSTART=$((10 + RANDOM % MMAX))
-          ffmpeg -hide_banner -loglevel error -y -ss "$MSTART" -i "$MUSIC_FILE" -t "$FETCH" music_clip.mp3
+          MMAX=$((MDUR - 5))
+          [ "$MMAX" -le 5 ] && MMAX=5
+          MSTART=$((RANDOM % MMAX))
+          echo "Music start: ${MSTART}s of ${MDUR}s total"
+
+          # Loop music infinitely then cut to exact fetch duration — guarantees full coverage
+          ffmpeg -hide_banner -loglevel error -y \
+            -stream_loop -1 -ss "$MSTART" -i "$MUSIC_FILE" \
+            -t "$FETCH" \
+            music_clip.mp3
 
           VFILTER="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5,setsar=1[bg];[0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black@0,setsar=1[fg];[bg][fg]overlay=0:0[composed];[composed]drawtext=text='Still Moments':fontcolor=white@0.75:fontsize=42:x=w-tw-50:y=h-th-160:shadowcolor=black@0.5:shadowx=2:shadowy=2,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5[vout]"
 
