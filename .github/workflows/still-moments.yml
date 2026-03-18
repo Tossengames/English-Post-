@@ -68,13 +68,16 @@ jobs:
         id: music
         run: |
           TRACKS=(
-            "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/WFMU/Broke_For_Free/Directionless_EP/Broke_For_Free_-_01_-_Night_Owl.mp3"
-            "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/WFMU/Broke_For_Free/Directionless_EP/Broke_For_Free_-_02_-_Melt.mp3"
-            "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/ccCommunity/Kai_Engel/Satin/Kai_Engel_-_07_-_Interlude.mp3"
-            "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/ccCommunity/Kai_Engel/Satin/Kai_Engel_-_04_-_Moonlight_Reprise.mp3"
-            "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/no_curator/Tours/Enthusiast/Tours_-_01_-_Enthusiast.mp3"
-            "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/ccCommunity/Kai_Engel/Iridescence/Kai_Engel_-_02_-_Setting.mp3"
-            "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/WFMU/Broke_For_Free/Directionless_EP/Broke_For_Free_-_05_-_As_Colorful_As_Ever.mp3"
+            "https://archive.org/download/landscape-chill-ambient-music-2021/Tha%20Tones.mp3"
+            "https://archive.org/download/landscape-chill-ambient-music-2021/Romance.mp3"
+            "https://archive.org/download/landscape-chill-ambient-music-2021/My%20Nature.mp3"
+            "https://archive.org/download/landscape-chill-ambient-music-2021/The%20Infinite.mp3"
+            "https://archive.org/download/landscape-chill-ambient-music-2021/Sleep%20Now.mp3"
+            "https://archive.org/download/landscape-chill-ambient-music-2021/Melodica.mp3"
+            "https://archive.org/download/copyright-free-ambient-music-fragments-by-aero-head/Dawn%20by%20Sappheiros.mp3"
+            "https://archive.org/download/copyright-free-ambient-music-fragments-by-aero-head/Ethereal%20by%20Punch%20Deck.mp3"
+            "https://archive.org/download/copyright-free-ambient-music-fragments-by-aero-head/BAIKAL%20by%20Scandinavianz.mp3"
+            "https://archive.org/download/copyright-free-ambient-music-fragments-by-aero-head/DAYDREAM%20by%20KaizanBlu.mp3"
           )
           IDX=$((RANDOM % ${#TRACKS[@]}))
           MURL="${TRACKS[$IDX]}"
@@ -89,7 +92,6 @@ jobs:
             echo "caption=$INPUT_CAPTION" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
           CAPTIONS=(
             "Close your eyes. Let it pass. 🌿 #StillMoments #Relaxation #Calm #MindfulLiving #NatureVibes"
             "Breathe in. Breathe out. Nothing else matters right now. 🍃 #StillMoments #Peaceful #NatureWalk #Mindfulness #Chill"
@@ -107,11 +109,10 @@ jobs:
             "A walk in nature is a walk back to yourself. 🛤 #StillMoments #NatureWalk #FindYourself #OutdoorLife #Calm"
             "Slow down. The best things in life are not rushed. 🌺 #StillMoments #SlowLiving #NatureHeals #Breathe #Present"
           )
-
           IDX=$((RANDOM % ${#CAPTIONS[@]}))
           PICKED="${CAPTIONS[$IDX]}"
           echo "caption=$PICKED" >> "$GITHUB_OUTPUT"
-          echo "Picked caption: $PICKED"
+          echo "Picked: $PICKED"
 
       - name: process-video
         run: |
@@ -129,8 +130,9 @@ jobs:
           echo "Video native audio: ${HAS_VIDEO_AUDIO:-none}"
 
           echo "Downloading music..."
-          curl -sf --max-time 60 -L "$MUSIC_URL" -o music_full.mp3
-          ffmpeg -hide_banner -loglevel error -y -ss "$((10 + RANDOM % 60))" -i music_full.mp3 -t "$FETCH" music_clip.mp3
+          curl -f --max-time 60 -L "$MUSIC_URL" -o music_full.mp3
+          MSTART=$((10 + RANDOM % 30))
+          ffmpeg -hide_banner -loglevel error -y -ss "$MSTART" -i music_full.mp3 -t "$FETCH" music_clip.mp3
 
           VFILTER="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5,setsar=1[bg];[0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black@0,setsar=1[fg];[bg][fg]overlay=0:0[composed];[composed]drawtext=text='Still Moments':fontcolor=white@0.75:fontsize=42:x=w-tw-50:y=h-th-160:shadowcolor=black@0.5:shadowx=2:shadowy=2,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5[vout]"
 
