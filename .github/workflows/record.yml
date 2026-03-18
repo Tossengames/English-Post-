@@ -1,4 +1,4 @@
-name: still-moments-post
+name: still-moments-post x
 
 on:
   workflow_dispatch:
@@ -10,32 +10,18 @@ on:
   schedule:
     - cron: '0 9 * * *'
 
-permissions:
-  contents: read
-  actions: write
-
 jobs:
   post:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        
-      - name: Debug Info
-        run: |
-          echo "Repository: ${{ github.repository }}"
-          echo "Branch: ${{ github.ref }}"
-          echo "Event: ${{ github.event_name }}"
-          echo "Workflow should appear in Actions tab"
-          
-      - name: install
+      - name: Install Dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg bc jq curl
-          
-      - name: fetch-and-process
+
+      - name: Fetch and Process Video
         id: video
         env:
           PIXABAY_KEY: 50973339-3e27fd59ddfd9c68378e78753
@@ -66,39 +52,68 @@ jobs:
           SHUFFLED=($(shuf -e "${TERMS[@]}"))
           VIDEO_URL=""
           START=0
+          FOUND=false
 
           for TERM in "${SHUFFLED[@]}"; do
             PAGE=$((RANDOM % 5 + 1))
+            echo "🔍 Searching: $TERM (page $PAGE)"
+            
             ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$TERM")
             API="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=${ENCODED}&video_type=film&per_page=20&page=${PAGE}"
-            echo "Trying term: $TERM (page $PAGE)"
-            RESPONSE=$(curl -sf "$API") || { echo "API call failed"; continue; }
+            
+            RESPONSE=$(curl -sf "$API") || {
+              echo "⚠️ API call failed for $TERM"
+              continue
+            }
+            
             COUNT=$(echo "$RESPONSE" | jq '.hits | length')
             echo "Found $COUNT videos"
-            if [ -z "$COUNT" ] || [ "$COUNT" -eq 0 ]; then continue; fi
+            
+            if [ -z "$COUNT" ] || [ "$COUNT" -eq 0 ]; then 
+              continue
+            fi
 
             for i in $(shuf -i 0-$((COUNT - 1))); do
               DUR=$(echo "$RESPONSE" | jq -r ".hits[$i].duration")
-              [ -z "$DUR" ] || [ "$DUR" = "null" ] && continue
-              [ "$DUR" -lt "$MIN_DUR" ] && { echo "Duration $DUR too short"; continue; }
+              
+              if [ -z "$DUR" ] || [ "$DUR" = "null" ]; then
+                continue
+              fi
+              
+              if [ "$DUR" -lt "$MIN_DUR" ]; then
+                echo "⏱️ Video too short: ${DUR}s (need ${MIN_DUR}s)"
+                continue
+              fi
 
               URL=$(echo "$RESPONSE" | jq -r ".hits[$i].videos.large.url // .hits[$i].videos.medium.url // .hits[$i].videos.small.url")
-              [ -z "$URL" ] || [ "$URL" = "null" ] && continue
+              
+              if [ -z "$URL" ] || [ "$URL" = "null" ]; then
+                continue
+              fi
 
               ZONE_START=$SKIP_HEAD
               ZONE_END=$((DUR - SKIP_TAIL - CLIP))
               RANGE=$((ZONE_END - ZONE_START))
+              
+              if [ $RANGE -le 0 ]; then
+                continue
+              fi
+              
               START=$((ZONE_START + RANDOM % RANGE))
-
               VIDEO_URL="$URL"
-              echo "✅ Found: $URL"
-              echo "Duration: ${DUR}s  Start: ${START}s  Clip: ${CLIP}s"
+              FOUND=true
+              
+              echo "✅ Found valid video!"
+              echo "URL: $URL"
+              echo "Duration: ${DUR}s"
+              echo "Start: ${START}s"
+              echo "Clip: ${CLIP}s"
               break 2
             done
           done
 
-          if [ -z "$VIDEO_URL" ]; then
-            echo "❌ No valid video found"
+          if [ "$FOUND" = false ]; then
+            echo "❌ No valid video found after searching all terms"
             exit 1
           fi
 
@@ -106,4 +121,180 @@ jobs:
           echo "start=$START" >> $GITHUB_OUTPUT
           echo "clip=$CLIP" >> $GITHUB_OUTPUT
 
-      # ... rest of your steps remain the same
+      - name: Process Video with FFmpeg
+        run: |
+          URL="${{ steps.video.outputs.video_url }}"
+          START="${{ steps.video.outputs.start }}"
+          DUR="${{ steps.video.outputs.clip }}"
+          
+          echo "📥 Downloading video from: $URL"
+          echo "Start time: ${START}s, Duration: ${DUR}s"
+          
+          # Download with longer buffer
+          FETCH=$(echo "$DUR + 5" | bc)
+          ffmpeg -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4 || {
+            echo "❌ Failed to download video"
+            exit 1
+          }
+          
+          # Check if download succeeded
+          if [ ! -f source.mp4 ] || [ ! -s source.mp4 ]; then
+            echo "❌ Downloaded file is empty or missing"
+            exit 1
+          fi
+          
+          echo "✅ Download complete"
+          ls -lh source.mp4
+          
+          FADEOUT=$(echo "$DUR - 1.5" | bc)
+          
+          echo "🎬 Processing video with FFmpeg..."
+          ffmpeg -y -i source.mp4 \
+            -filter_complex "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5,setsar=1[bg];[0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black@0,setsar=1[fg];[bg][fg]overlay=0:0[composed];[composed]drawtext=text='Still Moments':fontcolor=white@0.75:fontsize=42:x=w-tw-50:y=h-th-160:shadowcolor=black@0.5:shadowx=2:shadowy=2,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5[out]" \
+            -map "[out]" -map 0:a? \
+            -t "$DUR" \
+            -c:v libx264 -preset fast -crf 23 \
+            -c:a aac -b:a 128k \
+            -movflags +faststart \
+            -pix_fmt yuv420p \
+            final.mp4 || {
+              echo "❌ FFmpeg processing failed"
+              exit 1
+            }
+          
+          echo "✅ Video processing complete"
+          ls -lh final.mp4
+          
+          # Verify final video
+          if [ ! -f final.mp4 ] || [ ! -s final.mp4 ]; then
+            echo "❌ Final video file is missing or empty"
+            exit 1
+          fi
+
+      - name: Post to Facebook
+        id: facebook
+        env:
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          CAPTION: ${{ github.event.inputs.caption || 'A still moment to breathe. #StillMoments #Relaxation' }}
+        run: |
+          FILE="final.mp4"
+          
+          # Verify file exists
+          if [ ! -f "$FILE" ]; then
+            echo "❌ Video file not found"
+            exit 1
+          fi
+          
+          FILE_SIZE=$(stat -c%s "$FILE")
+          echo "📤 Uploading video to Facebook"
+          echo "File size: $FILE_SIZE bytes"
+          echo "Caption: $CAPTION"
+          
+          API="https://graph.facebook.com/v19.0"
+          
+          # Start upload session
+          echo "Starting upload session..."
+          INIT=$(curl -s -w "\n%{http_code}" -X POST "$API/${FB_PAGE_ID}/videos" \
+            -H "Content-Type: application/json" \
+            -d "{\"upload_phase\":\"start\",\"file_size\":${FILE_SIZE},\"access_token\":\"${FB_PAGE_TOKEN}\"}")
+          
+          HTTP_CODE=$(echo "$INIT" | tail -n1)
+          RESPONSE=$(echo "$INIT" | sed '$d')
+          
+          echo "HTTP Code: $HTTP_CODE"
+          echo "Response: $RESPONSE"
+          
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Failed to start upload session"
+            exit 1
+          fi
+          
+          SESSION=$(echo "$RESPONSE" | jq -r '.upload_session_id')
+          VIDEO_ID=$(echo "$RESPONSE" | jq -r '.video_id')
+          START_OFF=$(echo "$RESPONSE" | jq -r '.start_offset')
+          
+          echo "Session ID: $SESSION"
+          echo "Video ID: $VIDEO_ID"
+          echo "Start Offset: $START_OFF"
+
+          if [ -z "$SESSION" ] || [ "$SESSION" = "null" ]; then
+            echo "❌ Invalid session ID"
+            exit 1
+          fi
+          
+          # Upload video chunk
+          echo "Uploading video chunk..."
+          UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API/${FB_PAGE_ID}/videos" \
+            -F "upload_phase=transfer" \
+            -F "upload_session_id=$SESSION" \
+            -F "start_offset=$START_OFF" \
+            -F "video_file_chunk=@${FILE};type=video/mp4" \
+            -F "access_token=${FB_PAGE_TOKEN}")
+          
+          UPLOAD_CODE=$(echo "$UPLOAD_RESPONSE" | tail -n1)
+          UPLOAD_BODY=$(echo "$UPLOAD_RESPONSE" | sed '$d')
+          
+          echo "Upload HTTP Code: $UPLOAD_CODE"
+          echo "Upload Response: $UPLOAD_BODY"
+          
+          if [ "$UPLOAD_CODE" != "200" ]; then
+            echo "❌ Failed to upload video chunk"
+            exit 1
+          fi
+          
+          # Finish upload and publish
+          echo "Finishing upload and publishing..."
+          FINISH=$(curl -s -w "\n%{http_code}" -X POST "$API/${FB_PAGE_ID}/videos" \
+            -H "Content-Type: application/json" \
+            -d "{\"upload_phase\":\"finish\",\"upload_session_id\":\"${SESSION}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${FB_PAGE_TOKEN}\"}")
+          
+          FINISH_CODE=$(echo "$FINISH" | tail -n1)
+          FINISH_BODY=$(echo "$FINISH" | sed '$d')
+          
+          echo "Finish HTTP Code: $FINISH_CODE"
+          echo "Finish Response: $FINISH_BODY"
+          
+          if [ "$FINISH_CODE" != "200" ]; then
+            echo "❌ Failed to publish video"
+            exit 1
+          fi
+          
+          # Check for success
+          SUCCESS=$(echo "$FINISH_BODY" | jq -r '.success // .id')
+          if [ -z "$SUCCESS" ] || [ "$SUCCESS" = "null" ]; then
+            echo "❌ Publish failed: $FINISH_BODY"
+            exit 1
+          fi
+          
+          echo "✅ Success! Video posted to Facebook"
+          echo "Video ID: $VIDEO_ID"
+          echo "Post ID: $SUCCESS"
+          
+          # Save video ID for reference
+          echo "video_id=$VIDEO_ID" >> $GITHUB_OUTPUT
+          echo "post_id=$SUCCESS" >> $GITHUB_OUTPUT
+
+      - name: Verify Facebook Secrets
+        if: failure()
+        run: |
+          echo "🔍 Checking Facebook secrets..."
+          if [ -z "${{ secrets.FB_PAGE_ID }}" ]; then
+            echo "❌ FB_PAGE_ID secret is not set"
+          else
+            echo "✅ FB_PAGE_ID is set"
+          fi
+          
+          if [ -z "${{ secrets.FB_PAGE_TOKEN }}" ]; then
+            echo "❌ FB_PAGE_TOKEN secret is not set"
+          else
+            echo "✅ FB_PAGE_TOKEN is set (masked)"
+          fi
+
+      - name: Upload Final Video as Artifact (for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-video
+          path: final.mp4
+          if-no-files-found: ignore
