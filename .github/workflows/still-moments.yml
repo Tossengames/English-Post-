@@ -1,4 +1,4 @@
-name: still-moments-post 2
+name: still-moments-post 3
 
 "on":
   workflow_dispatch:
@@ -8,7 +8,7 @@ name: still-moments-post 2
         required: false
         default: ""
   schedule:
-    - cron: "0 9 * * *"
+    - cron: "0 14 * * *"
 
 jobs:
   post:
@@ -35,7 +35,7 @@ jobs:
           SKIP_TAIL=10
           MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
           VIDEO_URL=""
-          TERMS="nature walk forest|rain village relaxing|peaceful river stream|mountain path walking|garden rain morning|forest path meditation|rainy street calm|lake reflection peaceful|sunset nature walk|waterfall nature calm"
+          TERMS="nature walk forest|rain village relaxing|peaceful river stream|mountain path walking|garden rain morning|forest path meditation|rainy street calm|lake reflection peaceful|sunset nature walk|waterfall nature calm|cute cat playing|cute dog funny|baby animals cute|wild animals nature|cute puppies|funny kittens|wild deer forest|baby deer nature|cute rabbit garden|wild fox nature|bear cubs playing|elephant nature wild|birds nature singing|cute hamster|wild horses running"
           IFS='|' read -ra TERM_ARR <<< "$TERMS"
           for TERM in $(printf "%s\n" "${TERM_ARR[@]}" | shuf); do
             PAGE=$((RANDOM % 5 + 1))
@@ -108,6 +108,11 @@ jobs:
             "Rain washes everything clean, including the mind. 🌧 #StillMoments #RainVibes #NatureSounds #Peaceful #Reset"
             "A walk in nature is a walk back to yourself. 🛤 #StillMoments #NatureWalk #FindYourself #OutdoorLife #Calm"
             "Slow down. The best things in life are not rushed. 🌺 #StillMoments #SlowLiving #NatureHeals #Breathe #Present"
+            "This little one made my whole day. 🐾 #CuteAnimals #AnimalsOfInstagram #NatureLovers #AWW #PetsOfInstagram"
+            "Nature never goes out of style. 🦊 #WildAnimals #NaturePhotography #WildLife #AnimalsLovers #EarthBeautiful"
+            "Stop scrolling and just watch this. 🐻 #CuteAnimals #WildLife #NatureVibes #AWW #AnimalsOfInstagram"
+            "The purest thing you will see today. 🐶 #CutePets #DogsOfInstagram #CatsOfInstagram #PetLovers #AWW"
+            "Wild and free. Just like we should be. 🦌 #WildAnimals #NatureLovers #WildLife #FreeSpirit #EarthDay"
           )
           IDX=$((RANDOM % ${#CAPTIONS[@]}))
           PICKED="${CAPTIONS[$IDX]}"
@@ -140,7 +145,7 @@ jobs:
             -stream_loop -1 -ss "$MSTART" -i "$MUSIC_FILE" \
             -t "$FETCH" music_clip.mp3
 
-          VFILTER="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5[vfaded];[vfaded]drawtext=text='Still Moments':fontcolor=white@0.75:fontsize=42:x=w-tw-50:y=h-th-160:shadowcolor=black@0.5:shadowx=2:shadowy=2[vout]"
+          VFILTER="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5[vout]"
 
           if [ -n "$HAS_VIDEO_AUDIO" ]; then
             echo "Mixing video audio + music..."
@@ -191,7 +196,7 @@ jobs:
           else
             UPLOAD_URL=$(echo "$INIT" | jq -r '.upload_url')
             curl -sf -X POST "$UPLOAD_URL" -H "Authorization: OAuth ${PAGE_TOKEN}" -H "offset: 0" -H "file_size: ${SIZE}" --data-binary "@${FILE}" > /dev/null
-            FINISH=$(curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"finish\",\"video_id\":\"${VID_ID}\",\"description\":\"${CAPTION}\",fd\":true,\"access_token\":\"${PAGE_TOKEN}\"}")
+            FINISH=$(curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"finish\",\"video_id\":\"${VID_ID}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}")
           fi
           echo "Result: $FINISH"
           OK=$(echo "$FINISH" | jq -r '.success // .id // empty')
