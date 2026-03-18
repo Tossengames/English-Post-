@@ -1,4 +1,4 @@
-name: still-moments-post d
+name: still-moments-post g
 
 "on":
   workflow_dispatch:
@@ -20,6 +20,9 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg bc jq python3
+
+      - name: checkout
+        uses: actions/checkout@v4
 
       - name: find-video
         id: vid
@@ -64,25 +67,22 @@ jobs:
             exit 1
           fi
 
-      - name: find-music
+      - name: pick-music
         id: music
         run: |
-          TRACKS=(
-            "https://archive.org/download/landscape-chill-ambient-music-2021/Tha%20Tones.mp3"
-            "https://archive.org/download/landscape-chill-ambient-music-2021/Romance.mp3"
-            "https://archive.org/download/landscape-chill-ambient-music-2021/My%20Nature.mp3"
-            "https://archive.org/download/landscape-chill-ambient-music-2021/The%20Infinite.mp3"
-            "https://archive.org/download/landscape-chill-ambient-music-2021/Sleep%20Now.mp3"
-            "https://archive.org/download/landscape-chill-ambient-music-2021/Melodica.mp3"
-            "https://archive.org/download/copyright-free-ambient-music-fragments-by-aero-head/Dawn%20by%20Sappheiros.mp3"
-            "https://archive.org/download/copyright-free-ambient-music-fragments-by-aero-head/Ethereal%20by%20Punch%20Deck.mp3"
-            "https://archive.org/download/copyright-free-ambient-music-fragments-by-aero-head/BAIKAL%20by%20Scandinavianz.mp3"
-            "https://archive.org/download/copyright-free-ambient-music-fragments-by-aero-head/DAYDREAM%20by%20KaizanBlu.mp3"
-          )
-          IDX=$((RANDOM % ${#TRACKS[@]}))
-          MURL="${TRACKS[$IDX]}"
-          echo "music_url=$MURL" >> "$GITHUB_OUTPUT"
-          echo "Selected track: $IDX"
+          TRACKS=(bgmusic/*.mp3 bgmusic/*.wav)
+          VALID=()
+          for t in "${TRACKS[@]}"; do
+            [ -f "$t" ] && VALID+=("$t")
+          done
+          if [ ${#VALID[@]} -eq 0 ]; then
+            echo "No music files found in bgmusic folder"
+            exit 1
+          fi
+          IDX=$((RANDOM % ${#VALID[@]}))
+          PICKED="${VALID[$IDX]}"
+          echo "music_file=$PICKED" >> "$GITHUB_OUTPUT"
+          echo "Selected: $PICKED"
 
       - name: pick-caption
         id: caption
@@ -119,7 +119,7 @@ jobs:
           URL="${{ steps.vid.outputs.video_url }}"
           START="${{ steps.vid.outputs.start }}"
           DUR="${{ steps.vid.outputs.clip }}"
-          MUSIC_URL="${{ steps.music.outputs.music_url }}"
+          MUSIC_FILE="${{ steps.music.outputs.music_file }}"
           FETCH=$(echo "$DUR + 5" | bc)
           FADEOUT=$(echo "$DUR - 1.5" | bc)
 
@@ -128,11 +128,13 @@ jobs:
 
           HAS_VIDEO_AUDIO=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
           echo "Video native audio: ${HAS_VIDEO_AUDIO:-none}"
+          echo "Using music: $MUSIC_FILE"
 
-          echo "Downloading music..."
-          curl -f --max-time 60 -L "$MUSIC_URL" -o music_full.mp3
-          MSTART=$((10 + RANDOM % 30))
-          ffmpeg -hide_banner -loglevel error -y -ss "$MSTART" -i music_full.mp3 -t "$FETCH" music_clip.mp3
+          MDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$MUSIC_FILE" 2>/dev/null | cut -d. -f1)
+          MMAX=$((MDUR - DUR - 5))
+          [ "$MMAX" -le 10 ] && MMAX=10
+          MSTART=$((10 + RANDOM % MMAX))
+          ffmpeg -hide_banner -loglevel error -y -ss "$MSTART" -i "$MUSIC_FILE" -t "$FETCH" music_clip.mp3
 
           VFILTER="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5,setsar=1[bg];[0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black@0,setsar=1[fg];[bg][fg]overlay=0:0[composed];[composed]drawtext=text='Still Moments':fontcolor=white@0.75:fontsize=42:x=w-tw-50:y=h-th-160:shadowcolor=black@0.5:shadowx=2:shadowy=2,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5[vout]"
 
