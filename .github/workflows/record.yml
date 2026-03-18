@@ -1,15 +1,109 @@
-name: test-trigger
+name: still-moments-post
 
 on:
   workflow_dispatch:
     inputs:
-      test_input:
-        description: 'Type something here'
-        default: 'Hello World'
+      caption:
+        description: Post caption
+        required: false
+        default: A still moment to breathe. #StillMoments #Relaxation
+  schedule:
+    - cron: '0 9 * * *'
+
+permissions:
+  contents: read
+  actions: write
 
 jobs:
-  test-job:
+  post:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
-      - name: Say Hello
-        run: echo "The input was ${{ github.event.inputs.test_input }}"
+      - name: Checkout
+        uses: actions/checkout@v3
+        
+      - name: Debug Info
+        run: |
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Workflow should appear in Actions tab"
+          
+      - name: install
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg bc jq curl
+          
+      - name: fetch-and-process
+        id: video
+        env:
+          PIXABAY_KEY: 50973339-3e27fd59ddfd9c68378e78753
+        run: |
+          CLIP=10
+          SKIP_HEAD=15
+          SKIP_TAIL=10
+          MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
+
+          TERMS=(
+            "nature walk forest"
+            "rain village relaxing"
+            "peaceful river stream"
+            "mountain path walking"
+            "garden rain morning"
+            "countryside walk silent"
+            "forest path meditation"
+            "rainy street calm"
+            "lake reflection peaceful"
+            "sunset nature walk"
+            "bamboo forest wind"
+            "waterfall nature calm"
+            "misty morning field"
+            "snow village peaceful"
+            "autumn leaves path"
+          )
+
+          SHUFFLED=($(shuf -e "${TERMS[@]}"))
+          VIDEO_URL=""
+          START=0
+
+          for TERM in "${SHUFFLED[@]}"; do
+            PAGE=$((RANDOM % 5 + 1))
+            ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$TERM")
+            API="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=${ENCODED}&video_type=film&per_page=20&page=${PAGE}"
+            echo "Trying term: $TERM (page $PAGE)"
+            RESPONSE=$(curl -sf "$API") || { echo "API call failed"; continue; }
+            COUNT=$(echo "$RESPONSE" | jq '.hits | length')
+            echo "Found $COUNT videos"
+            if [ -z "$COUNT" ] || [ "$COUNT" -eq 0 ]; then continue; fi
+
+            for i in $(shuf -i 0-$((COUNT - 1))); do
+              DUR=$(echo "$RESPONSE" | jq -r ".hits[$i].duration")
+              [ -z "$DUR" ] || [ "$DUR" = "null" ] && continue
+              [ "$DUR" -lt "$MIN_DUR" ] && { echo "Duration $DUR too short"; continue; }
+
+              URL=$(echo "$RESPONSE" | jq -r ".hits[$i].videos.large.url // .hits[$i].videos.medium.url // .hits[$i].videos.small.url")
+              [ -z "$URL" ] || [ "$URL" = "null" ] && continue
+
+              ZONE_START=$SKIP_HEAD
+              ZONE_END=$((DUR - SKIP_TAIL - CLIP))
+              RANGE=$((ZONE_END - ZONE_START))
+              START=$((ZONE_START + RANDOM % RANGE))
+
+              VIDEO_URL="$URL"
+              echo "✅ Found: $URL"
+              echo "Duration: ${DUR}s  Start: ${START}s  Clip: ${CLIP}s"
+              break 2
+            done
+          done
+
+          if [ -z "$VIDEO_URL" ]; then
+            echo "❌ No valid video found"
+            exit 1
+          fi
+
+          echo "video_url=$VIDEO_URL" >> $GITHUB_OUTPUT
+          echo "start=$START" >> $GITHUB_OUTPUT
+          echo "clip=$CLIP" >> $GITHUB_OUTPUT
+
+      # ... rest of your steps remain the same
