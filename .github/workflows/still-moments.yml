@@ -1,4 +1,4 @@
-name: still-moments-post s
+name: still-moments-post
 
 "on":
   workflow_dispatch:
@@ -35,7 +35,7 @@ jobs:
           SKIP_TAIL=10
           MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
           VIDEO_URL=""
-          TERMS="nature walk forest|rain village relaxing|peaceful river stream|mountain path walking|garden rain morning|forest path meditation|rainy street calm|lake reflection peaceful|sunset nature walk|waterfall nature calm|misty morning field|snow village peaceful|autumn leaves path|countryside road walk|cherry blossom walk"
+          TERMS="rain window asmr|fire crackling asmr|water stream relaxing|waves beach asmr|rain roof relaxing|tokyo street night|paris street walk|rainy city night|new york street walk|city lights night|forest path walk|mountain trail walk|beach walk sunset|misty forest morning|countryside road walk|coffee shop rain|fireplace cozy|cabin snow cozy|candle rain window|cozy winter inside|sunset timelapse|clouds timelapse sky|city timelapse night|storm timelapse nature|flowers blooming timelapse|underwater ocean calm|coral reef underwater|aerial city night drone|drone coastline aerial|aerial mountains landscape"
           IFS='|' read -ra TERM_ARR <<< "$TERMS"
           for TERM in $(printf "%s\n" "${TERM_ARR[@]}" | shuf); do
             PAGE=$((RANDOM % 5 + 1))
@@ -108,6 +108,16 @@ jobs:
             "Rain washes everything clean, including the mind. 🌧 #StillMoments #RainVibes #NatureSounds #Peaceful #Reset"
             "A walk in nature is a walk back to yourself. 🛤 #StillMoments #NatureWalk #FindYourself #OutdoorLife #Calm"
             "Slow down. The best things in life are not rushed. 🌺 #StillMoments #SlowLiving #NatureHeals #Breathe #Present"
+            "That sound of rain though. 🌧 #ASMR #RainSounds #Cozy #ASMRCommunity #Satisfying"
+            "Watch this until the end. 🔥 #Satisfying #CozyVibes #ASMR #Relaxing #StillMoments"
+            "This is what peace sounds like. 🌊 #ASMR #OceanVibes #Satisfying #Peaceful #NatureSounds"
+            "The city never looked this beautiful. 🌃 #CityWalk #NightVibes #CityLights #UrbanLife #Aesthetic"
+            "Tokyo at night hits different. 🏙 #Tokyo #CityWalk #NightAesthetic #Japan #CityVibes"
+            "Cozy season is every season. ☕ #CozyVibes #CoffeeShop #Aesthetic #SlowLiving #Hygge"
+            "Nature does not rush and yet everything falls into place. 🌸 #NatureWalk #Timelapse #EarthBeautiful #Peaceful #Zen"
+            "The ocean has no memory of yesterday. 🌊 #Underwater #OceanVibes #NatureLovers #BlueWorld #Calm"
+            "From above everything looks like art. 🚁 #DroneShots #AerialView #EarthFromAbove #NaturePhotography #Cinematic"
+            "Some places heal you without saying a word. 🌲 #ForestTherapy #NatureHeals #Mindful #OutdoorLife #Grounded"
           )
           IDX=$((RANDOM % ${#CAPTIONS[@]}))
           PICKED="${CAPTIONS[$IDX]}"
