@@ -1,14 +1,14 @@
-name: still-moments-post x
+name: still-moments-post c
 
-on:
+"on":
   workflow_dispatch:
     inputs:
       caption:
-        description: Post caption
+        description: "Post caption"
         required: false
-        default: A still moment to breathe. #StillMoments #Relaxation
+        default: "A still moment to breathe."
   schedule:
-    - cron: '0 9 * * *'
+    - cron: "0 9 * * *"
 
 jobs:
   post:
@@ -16,285 +16,168 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Install Dependencies
+      - name: install-deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg bc jq curl
+          sudo apt-get install -y ffmpeg bc jq python3
 
-      - name: Fetch and Process Video
-        id: video
+      - name: find-video
+        id: vid
         env:
-          PIXABAY_KEY: 50973339-3e27fd59ddfd9c68378e78753
+          PIXABAY_KEY: "50973339-3e27fd59ddfd9c68378e78753"
         run: |
+          set -e
           CLIP=10
           SKIP_HEAD=15
           SKIP_TAIL=10
           MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
-
-          TERMS=(
-            "nature walk forest"
-            "rain village relaxing"
-            "peaceful river stream"
-            "mountain path walking"
-            "garden rain morning"
-            "countryside walk silent"
-            "forest path meditation"
-            "rainy street calm"
-            "lake reflection peaceful"
-            "sunset nature walk"
-            "bamboo forest wind"
-            "waterfall nature calm"
-            "misty morning field"
-            "snow village peaceful"
-            "autumn leaves path"
-          )
-
-          SHUFFLED=($(shuf -e "${TERMS[@]}"))
           VIDEO_URL=""
-          START=0
-          FOUND=false
 
-          for TERM in "${SHUFFLED[@]}"; do
+          TERMS="nature walk forest|rain village relaxing|peaceful river stream|mountain path walking|garden rain morning|forest path meditation|rainy street calm|lake reflection peaceful|sunset nature walk|waterfall nature calm"
+          IFS='|' read -ra TERM_ARR <<< "$TERMS"
+
+          for TERM in $(printf "%s\n" "${TERM_ARR[@]}" | shuf); do
             PAGE=$((RANDOM % 5 + 1))
-            echo "🔍 Searching: $TERM (page $PAGE)"
-            
             ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$TERM")
-            API="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=${ENCODED}&video_type=film&per_page=20&page=${PAGE}"
-            
-            RESPONSE=$(curl -sf "$API") || {
-              echo "⚠️ API call failed for $TERM"
-              continue
-            }
-            
-            COUNT=$(echo "$RESPONSE" | jq '.hits | length')
-            echo "Found $COUNT videos"
-            
-            if [ -z "$COUNT" ] || [ "$COUNT" -eq 0 ]; then 
-              continue
-            fi
+            URL="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=${ENCODED}&video_type=film&per_page=20&page=${PAGE}"
+            RESP=$(curl -sf --max-time 15 "$URL" 2>/dev/null) || continue
+            COUNT=$(echo "$RESP" | jq -r '.hits | length' 2>/dev/null) || continue
+            [ "$COUNT" -eq 0 ] && continue
 
-            for i in $(shuf -i 0-$((COUNT - 1))); do
-              DUR=$(echo "$RESPONSE" | jq -r ".hits[$i].duration")
-              
-              if [ -z "$DUR" ] || [ "$DUR" = "null" ]; then
-                continue
-              fi
-              
-              if [ "$DUR" -lt "$MIN_DUR" ]; then
-                echo "⏱️ Video too short: ${DUR}s (need ${MIN_DUR}s)"
-                continue
-              fi
+            for i in $(seq 0 $((COUNT - 1)) | shuf); do
+              DUR=$(echo "$RESP" | jq -r ".hits[$i].duration" 2>/dev/null)
+              [[ "$DUR" =~ ^[0-9]+$ ]] || continue
+              [ "$DUR" -lt "$MIN_DUR" ] && continue
 
-              URL=$(echo "$RESPONSE" | jq -r ".hits[$i].videos.large.url // .hits[$i].videos.medium.url // .hits[$i].videos.small.url")
-              
-              if [ -z "$URL" ] || [ "$URL" = "null" ]; then
-                continue
-              fi
+              VURL=$(echo "$RESP" | jq -r ".hits[$i].videos.large.url // .hits[$i].videos.medium.url // .hits[$i].videos.small.url" 2>/dev/null)
+              [ -z "$VURL" ] || [ "$VURL" = "null" ] && continue
 
-              ZONE_START=$SKIP_HEAD
               ZONE_END=$((DUR - SKIP_TAIL - CLIP))
-              RANGE=$((ZONE_END - ZONE_START))
-              
-              if [ $RANGE -le 0 ]; then
-                continue
-              fi
-              
-              START=$((ZONE_START + RANDOM % RANGE))
-              VIDEO_URL="$URL"
-              FOUND=true
-              
-              echo "✅ Found valid video!"
-              echo "URL: $URL"
-              echo "Duration: ${DUR}s"
-              echo "Start: ${START}s"
-              echo "Clip: ${CLIP}s"
+              RANGE=$((ZONE_END - SKIP_HEAD))
+              [ "$RANGE" -le 0 ] && continue
+              START=$((SKIP_HEAD + RANDOM % RANGE))
+
+              VIDEO_URL="$VURL"
+              echo "video_url=$VIDEO_URL" >> "$GITHUB_OUTPUT"
+              echo "start=$START" >> "$GITHUB_OUTPUT"
+              echo "clip=$CLIP" >> "$GITHUB_OUTPUT"
+              echo "Found: start=${START}s clip=${CLIP}s dur=${DUR}s"
               break 2
             done
           done
 
-          if [ "$FOUND" = false ]; then
-            echo "❌ No valid video found after searching all terms"
+          if [ -z "$VIDEO_URL" ]; then
+            echo "No valid video found"
             exit 1
           fi
 
-          echo "video_url=$VIDEO_URL" >> $GITHUB_OUTPUT
-          echo "start=$START" >> $GITHUB_OUTPUT
-          echo "clip=$CLIP" >> $GITHUB_OUTPUT
-
-      - name: Process Video with FFmpeg
+      - name: process-video
         run: |
-          URL="${{ steps.video.outputs.video_url }}"
-          START="${{ steps.video.outputs.start }}"
-          DUR="${{ steps.video.outputs.clip }}"
-          
-          echo "📥 Downloading video from: $URL"
-          echo "Start time: ${START}s, Duration: ${DUR}s"
-          
-          # Download with longer buffer
+          URL="${{ steps.vid.outputs.video_url }}"
+          START="${{ steps.vid.outputs.start }}"
+          DUR="${{ steps.vid.outputs.clip }}"
           FETCH=$(echo "$DUR + 5" | bc)
-          ffmpeg -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4 || {
-            echo "❌ Failed to download video"
-            exit 1
-          }
-          
-          # Check if download succeeded
-          if [ ! -f source.mp4 ] || [ ! -s source.mp4 ]; then
-            echo "❌ Downloaded file is empty or missing"
-            exit 1
-          fi
-          
-          echo "✅ Download complete"
-          ls -lh source.mp4
-          
           FADEOUT=$(echo "$DUR - 1.5" | bc)
-          
-          echo "🎬 Processing video with FFmpeg..."
-          ffmpeg -y -i source.mp4 \
-            -filter_complex "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5,setsar=1[bg];[0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black@0,setsar=1[fg];[bg][fg]overlay=0:0[composed];[composed]drawtext=text='Still Moments':fontcolor=white@0.75:fontsize=42:x=w-tw-50:y=h-th-160:shadowcolor=black@0.5:shadowx=2:shadowy=2,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5[out]" \
-            -map "[out]" -map 0:a? \
-            -t "$DUR" \
-            -c:v libx264 -preset fast -crf 23 \
-            -c:a aac -b:a 128k \
-            -movflags +faststart \
-            -pix_fmt yuv420p \
-            final.mp4 || {
-              echo "❌ FFmpeg processing failed"
-              exit 1
-            }
-          
-          echo "✅ Video processing complete"
+
+          ffmpeg -hide_banner -loglevel error \
+            -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4
+
+          HAS_AUDIO=$(ffprobe -v error -select_streams a:0 \
+            -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
+
+          echo "Audio track: ${HAS_AUDIO:-none}"
+
+          FILTER="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5,setsar=1[bg];\
+          [0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black@0,setsar=1[fg];\
+          [bg][fg]overlay=0:0[composed];\
+          [composed]drawtext=text='Still Moments':fontcolor=white@0.75:fontsize=42:x=w-tw-50:y=h-th-160:shadowcolor=black@0.5:shadowx=2:shadowy=2,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5[out]"
+
+          if [ -n "$HAS_AUDIO" ]; then
+            ffmpeg -hide_banner -loglevel error \
+              -y -i source.mp4 \
+              -filter_complex "$FILTER" \
+              -map "[out]" -map "0:a" \
+              -t "$DUR" \
+              -c:v libx264 -preset fast -crf 23 \
+              -c:a aac -b:a 128k \
+              -movflags +faststart -pix_fmt yuv420p \
+              final.mp4
+          else
+            ffmpeg -hide_banner -loglevel error \
+              -y -i source.mp4 \
+              -f lavfi -i aevalsrc=0:channel_layout=stereo:sample_rate=44100 \
+              -filter_complex "$FILTER" \
+              -map "[out]" -map "1:a" \
+              -t "$DUR" \
+              -c:v libx264 -preset fast -crf 23 \
+              -c:a aac -b:a 128k \
+              -movflags +faststart -pix_fmt yuv420p \
+              final.mp4
+          fi
+
           ls -lh final.mp4
-          
-          # Verify final video
-          if [ ! -f final.mp4 ] || [ ! -s final.mp4 ]; then
-            echo "❌ Final video file is missing or empty"
-            exit 1
-          fi
 
-      - name: Post to Facebook
-        id: facebook
+      - name: post-to-facebook
         env:
-          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          CAPTION: ${{ github.event.inputs.caption || 'A still moment to breathe. #StillMoments #Relaxation' }}
+          PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          CAPTION: ${{ github.event.inputs.caption || 'A still moment to breathe.' }}
         run: |
+          set -e
           FILE="final.mp4"
-          
-          # Verify file exists
-          if [ ! -f "$FILE" ]; then
-            echo "❌ Video file not found"
-            exit 1
-          fi
-          
-          FILE_SIZE=$(stat -c%s "$FILE")
-          echo "📤 Uploading video to Facebook"
-          echo "File size: $FILE_SIZE bytes"
-          echo "Caption: $CAPTION"
-          
+          SIZE=$(stat -c%s "$FILE")
           API="https://graph.facebook.com/v19.0"
-          
-          # Start upload session
-          echo "Starting upload session..."
-          INIT=$(curl -s -w "\n%{http_code}" -X POST "$API/${FB_PAGE_ID}/videos" \
+
+          INIT=$(curl -sf -X POST "${API}/${PAGE_ID}/video_reels" \
             -H "Content-Type: application/json" \
-            -d "{\"upload_phase\":\"start\",\"file_size\":${FILE_SIZE},\"access_token\":\"${FB_PAGE_TOKEN}\"}")
-          
-          HTTP_CODE=$(echo "$INIT" | tail -n1)
-          RESPONSE=$(echo "$INIT" | sed '$d')
-          
-          echo "HTTP Code: $HTTP_CODE"
-          echo "Response: $RESPONSE"
-          
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "❌ Failed to start upload session"
-            exit 1
-          fi
-          
-          SESSION=$(echo "$RESPONSE" | jq -r '.upload_session_id')
-          VIDEO_ID=$(echo "$RESPONSE" | jq -r '.video_id')
-          START_OFF=$(echo "$RESPONSE" | jq -r '.start_offset')
-          
-          echo "Session ID: $SESSION"
-          echo "Video ID: $VIDEO_ID"
-          echo "Start Offset: $START_OFF"
+            -d "{\"upload_phase\":\"start\",\"access_token\":\"${PAGE_TOKEN}\"}")
 
-          if [ -z "$SESSION" ] || [ "$SESSION" = "null" ]; then
-            echo "❌ Invalid session ID"
-            exit 1
-          fi
-          
-          # Upload video chunk
-          echo "Uploading video chunk..."
-          UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API/${FB_PAGE_ID}/videos" \
-            -F "upload_phase=transfer" \
-            -F "upload_session_id=$SESSION" \
-            -F "start_offset=$START_OFF" \
-            -F "video_file_chunk=@${FILE};type=video/mp4" \
-            -F "access_token=${FB_PAGE_TOKEN}")
-          
-          UPLOAD_CODE=$(echo "$UPLOAD_RESPONSE" | tail -n1)
-          UPLOAD_BODY=$(echo "$UPLOAD_RESPONSE" | sed '$d')
-          
-          echo "Upload HTTP Code: $UPLOAD_CODE"
-          echo "Upload Response: $UPLOAD_BODY"
-          
-          if [ "$UPLOAD_CODE" != "200" ]; then
-            echo "❌ Failed to upload video chunk"
-            exit 1
-          fi
-          
-          # Finish upload and publish
-          echo "Finishing upload and publishing..."
-          FINISH=$(curl -s -w "\n%{http_code}" -X POST "$API/${FB_PAGE_ID}/videos" \
-            -H "Content-Type: application/json" \
-            -d "{\"upload_phase\":\"finish\",\"upload_session_id\":\"${SESSION}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${FB_PAGE_TOKEN}\"}")
-          
-          FINISH_CODE=$(echo "$FINISH" | tail -n1)
-          FINISH_BODY=$(echo "$FINISH" | sed '$d')
-          
-          echo "Finish HTTP Code: $FINISH_CODE"
-          echo "Finish Response: $FINISH_BODY"
-          
-          if [ "$FINISH_CODE" != "200" ]; then
-            echo "❌ Failed to publish video"
-            exit 1
-          fi
-          
-          # Check for success
-          SUCCESS=$(echo "$FINISH_BODY" | jq -r '.success // .id')
-          if [ -z "$SUCCESS" ] || [ "$SUCCESS" = "null" ]; then
-            echo "❌ Publish failed: $FINISH_BODY"
-            exit 1
-          fi
-          
-          echo "✅ Success! Video posted to Facebook"
-          echo "Video ID: $VIDEO_ID"
-          echo "Post ID: $SUCCESS"
-          
-          # Save video ID for reference
-          echo "video_id=$VIDEO_ID" >> $GITHUB_OUTPUT
-          echo "post_id=$SUCCESS" >> $GITHUB_OUTPUT
+          SESSION=$(echo "$INIT" | jq -r '.upload_session_id')
+          VID_ID=$(echo "$INIT" | jq -r '.video_id')
 
-      - name: Verify Facebook Secrets
-        if: failure()
-        run: |
-          echo "🔍 Checking Facebook secrets..."
-          if [ -z "${{ secrets.FB_PAGE_ID }}" ]; then
-            echo "❌ FB_PAGE_ID secret is not set"
+          if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
+            echo "Reels failed — trying videos endpoint..."
+            INIT=$(curl -sf -X POST "${API}/${PAGE_ID}/videos" \
+              -H "Content-Type: application/json" \
+              -d "{\"upload_phase\":\"start\",\"file_size\":${SIZE},\"access_token\":\"${PAGE_TOKEN}\"}")
+            SESSION=$(echo "$INIT" | jq -r '.upload_session_id')
+            VID_ID=$(echo "$INIT" | jq -r '.video_id')
+            S_OFF=$(echo "$INIT" | jq -r '.start_offset')
+
+            if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
+              echo "Both endpoints failed: $INIT"
+              exit 1
+            fi
+
+            curl -sf -X POST "${API}/${PAGE_ID}/videos" \
+              -F "upload_phase=transfer" \
+              -F "upload_session_id=${SESSION}" \
+              -F "start_offset=${S_OFF}" \
+              -F "video_file_chunk=@${FILE};type=video/mp4" \
+              -F "access_token=${PAGE_TOKEN}" > /dev/null
+
+            FINISH=$(curl -sf -X POST "${API}/${PAGE_ID}/videos" \
+              -H "Content-Type: application/json" \
+              -d "{\"upload_phase\":\"finish\",\"upload_session_id\":\"${SESSION}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}")
           else
-            echo "✅ FB_PAGE_ID is set"
-          fi
-          
-          if [ -z "${{ secrets.FB_PAGE_TOKEN }}" ]; then
-            echo "❌ FB_PAGE_TOKEN secret is not set"
-          else
-            echo "✅ FB_PAGE_TOKEN is set (masked)"
+            UPLOAD_URL=$(echo "$INIT" | jq -r '.upload_url')
+
+            curl -sf -X POST "$UPLOAD_URL" \
+              -H "Authorization: OAuth ${PAGE_TOKEN}" \
+              -H "offset: 0" \
+              -H "file_size: ${SIZE}" \
+              --data-binary "@${FILE}" > /dev/null
+
+            FINISH=$(curl -sf -X POST "${API}/${PAGE_ID}/video_reels" \
+              -H "Content-Type: application/json" \
+              -d "{\"upload_phase\":\"finish\",\"video_id\":\"${VID_ID}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}")
           fi
 
-      - name: Upload Final Video as Artifact (for debugging)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: final-video
-          path: final.mp4
-          if-no-files-found: ignore
+          echo "Result: $FINISH"
+          OK=$(echo "$FINISH" | jq -r '.success // .id // empty')
+          if [ -z "$OK" ]; then
+            echo "Publish failed: $FINISH"
+            exit 1
+          fi
+
+          echo "Posted! Video ID: $VID_ID"
