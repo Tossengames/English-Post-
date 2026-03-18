@@ -2,78 +2,121 @@ name: still-moments-post
 
 on:
   workflow_dispatch:
+    inputs:
+      caption:
+        description: Post caption
+        required: false
+        default: A still moment to breathe. #StillMoments #Relaxation
   schedule:
-    - cron: '0 9 * * *'
+    - cron: '0 7 * * *'
 
 jobs:
   post:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: install
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg jq curl
+          sudo apt-get install -y ffmpeg bc jq curl python3
 
-      - name: get-video
-        id: vid
+      - name: fetch-video
+        id: video
         env:
-          KEY: 50973339-3e27fd59ddfd9c68378e78753
+          PIXABAY_KEY: 50973339-3e27fd59ddfd9c68378e78753
         run: |
           set -e
 
-          QUERY="nature relaxing"
-          API="https://pixabay.com/api/videos/?key=$KEY&q=$QUERY&per_page=10"
+          CLIP=10
+          SKIP_HEAD=15
+          SKIP_TAIL=10
+          MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
 
-          RES=$(curl -s "$API")
-          URL=$(echo "$RES" | jq -r '.hits[0].videos.medium.url')
-          DUR=$(echo "$RES" | jq -r '.hits[0].duration')
+          TERMS=(
+            "nature walk forest"
+            "rain village relaxing"
+            "peaceful river stream"
+            "mountain path walking"
+            "garden rain morning"
+            "countryside walk silent"
+            "forest path meditation"
+            "rainy street calm"
+            "lake reflection peaceful"
+            "sunset nature walk"
+          )
 
-          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
-            echo "No video"
+          VIDEO_URL=""
+          START=0
+
+          for TERM in "${TERMS[@]}"; do
+            API="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=$(python3 -c "import urllib.parse; print(urllib.parse.quote('''$TERM'''))")&per_page=10"
+
+            RESPONSE=$(curl -s "$API")
+            COUNT=$(echo "$RESPONSE" | jq '.hits | length')
+
+            if [ "$COUNT" -eq 0 ]; then continue; fi
+
+            for i in $(seq 0 $((COUNT - 1))); do
+              DUR=$(echo "$RESPONSE" | jq -r ".hits[$i].duration")
+
+              if [ -z "$DUR" ] || [ "$DUR" = "null" ]; then continue; fi
+              if [ "$DUR" -lt "$MIN_DUR" ]; then continue; fi
+
+              URL=$(echo "$RESPONSE" | jq -r ".hits[$i].videos.medium.url")
+
+              if [ -z "$URL" ] || [ "$URL" = "null" ]; then continue; fi
+
+              ZONE_START=$SKIP_HEAD
+              ZONE_END=$((DUR - SKIP_TAIL - CLIP))
+              RANGE=$((ZONE_END - ZONE_START))
+
+              if [ "$RANGE" -le 0 ]; then continue; fi
+
+              START=$((ZONE_START + RANDOM % RANGE))
+              VIDEO_URL="$URL"
+
+              echo "Selected video"
+              break 2
+            done
+          done
+
+          if [ -z "$VIDEO_URL" ]; then
+            echo "No valid video found"
             exit 1
           fi
 
-          START=5
-          CLIP=10
-
-          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "url=$VIDEO_URL" >> $GITHUB_OUTPUT
           echo "start=$START" >> $GITHUB_OUTPUT
           echo "clip=$CLIP" >> $GITHUB_OUTPUT
 
-      - name: process
+      - name: process-video
         run: |
           set -e
 
-          URL="${{ steps.vid.outputs.url }}"
-          START="${{ steps.vid.outputs.start }}"
-          DUR="${{ steps.vid.outputs.clip }}"
+          URL="${{ steps.video.outputs.url }}"
+          START="${{ steps.video.outputs.start }}"
+          DUR="${{ steps.video.outputs.clip }}"
 
           curl -L "$URL" -o input.mp4
 
           ffmpeg -y -ss "$START" -i input.mp4 -t "$DUR" \
-            -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" \
+            -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,drawtext=text='Still Moments':fontcolor=white@0.7:fontsize=42:x=w-tw-40:y=h-th-80" \
             -c:v libx264 -preset fast -crf 23 \
             -pix_fmt yuv420p \
-            out.mp4
+            output.mp4
 
-          ls -lh out.mp4
-
-      - name: debug-file
-        run: |
-          if [ ! -f out.mp4 ]; then
-            echo "NO VIDEO CREATED"
-            exit 1
-          fi
+          ls -lh output.mp4
 
       - name: post-facebook
         env:
-          PAGE: ${{ secrets.FB_PAGE_ID }}
-          TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          CAPTION: ${{ github.event.inputs.caption || 'A still moment to breathe. #StillMoments #Relaxation' }}
         run: |
           set -e
 
-          curl -X POST "https://graph.facebook.com/v19.0/$PAGE/videos" \
-            -F "access_token=$TOKEN" \
-            -F "source=@out.mp4" \
-            -F "description=Still moment 🌿"
+          curl -X POST "https://graph.facebook.com/v19.0/${FB_PAGE_ID}/videos" \
+            -F "access_token=${FB_PAGE_TOKEN}" \
+            -F "source=@output.mp4" \
+            -F "description=${CAPTION}"
