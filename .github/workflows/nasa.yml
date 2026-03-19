@@ -1,4 +1,4 @@
-name: nasa 3
+name: nasa-space-post
 
 "on":
   workflow_dispatch:
@@ -51,6 +51,10 @@ jobs:
             "https://images.nasa.gov/search?q=galaxy&page=1&media=video"
             "https://images.nasa.gov/search?q=nebula&page=1&media=video"
             "https://images.nasa.gov/search?q=astronaut&page=1&media=video"
+            "https://images.nasa.gov/search?q=sun&page=1&media=video"
+            "https://images.nasa.gov/search?q=aurora&page=1&media=video"
+            "https://images.nasa.gov/search?q=hubble&page=1&media=video"
+            "https://images.nasa.gov/search?q=webb&page=1&media=video"
           )
           
           NASA_PAGES=($(printf "%s\n" "${NASA_PAGES[@]}" | shuf))
@@ -76,46 +80,69 @@ jobs:
               fi
               
               if [ -n "$VURL" ]; then
-                VIDEO_URL="$VURL"
-                START=$SKIP_HEAD
-                echo "video_url=$VIDEO_URL" >> "$GITHUB_OUTPUT"
-                echo "start=$START" >> "$GITHUB_OUTPUT"
-                echo "clip=$CLIP" >> "$GITHUB_OUTPUT"
-                echo "✅ Found NASA video"
-                break 3
+                # Get duration
+                if command -v yt-dlp &>/dev/null && [ -n "$YT_ID" ]; then
+                  DUR=$(yt-dlp --get-duration "https://youtube.com/watch?v=$YT_ID" 2>/dev/null | \
+                        awk -F: '{ if (NF==1) print $1; else if (NF==2) print ($1*60)+$2; else print ($1*3600)+($2*60)+$3 }')
+                else
+                  # Try ffprobe
+                  DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$VURL" 2>/dev/null | cut -d. -f1)
+                fi
+                
+                [ -z "$DUR" ] && DUR=60
+                
+                if [ "$DUR" -ge "$MIN_DUR" ]; then
+                  ZONE_END=$((DUR - SKIP_TAIL - CLIP))
+                  RANGE=$((ZONE_END - SKIP_HEAD))
+                  if [ "$RANGE" -gt 0 ]; then
+                    START=$((SKIP_HEAD + RANDOM % RANGE))
+                    VIDEO_URL="$VURL"
+                    echo "video_url=$VIDEO_URL" >> "$GITHUB_OUTPUT"
+                    echo "start=$START" >> "$GITHUB_OUTPUT"
+                    echo "clip=$CLIP" >> "$GITHUB_OUTPUT"
+                    echo "✅ Found NASA video: start=${START}s clip=${CLIP}s"
+                    break 4
+                  fi
+                fi
               fi
             done
           done
 
-          # ------- PIXABAY FALLBACK -------
+          # ------- PIXABAY SPACE FALLBACK -------
           if [ -z "$VIDEO_URL" ]; then
-            echo "NASA failed - trying Pixabay..."
+            echo "NASA failed - trying Pixabay space videos..."
             
-            TERMS="galaxy|nebula|stars|universe|planet|astronaut|space"
+            TERMS="galaxy|nebula|stars|universe|milky way|planet|earth from space|moon|mars|astronaut|spacewalk|rocket launch|space shuttle|spacecraft|solar system|deep space|cosmos|night sky stars|space station|solar flare|black hole|comet|asteroid|space telescope"
             IFS='|' read -ra TERM_ARR <<< "$TERMS"
-            
             for TERM in $(printf "%s\n" "${TERM_ARR[@]}" | shuf); do
-              PAGE=$((RANDOM % 3 + 1))
+              PAGE=$((RANDOM % 5 + 1))
               ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$TERM'))")
               URL="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=${ENCODED}&video_type=film&per_page=20&page=${PAGE}"
               RESP=$(timeout 10 curl -sf "$URL" 2>/dev/null) || continue
-              
-              VURL=$(echo "$RESP" | jq -r '.hits[]?.videos.large.url' | shuf -n 1)
-              
-              if [ -n "$VURL" ] && [ "$VURL" != "null" ]; then
+              COUNT=$(echo "$RESP" | jq -r '.hits | length' 2>/dev/null) || continue
+              [ "$COUNT" -eq 0 ] && continue
+              for i in $(seq 0 $((COUNT - 1)) | shuf); do
+                DUR=$(echo "$RESP" | jq -r ".hits[$i].duration" 2>/dev/null)
+                [[ "$DUR" =~ ^[0-9]+$ ]] || continue
+                [ "$DUR" -lt "$MIN_DUR" ] && continue
+                VURL=$(echo "$RESP" | jq -r ".hits[$i].videos.large.url // .hits[$i].videos.medium.url // .hits[$i].videos.small.url" 2>/dev/null)
+                [ -z "$VURL" ] || [ "$VURL" = "null" ] && continue
+                ZONE_END=$((DUR - SKIP_TAIL - CLIP))
+                RANGE=$((ZONE_END - SKIP_HEAD))
+                [ "$RANGE" -le 0 ] && continue
+                START=$((SKIP_HEAD + RANDOM % RANGE))
                 VIDEO_URL="$VURL"
-                START=$SKIP_HEAD
                 echo "video_url=$VIDEO_URL" >> "$GITHUB_OUTPUT"
                 echo "start=$START" >> "$GITHUB_OUTPUT"
                 echo "clip=$CLIP" >> "$GITHUB_OUTPUT"
-                echo "✅ Found Pixabay video"
-                break
-              fi
+                echo "✅ Found Pixabay space video"
+                break 3
+              done
             done
           fi
 
           if [ -z "$VIDEO_URL" ]; then
-            echo "❌ No video found"
+            echo "❌ No video found from any source"
             exit 1
           fi
 
@@ -171,6 +198,16 @@ jobs:
             "In awe of it all. 🤍 #Space #Cosmic"
             "Light years away. ✨ #Space #Galaxy"
             "Space: the silent symphony. 🎵 #Space #NASA"
+            "Earthrise. 🌍 #Space #Apollo #NASA"
+            "Tranquility Base here. 🌕 #Space #Moon #NASA"
+            "The Eagle has landed. 🚀 #Space #NASA #History"
+            "One small step. 👨‍🚀 #Space #NASA #Moon"
+            "Pale blue dot. 💙 #Space #CarlSagan #Earth"
+            "The overview effect. 🌎 #Space #NASA #Earth"
+            "Our home. 🏠 #Space #Earth #NASA"
+            "Stargazing. ✨ #Space #Stars #NightSky"
+            "Cosmic perspective. 🔭 #Space #Universe #NASA"
+            "Wonder and awe. 🌌 #Space #Cosmos #NASA"
           )
           RANDOM_CAPTION=${CAPTIONS[$RANDOM % ${#CAPTIONS[@]}]}
           echo "caption=$RANDOM_CAPTION" >> "$GITHUB_OUTPUT"
@@ -183,29 +220,46 @@ jobs:
           START="${{ steps.vid.outputs.start }}"
           DUR="${{ steps.vid.outputs.clip }}"
           MUSIC="${{ steps.music.outputs.music_file }}"
+          FETCH=$(echo "$DUR + 5" | bc)
+          FADEOUT=$(echo "$DUR - 1.5" | bc)
           
-          echo "Downloading video..."
-          if ! timeout 60 ffmpeg -ss "$START" -i "$URL" -t "$DUR" -c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p -c:a aac source.mp4; then
-            echo "❌ Download failed"
+          echo "Downloading video segment..."
+          # Try fast copy first
+          if ! timeout 60 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4; then
+            echo "Fast copy failed - retrying with re-encode..."
+            timeout 90 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" \
+              -c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p -c:a aac source.mp4
+          fi
+          
+          # Check if video has video stream
+          HAS_VIDEO=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
+          if [ -z "$HAS_VIDEO" ]; then
+            echo "❌ No video stream - download failed"
             exit 1
           fi
-
+          
           echo "Extracting music segment (any format)..."
           # Convert ANY audio format to standard AAC
-          timeout 30 ffmpeg -i "$MUSIC" -t "$DUR" -af "afade=t=in:st=0:d=1,afade=t=out:st=$(echo "$DUR - 1.5" | bc):d=1.5" -c:a aac -b:a 192k music.m4a
+          timeout 30 ffmpeg -hide_banner -loglevel error -y -i "$MUSIC" -t "$DUR" \
+            -af "afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5" \
+            -c:a aac -b:a 192k music.m4a
 
-          echo "Creating final video..."
-          timeout 120 ffmpeg -i source.mp4 -i music.m4a \
-            -filter_complex "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fade=t=in:st=0:d=1,fade=t=out:st=$(echo "$DUR - 1.5" | bc):d=1.5[v]" \
+          echo "Creating final vertical video..."
+          timeout 120 ffmpeg -hide_banner -loglevel error -y \
+            -i source.mp4 -i music.m4a \
+            -filter_complex "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5,format=yuv420p[v]" \
             -map "[v]" -map 1:a \
-            -c:v libx264 -preset fast -crf 18 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p -t "$DUR" final.mp4
-
-          if [ ! -f final.mp4 ]; then
+            -c:v libx264 -preset fast -crf 18 \
+            -c:a aac -b:a 192k \
+            -movflags +faststart -t "$DUR" final.mp4
+          
+          if [ ! -f final.mp4 ] || [ ! -s final.mp4 ]; then
             echo "❌ Final video creation failed"
             exit 1
           fi
           
           ls -lh final.mp4
+          echo "✅ Video processed successfully"
 
       - name: post-to-facebook
         timeout-minutes: 2
@@ -214,23 +268,73 @@ jobs:
           PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           CAPTION: ${{ steps.caption.outputs.caption }}
         run: |
+          set -e
           FILE="final.mp4"
           if [ ! -f "$FILE" ]; then
             echo "❌ No video file"
             exit 1
           fi
           
-          echo "Posting to Facebook..."
-          curl -X POST "https://graph.facebook.com/v19.0/${{ secrets.FB_PAGE_ID }}/video_reels" \
-            -F "source=@$FILE" \
-            -F "description=$CAPTION" \
-            -F "access_token=${{ secrets.FB_PAGE_TOKEN }}" \
-            --progress-bar | tee result.json
+          SIZE=$(stat -c%s "$FILE")
+          API="https://graph.facebook.com/v19.0"
           
-          if grep -q "error" result.json; then
-            echo "❌ Post failed"
-            cat result.json
+          echo "Starting video upload..."
+          INIT=$(timeout 15 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" \
+            -H "Content-Type: application/json" \
+            -d "{\"upload_phase\":\"start\",\"access_token\":\"${PAGE_TOKEN}\"}")
+          
+          SESSION=$(echo "$INIT" | jq -r '.upload_session_id')
+          VID_ID=$(echo "$INIT" | jq -r '.video_id')
+          
+          if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
+            echo "Reels failed — trying videos endpoint..."
+            INIT=$(timeout 15 curl -sf -X POST "${API}/${PAGE_ID}/videos" \
+              -H "Content-Type: application/json" \
+              -d "{\"upload_phase\":\"start\",\"file_size\":${SIZE},\"access_token\":\"${PAGE_TOKEN}\"}")
+            
+            SESSION=$(echo "$INIT" | jq -r '.upload_session_id')
+            VID_ID=$(echo "$INIT" | jq -r '.video_id')
+            S_OFF=$(echo "$INIT" | jq -r '.start_offset')
+            
+            if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
+              echo "❌ Both endpoints failed: $INIT"
+              exit 1
+            fi
+            
+            echo "Uploading video chunk..."
+            timeout 60 curl -sf -X POST "${API}/${PAGE_ID}/videos" \
+              -F "upload_phase=transfer" \
+              -F "upload_session_id=${SESSION}" \
+              -F "start_offset=${S_OFF}" \
+              -F "video_file_chunk=@${FILE};type=video/mp4" \
+              -F "access_token=${PAGE_TOKEN}" > /dev/null
+            
+            echo "Finishing upload..."
+            FINISH=$(timeout 15 curl -sf -X POST "${API}/${PAGE_ID}/videos" \
+              -H "Content-Type: application/json" \
+              -d "{\"upload_phase\":\"finish\",\"upload_session_id\":\"${SESSION}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}")
+          else
+            UPLOAD_URL=$(echo "$INIT" | jq -r '.upload_url')
+            
+            echo "Uploading to: $UPLOAD_URL"
+            timeout 60 curl -sf -X POST "$UPLOAD_URL" \
+              -H "Authorization: OAuth ${PAGE_TOKEN}" \
+              -H "offset: 0" \
+              -H "file_size: ${SIZE}" \
+              --data-binary "@${FILE}" > /dev/null
+            
+            echo "Finishing reel upload..."
+            FINISH=$(timeout 15 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" \
+              -H "Content-Type: application/json" \
+              -d "{\"upload_phase\":\"finish\",\"video_id\":\"${VID_ID}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}")
+          fi
+          
+          echo "Result: $FINISH"
+          OK=$(echo "$FINISH" | jq -r '.success // .id // empty')
+          
+          if [ -z "$OK" ]; then
+            echo "❌ Publish failed: $FINISH"
             exit 1
           fi
           
-          echo "✅ Posted successfully!"
+          echo "✅ Posted! Video ID: $VID_ID"
