@@ -1,4 +1,4 @@
-name: still-moments-post-x1
+name: nasa
 
 "on":
   workflow_dispatch:
@@ -122,18 +122,24 @@ jobs:
       - name: pick-music
         id: music
         run: |
-          if [ ! -d "bgmusic" ] || [ -z "$(ls -A bgmusic)" ]; then
+          if [ ! -d "bgmusic" ] || [ -z "$(ls -A bgmusic 2>/dev/null)" ]; then
             echo "❌ No music folder or files"
             exit 1
           fi
-          cd bgmusic
-          FILES=(*.mp3 *.wav 2>/dev/null)
+          
+          # Find music files properly
+          FILES=()
+          while IFS= read -r file; do
+            FILES+=("$file")
+          done < <(find bgmusic -type f \( -name "*.mp3" -o -name "*.wav" \) 2>/dev/null || true)
+          
           if [ ${#FILES[@]} -eq 0 ]; then
-            echo "❌ No music files"
+            echo "❌ No music files found"
             exit 1
           fi
-          RANDOM_FILE=${FILES[$RANDOM % ${#FILES[@]}]}
-          echo "music_file=bgmusic/$RANDOM_FILE" >> "$GITHUB_OUTPUT"
+          
+          RANDOM_FILE="${FILES[$RANDOM % ${#FILES[@]}]}"
+          echo "music_file=$RANDOM_FILE" >> "$GITHUB_OUTPUT"
           echo "Selected: $RANDOM_FILE"
 
       - name: pick-caption
