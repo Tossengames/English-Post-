@@ -8,7 +8,7 @@ name: japan-post
         required: false
         default: ""
   schedule:
-    - cron: "0 17 * * *"
+   # - cron: "0 17 * * *"
 
 jobs:
   post:
