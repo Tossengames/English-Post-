@@ -1,4 +1,4 @@
-name: nasa
+name: nasa 3
 
 "on":
   workflow_dispatch:
@@ -127,11 +127,11 @@ jobs:
             exit 1
           fi
           
-          # Find music files properly
+          # Find ANY audio file
           FILES=()
           while IFS= read -r file; do
             FILES+=("$file")
-          done < <(find bgmusic -type f \( -name "*.mp3" -o -name "*.wav" \) 2>/dev/null || true)
+          done < <(find bgmusic -type f \( -iname "*.mp3" -o -iname "*.wav" -o -iname "*.m4a" -o -iname "*.mp4" -o -iname "*.aac" -o -iname "*.ogg" -o -iname "*.flac" -o -iname "*.m4p" \) 2>/dev/null || true)
           
           if [ ${#FILES[@]} -eq 0 ]; then
             echo "❌ No music files found"
@@ -190,11 +190,12 @@ jobs:
             exit 1
           fi
 
-          echo "Extracting music segment..."
-          timeout 30 ffmpeg -i "$MUSIC" -t "$DUR" -af "afade=t=in:st=0:d=1,afade=t=out:st=$(echo "$DUR - 1.5" | bc):d=1.5" -c:a aac music.mp3
+          echo "Extracting music segment (any format)..."
+          # Convert ANY audio format to standard AAC
+          timeout 30 ffmpeg -i "$MUSIC" -t "$DUR" -af "afade=t=in:st=0:d=1,afade=t=out:st=$(echo "$DUR - 1.5" | bc):d=1.5" -c:a aac -b:a 192k music.m4a
 
           echo "Creating final video..."
-          timeout 120 ffmpeg -i source.mp4 -i music.mp3 \
+          timeout 120 ffmpeg -i source.mp4 -i music.m4a \
             -filter_complex "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fade=t=in:st=0:d=1,fade=t=out:st=$(echo "$DUR - 1.5" | bc):d=1.5[v]" \
             -map "[v]" -map 1:a \
             -c:v libx264 -preset fast -crf 18 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p -t "$DUR" final.mp4
