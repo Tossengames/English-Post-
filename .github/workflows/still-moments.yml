@@ -1,4 +1,4 @@
-name: still-moments-post x1
+name: still-moments-post
 
 "on":
   workflow_dispatch:
@@ -73,7 +73,7 @@ jobs:
         id: music
         timeout-minutes: 1
         run: |
-          TRACKS=(bgmusic/*.mp3 bgmusic/*.wav)
+          TRACKS=(bgmusic/*.mp3 bgmusic/*.wav bgmusic/*.m4a bgmusic/*.mp4 bgmusic/*.aac bgmusic/*.ogg bgmusic/*.flac)
           VALID=()
           for t in "${TRACKS[@]}"; do
             [ -f "$t" ] && VALID+=("$t")
@@ -132,55 +132,24 @@ jobs:
           MUSIC_FILE="${{ steps.music.outputs.music_file }}"
           FETCH=$(echo "$DUR + 5" | bc)
           FADEOUT=$(echo "$DUR - 1.5" | bc)
-
-          echo "Downloading video segment..."
           timeout 60 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4
-
           VID_STREAM=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
           if [ -z "$VID_STREAM" ]; then
-            echo "Partial download — retrying with re-encode..."
-            timeout 90 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" \
-              -c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p source.mp4
+            timeout 90 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" -c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p source.mp4
           fi
-
           HAS_VIDEO_AUDIO=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
-          echo "Video native audio: ${HAS_VIDEO_AUDIO:-none}"
-          echo "Using music: $MUSIC_FILE"
-
           MDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$MUSIC_FILE" 2>/dev/null | cut -d. -f1)
           MMAX=$((MDUR - 5))
           [ "$MMAX" -le 5 ] && MMAX=5
           MSTART=$((RANDOM % MMAX))
-          echo "Music start: ${MSTART}s of ${MDUR}s total"
-
-          timeout 30 ffmpeg -hide_banner -loglevel error -y \
-            -stream_loop -1 -i "$MUSIC_FILE" \
-            -ss "$MSTART" -t "$FETCH" \
-            -ac 2 -ar 44100 \
-            music_clip.mp3
-
+          timeout 30 ffmpeg -hide_banner -loglevel error -y -stream_loop -1 -i "$MUSIC_FILE" -ss "$MSTART" -t "$FETCH" -ac 2 -ar 44100 music_clip.mp3
           VFILTER="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5[vout]"
-
           if [ -n "$HAS_VIDEO_AUDIO" ]; then
-            echo "Mixing video audio + music..."
-            timeout 120 ffmpeg -hide_banner -loglevel error -y \
-              -i source.mp4 -i music_clip.mp3 \
-              -filter_complex "${VFILTER};[0:a]volume=1.0[va];[1:a]volume=0.3,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[ma];[va][ma]amix=inputs=2:duration=first[aout]" \
-              -map "[vout]" -map "[aout]" \
-              -t "$DUR" -c:v libx264 -preset fast -crf 18 \
-              -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
+            timeout 120 ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[0:a]volume=1.0[va];[1:a]volume=0.3,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[ma];[va][ma]amix=inputs=2:duration=first[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -preset fast -crf 18 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
           else
-            echo "Music only..."
-            timeout 120 ffmpeg -hide_banner -loglevel error -y \
-              -i source.mp4 -i music_clip.mp3 \
-              -filter_complex "${VFILTER};[1:a]volume=1.0,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[aout]" \
-              -map "[vout]" -map "[aout]" \
-              -t "$DUR" -c:v libx264 -preset fast -crf 18 \
-              -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
+            timeout 120 ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[1:a]volume=1.0,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -preset fast -crf 18 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
           fi
-
           ls -lh final.mp4
-          ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 final.mp4
 
       - name: post-to-facebook
         timeout-minutes: 2
@@ -197,7 +166,6 @@ jobs:
           SESSION=$(echo "$INIT" | jq -r '.upload_session_id')
           VID_ID=$(echo "$INIT" | jq -r '.video_id')
           if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
-            echo "Reels failed — trying videos endpoint..."
             INIT=$(timeout 15 curl -sf -X POST "${API}/${PAGE_ID}/videos" -H "Content-Type: application/json" -d "{\"upload_phase\":\"start\",\"file_size\":${SIZE},\"access_token\":\"${PAGE_TOKEN}\"}")
             SESSION=$(echo "$INIT" | jq -r '.upload_session_id')
             VID_ID=$(echo "$INIT" | jq -r '.video_id')
