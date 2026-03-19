@@ -1,0 +1,185 @@
+name: cars-post
+
+"on":
+  workflow_dispatch:
+    inputs:
+      caption:
+        description: "Post caption (leave empty for random)"
+        required: false
+        default: ""
+  schedule:
+    - cron: "0 14 * * *"
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: install-deps
+        timeout-minutes: 3
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg bc jq python3
+
+      - name: find-video
+        id: vid
+        timeout-minutes: 2
+        env:
+          PIXABAY_KEY: "50973339-3e27fd59ddfd9c68378e78753"
+        run: |
+          set -e
+          CLIP=25
+          SKIP_HEAD=15
+          SKIP_TAIL=10
+          MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
+          VIDEO_URL=""
+          TERMS="supercar driving road|classic car driving|sports car night road|luxury car highway|car racing track|muscle car driving|ferrari driving|lamborghini road|porsche driving|car headlights night|vintage car road|car drift track|supercar exhaust|car tunnel drive|luxury car city night|classic car show|car engine revving|hypercar road|car driving mountain|sports car sunset road"
+          IFS='|' read -ra TERM_ARR <<< "$TERMS"
+          for TERM in $(printf "%s\n" "${TERM_ARR[@]}" | shuf); do
+            PAGE=$((RANDOM % 5 + 1))
+            ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$TERM")
+            URL="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=${ENCODED}&video_type=film&per_page=20&page=${PAGE}"
+            RESP=$(timeout 10 curl -sf --max-time 10 "$URL" 2>/dev/null) || continue
+            COUNT=$(echo "$RESP" | jq -r '.hits | length' 2>/dev/null) || continue
+            [ "$COUNT" -eq 0 ] && continue
+            for i in $(seq 0 $((COUNT - 1)) | shuf); do
+              DUR=$(echo "$RESP" | jq -r ".hits[$i].duration" 2>/dev/null)
+              [[ "$DUR" =~ ^[0-9]+$ ]] || continue
+              [ "$DUR" -lt "$MIN_DUR" ] && continue
+              VURL=$(echo "$RESP" | jq -r ".hits[$i].videos.large.url // .hits[$i].videos.medium.url // .hits[$i].videos.small.url" 2>/dev/null)
+              [ -z "$VURL" ] || [ "$VURL" = "null" ] && continue
+              ZONE_END=$((DUR - SKIP_TAIL - CLIP))
+              RANGE=$((ZONE_END - SKIP_HEAD))
+              [ "$RANGE" -le 0 ] && continue
+              START=$((SKIP_HEAD + RANDOM % RANGE))
+              VIDEO_URL="$VURL"
+              echo "video_url=$VIDEO_URL" >> "$GITHUB_OUTPUT"
+              echo "start=$START" >> "$GITHUB_OUTPUT"
+              echo "clip=$CLIP" >> "$GITHUB_OUTPUT"
+              echo "Found video: start=${START}s clip=${CLIP}s dur=${DUR}s"
+              break 2
+            done
+          done
+          if [ -z "$VIDEO_URL" ]; then
+            echo "No valid video found"
+            exit 1
+          fi
+
+      - name: pick-music
+        id: music
+        timeout-minutes: 1
+        run: |
+          TRACKS=(bgmusic/*.mp3 bgmusic/*.wav)
+          VALID=()
+          for t in "${TRACKS[@]}"; do
+            [ -f "$t" ] && VALID+=("$t")
+          done
+          if [ ${#VALID[@]} -eq 0 ]; then
+            echo "No music files found in bgmusic folder"
+            exit 1
+          fi
+          IDX=$((RANDOM % ${#VALID[@]}))
+          PICKED="${VALID[$IDX]}"
+          echo "music_file=$PICKED" >> "$GITHUB_OUTPUT"
+          echo "Selected: $PICKED"
+
+      - name: pick-caption
+        id: caption
+        timeout-minutes: 1
+        run: |
+          INPUT_CAPTION="${{ github.event.inputs.caption }}"
+          if [ -n "$INPUT_CAPTION" ]; then
+            echo "caption=$INPUT_CAPTION" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CAPTIONS=(
+            "Built different. 🤍 #Cars #Supercar #CarVibes"
+            "The road is yours. ✨ #DriveFast #CarLovers #Automotive"
+            "Some machines are art. 🤍 #ExoticCars #CarCulture #Auto"
+            "Pure power. ✨ #Supercar #CarLovers #Speed"
+            "This never gets old. 🤍 #ClassicCars #CarVibes #Automotive"
+            "Freedom on four wheels. ✨ #Cars #RoadTrip #CarCulture"
+            "Save this for the bad days. 🤍 #Cars #Supercar #CarLovers"
+            "Engineering at its finest. ✨ #Automotive #CarCulture #ExoticCars"
+            "No words. Just drive. 🤍 #Cars #Speed #CarVibes"
+            "The sound alone. ✨ #Supercar #CarLovers #ExhaustNote"
+            "This is what dreams look like. 🤍 #DreamCar #ExoticCars #CarCulture"
+            "Every detail matters. ✨ #Cars #Automotive #CarLovers"
+            "Made to move. 🤍 #Speed #Cars #CarVibes"
+            "The night belongs to this. ✨ #NightDrive #Cars #CarCulture"
+            "Some things never go out of style. 🤍 #ClassicCars #Automotive #CarLovers"
+          )
+          IDX=$((RANDOM % ${#CAPTIONS[@]}))
+          PICKED="${CAPTIONS[$IDX]}"
+          echo "caption=$PICKED" >> "$GITHUB_OUTPUT"
+          echo "Picked: $PICKED"
+
+      - name: process-video
+        timeout-minutes: 3
+        run: |
+          URL="${{ steps.vid.outputs.video_url }}"
+          START="${{ steps.vid.outputs.start }}"
+          DUR="${{ steps.vid.outputs.clip }}"
+          MUSIC_FILE="${{ steps.music.outputs.music_file }}"
+          FETCH=$(echo "$DUR + 5" | bc)
+          FADEOUT=$(echo "$DUR - 1.5" | bc)
+          timeout 60 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4
+          VID_STREAM=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
+          if [ -z "$VID_STREAM" ]; then
+            timeout 90 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" -c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p source.mp4
+          fi
+          HAS_VIDEO_AUDIO=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
+          MDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$MUSIC_FILE" 2>/dev/null | cut -d. -f1)
+          MMAX=$((MDUR - 5))
+          [ "$MMAX" -le 5 ] && MMAX=5
+          MSTART=$((RANDOM % MMAX))
+          timeout 30 ffmpeg -hide_banner -loglevel error -y -stream_loop -1 -i "$MUSIC_FILE" -ss "$MSTART" -t "$FETCH" -ac 2 -ar 44100 music_clip.mp3
+          VFILTER="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5[vout]"
+          if [ -n "$HAS_VIDEO_AUDIO" ]; then
+            timeout 120 ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[0:a]volume=1.0[va];[1:a]volume=0.3,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[ma];[va][ma]amix=inputs=2:duration=first[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -preset fast -crf 18 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
+          else
+            timeout 120 ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[1:a]volume=1.0,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -preset fast -crf 18 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
+          fi
+          ls -lh final.mp4
+
+      - name: post-to-facebook
+        timeout-minutes: 2
+        env:
+          PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          CAPTION: ${{ steps.caption.outputs.caption }}
+        run: |
+          set -e
+          FILE="final.mp4"
+          SIZE=$(stat -c%s "$FILE")
+          API="https://graph.facebook.com/v19.0"
+          INIT=$(timeout 15 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"start\",\"access_token\":\"${PAGE_TOKEN}\"}")
+          SESSION=$(echo "$INIT" | jq -r '.upload_session_id')
+          VID_ID=$(echo "$INIT" | jq -r '.video_id')
+          if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
+            INIT=$(timeout 15 curl -sf -X POST "${API}/${PAGE_ID}/videos" -H "Content-Type: application/json" -d "{\"upload_phase\":\"start\",\"file_size\":${SIZE},\"access_token\":\"${PAGE_TOKEN}\"}")
+            SESSION=$(echo "$INIT" | jq -r '.upload_session_id')
+            VID_ID=$(echo "$INIT" | jq -r '.video_id')
+            S_OFF=$(echo "$INIT" | jq -r '.start_offset')
+            if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
+              echo "Both endpoints failed: $INIT"
+              exit 1
+            fi
+            timeout 60 curl -sf -X POST "${API}/${PAGE_ID}/videos" -F "upload_phase=transfer" -F "upload_session_id=${SESSION}" -F "start_offset=${S_OFF}" -F "video_file_chunk=@${FILE};type=video/mp4" -F "access_token=${PAGE_TOKEN}" > /dev/null
+            FINISH=$(timeout 15 curl -sf -X POST "${API}/${PAGE_ID}/videos" -H "Content-Type: application/json" -d "{\"upload_phase\":\"finish\",\"upload_session_id\":\"${SESSION}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}")
+          else
+            UPLOAD_URL=$(echo "$INIT" | jq -r '.upload_url')
+            timeout 60 curl -sf -X POST "$UPLOAD_URL" -H "Authorization: OAuth ${PAGE_TOKEN}" -H "offset: 0" -H "file_size: ${SIZE}" --data-binary "@${FILE}" > /dev/null
+            FINISH=$(timeout 15 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"finish\",\"video_id\":\"${VID_ID}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}")
+          fi
+          echo "Result: $FINISH"
+          OK=$(echo "$FINISH" | jq -r '.success // .id // empty')
+          if [ -z "$OK" ]; then
+            echo "Publish failed: $FINISH"
+            exit 1
+          fi
+          echo "Posted! Video ID: $VID_ID"
