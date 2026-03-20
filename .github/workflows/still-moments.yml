@@ -13,7 +13,7 @@ name: still-moments-post
 jobs:
   post:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
 
     steps:
       - name: checkout
@@ -27,7 +27,7 @@ jobs:
 
       - name: find-video
         id: vid
-        timeout-minutes: 2
+        timeout-minutes: 3
         env:
           PIXABAY_KEY: "50973339-3e27fd59ddfd9c68378e78753"
         run: |
@@ -37,35 +37,44 @@ jobs:
           SKIP_TAIL=10
           MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
           VIDEO_URL=""
+          ATTEMPTS=0
+          MAX_ATTEMPTS=3
+
           TERMS="rain window asmr|fire crackling asmr|water stream relaxing|waves beach asmr|rain roof relaxing|tokyo street night|paris street walk|rainy city night|new york street walk|city lights night|forest path walk|mountain trail walk|beach walk sunset|misty forest morning|countryside road walk|coffee shop rain|fireplace cozy|cabin snow cozy|candle rain window|cozy winter inside|sunset timelapse|clouds timelapse sky|city timelapse night|storm timelapse nature|flowers blooming timelapse|underwater ocean calm|coral reef underwater|aerial city night drone|drone coastline aerial|aerial mountains landscape"
           IFS='|' read -ra TERM_ARR <<< "$TERMS"
-          for TERM in $(printf "%s\n" "${TERM_ARR[@]}" | shuf); do
-            PAGE=$((RANDOM % 5 + 1))
-            ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$TERM")
-            URL="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=${ENCODED}&video_type=film&per_page=20&page=${PAGE}"
-            RESP=$(timeout 10 curl -sf --max-time 10 "$URL" 2>/dev/null) || continue
-            COUNT=$(echo "$RESP" | jq -r '.hits | length' 2>/dev/null) || continue
-            [ "$COUNT" -eq 0 ] && continue
-            for i in $(seq 0 $((COUNT - 1)) | shuf); do
-              DUR=$(echo "$RESP" | jq -r ".hits[$i].duration" 2>/dev/null)
-              [[ "$DUR" =~ ^[0-9]+$ ]] || continue
-              [ "$DUR" -lt "$MIN_DUR" ] && continue
-              VURL=$(echo "$RESP" | jq -r ".hits[$i].videos.large.url // .hits[$i].videos.medium.url // .hits[$i].videos.small.url" 2>/dev/null)
-              [ -z "$VURL" ] || [ "$VURL" = "null" ] && continue
-              ZONE_END=$((DUR - SKIP_TAIL - CLIP))
-              RANGE=$((ZONE_END - SKIP_HEAD))
-              [ "$RANGE" -le 0 ] && continue
-              START=$((SKIP_HEAD + RANDOM % RANGE))
-              VIDEO_URL="$VURL"
-              echo "video_url=$VIDEO_URL" >> "$GITHUB_OUTPUT"
-              echo "start=$START" >> "$GITHUB_OUTPUT"
-              echo "clip=$CLIP" >> "$GITHUB_OUTPUT"
-              echo "Found video: start=${START}s clip=${CLIP}s dur=${DUR}s"
-              break 2
+
+          while [ -z "$VIDEO_URL" ] && [ "$ATTEMPTS" -lt "$MAX_ATTEMPTS" ]; do
+            ATTEMPTS=$((ATTEMPTS + 1))
+            echo "Attempt $ATTEMPTS of $MAX_ATTEMPTS"
+            for TERM in $(printf "%s\n" "${TERM_ARR[@]}" | shuf); do
+              PAGE=$((RANDOM % 5 + 1))
+              ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$TERM")
+              URL="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=${ENCODED}&video_type=film&per_page=20&page=${PAGE}"
+              RESP=$(timeout 10 curl -sf --max-time 10 "$URL" 2>/dev/null) || continue
+              COUNT=$(echo "$RESP" | jq -r '.hits | length' 2>/dev/null) || continue
+              [ "$COUNT" -eq 0 ] && continue
+              for i in $(seq 0 $((COUNT - 1)) | shuf); do
+                DUR=$(echo "$RESP" | jq -r ".hits[$i].duration" 2>/dev/null)
+                [[ "$DUR" =~ ^[0-9]+$ ]] || continue
+                [ "$DUR" -lt "$MIN_DUR" ] && continue
+                VURL=$(echo "$RESP" | jq -r ".hits[$i].videos.large.url // .hits[$i].videos.medium.url // .hits[$i].videos.small.url" 2>/dev/null)
+                [ -z "$VURL" ] || [ "$VURL" = "null" ] && continue
+                ZONE_END=$((DUR - SKIP_TAIL - CLIP))
+                RANGE=$((ZONE_END - SKIP_HEAD))
+                [ "$RANGE" -le 0 ] && continue
+                START=$((SKIP_HEAD + RANDOM % RANGE))
+                VIDEO_URL="$VURL"
+                echo "video_url=$VIDEO_URL" >> "$GITHUB_OUTPUT"
+                echo "start=$START" >> "$GITHUB_OUTPUT"
+                echo "clip=$CLIP" >> "$GITHUB_OUTPUT"
+                echo "Found: start=${START}s dur=${DUR}s"
+                break 2
+              done
             done
           done
+
           if [ -z "$VIDEO_URL" ]; then
-            echo "No valid video found"
+            echo "No valid video found after $MAX_ATTEMPTS attempts"
             exit 1
           fi
 
@@ -79,7 +88,7 @@ jobs:
             [ -f "$t" ] && VALID+=("$t")
           done
           if [ ${#VALID[@]} -eq 0 ]; then
-            echo "No music files found in bgmusic folder"
+            echo "No music files found"
             exit 1
           fi
           IDX=$((RANDOM % ${#VALID[@]}))
@@ -97,34 +106,33 @@ jobs:
             exit 0
           fi
           CAPTIONS=(
-            "Take a breath. 🤍 #Aesthetic #Peaceful #Vibes"
-            "You needed this. 🤍 #DailyEscape #Aesthetic #Chill"
-            "Just watch. ✨ #Satisfying #Aesthetic #Vibes"
-            "Soft life. 🤍 #SoftLife #Aesthetic #Chill"
-            "Reset. ✨ #DailyReset #Peaceful #Mindful"
-            "Save this. 🤍 #Aesthetic #Vibes #DailyMoments"
-            "Play on repeat. ✨ #Satisfying #Aesthetic #Chill"
-            "Slow down. 🤍 #SlowLiving #Peaceful #Aesthetic"
-            "Feel this. ✨ #Vibes #Aesthetic #Mood"
-            "Stay here a moment. 🤍 #Peaceful #Aesthetic #Chill"
-            "No words needed. ✨ #Aesthetic #Satisfying #Mood"
-            "This one is for you. 🤍 #DailyMoments #Aesthetic #Vibes"
-            "Quiet is everything. 🕊 #Calm #Aesthetic #Chill"
-            "Just be. 🤍 #Mindful #Peaceful #Aesthetic"
-            "Breathe. ✨ #Breathe #Peaceful #DailyReset"
-            "Made for your bad days. 🤍 #YouGotThis #Aesthetic #Mood"
-            "Pause everything. ✨ #DailyEscape #Peaceful #Vibes"
-            "Watch till the end. 🫧 #Satisfying #Aesthetic #Chill"
-            "This hits different. 🤍 #Aesthetic #Mood #Vibes"
-            "For your peace. 🕊 #Peaceful #DailyReset #Aesthetic"
+            "some things don't need a caption. 🤍 #Aesthetic #Vibes #Chill"
+            "your reminder to just exist for a moment. ✨ #Peaceful #DailyReset #Mindful"
+            "not everything needs to be loud. 🤍 #Calm #Aesthetic #Vibes"
+            "sit with this one. ✨ #SlowLiving #Aesthetic #Chill"
+            "the world can wait. 🤍 #Peaceful #Mindful #Vibes"
+            "save this for when you need it most. ✨ #DailyEscape #Aesthetic #Mood"
+            "you deserved a break five minutes ago. 🤍 #Chill #Aesthetic #Reset"
+            "nothing to do but feel this. ✨ #Vibes #Aesthetic #Peaceful"
+            "soft things for hard days. 🤍 #Mood #Aesthetic #DailyMoments"
+            "this one hits differently when you need it. ✨ #Chill #Aesthetic #Vibes"
+            "no explanation needed. 🤍 #Aesthetic #Mood #Peaceful"
+            "made this for the overthinkers. ✨ #DailyReset #Mindful #Chill"
+            "some moments are meant to be felt slowly. 🤍 #SlowLiving #Aesthetic #Vibes"
+            "stop here for a second. ✨ #Peaceful #Aesthetic #DailyEscape"
+            "the quiet ones always hit hardest. 🤍 #Calm #Vibes #Aesthetic"
+            "this is your sign to breathe. ✨ #Mindful #DailyReset #Peaceful"
+            "not every scroll needs a destination. 🤍 #Aesthetic #Chill #Vibes"
+            "something gentle for your day. ✨ #Mood #Aesthetic #Peaceful"
+            "watch this and feel something real. 🤍 #Vibes #Aesthetic #DailyMoments"
+            "for anyone who needed this today. ✨ #YouGotThis #Aesthetic #Chill"
           )
           IDX=$((RANDOM % ${#CAPTIONS[@]}))
           PICKED="${CAPTIONS[$IDX]}"
           echo "caption=$PICKED" >> "$GITHUB_OUTPUT"
-          echo "Picked: $PICKED"
 
       - name: process-video
-        timeout-minutes: 3
+        timeout-minutes: 5
         run: |
           URL="${{ steps.vid.outputs.video_url }}"
           START="${{ steps.vid.outputs.start }}"
@@ -132,27 +140,54 @@ jobs:
           MUSIC_FILE="${{ steps.music.outputs.music_file }}"
           FETCH=$(echo "$DUR + 5" | bc)
           FADEOUT=$(echo "$DUR - 1.5" | bc)
-          timeout 60 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4
-          VID_STREAM=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
-          if [ -z "$VID_STREAM" ]; then
-            timeout 90 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" -c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p source.mp4
+          CTA_START=$(echo "$DUR - 4" | bc)
+
+          VIDEO_OK=0
+          for attempt in 1 2 3; do
+            echo "Video download attempt $attempt..."
+            timeout 90 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4 2>/dev/null || true
+            VID_STREAM=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
+            if [ -n "$VID_STREAM" ]; then
+              VIDEO_OK=1
+              echo "Video downloaded OK"
+              break
+            fi
+            echo "Bad video on attempt $attempt, re-encoding..."
+            timeout 120 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" -c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p source.mp4 2>/dev/null || true
+            VID_STREAM=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
+            if [ -n "$VID_STREAM" ]; then
+              VIDEO_OK=1
+              echo "Video re-encoded OK"
+              break
+            fi
+            sleep 3
+          done
+
+          if [ "$VIDEO_OK" -eq 0 ]; then
+            echo "All video download attempts failed"
+            exit 1
           fi
+
           HAS_VIDEO_AUDIO=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
           MDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$MUSIC_FILE" 2>/dev/null | cut -d. -f1)
           MMAX=$((MDUR - 5))
           [ "$MMAX" -le 5 ] && MMAX=5
           MSTART=$((RANDOM % MMAX))
-          timeout 30 ffmpeg -hide_banner -loglevel error -y -stream_loop -1 -i "$MUSIC_FILE" -ss "$MSTART" -t "$FETCH" -ac 2 -ar 44100 music_clip.mp3
-          VFILTER="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5[vout]"
+
+          timeout 60 ffmpeg -hide_banner -loglevel error -y -stream_loop -1 -i "$MUSIC_FILE" -ss "$MSTART" -t "$FETCH" -ac 2 -ar 44100 music_clip.mp3
+
+          VFILTER="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5,drawtext=text='Like & Share':fontfile=/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf:fontcolor=white@1.0:fontsize=36:x=(w-text_w)/2:y=h-80:alpha='if(lt(t,${CTA_START}),0,min(1,(t-${CTA_START})/1.5))'[vout]"
+
           if [ -n "$HAS_VIDEO_AUDIO" ]; then
-            timeout 120 ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[0:a]volume=1.0[va];[1:a]volume=0.3,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[ma];[va][ma]amix=inputs=2:duration=first[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -preset fast -crf 18 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
+            timeout 180 ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[0:a]volume=1.0[va];[1:a]volume=0.3,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[ma];[va][ma]amix=inputs=2:duration=first[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -preset fast -crf 18 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
           else
-            timeout 120 ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[1:a]volume=1.0,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -preset fast -crf 18 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
+            timeout 180 ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[1:a]volume=1.0,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -preset fast -crf 18 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
           fi
+
           ls -lh final.mp4
 
       - name: post-to-facebook
-        timeout-minutes: 2
+        timeout-minutes: 3
         env:
           PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
@@ -162,29 +197,42 @@ jobs:
           FILE="final.mp4"
           SIZE=$(stat -c%s "$FILE")
           API="https://graph.facebook.com/v19.0"
-          INIT=$(timeout 15 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"start\",\"access_token\":\"${PAGE_TOKEN}\"}")
-          SESSION=$(echo "$INIT" | jq -r '.upload_session_id')
-          VID_ID=$(echo "$INIT" | jq -r '.video_id')
-          if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
-            INIT=$(timeout 15 curl -sf -X POST "${API}/${PAGE_ID}/videos" -H "Content-Type: application/json" -d "{\"upload_phase\":\"start\",\"file_size\":${SIZE},\"access_token\":\"${PAGE_TOKEN}\"}")
-            SESSION=$(echo "$INIT" | jq -r '.upload_session_id')
-            VID_ID=$(echo "$INIT" | jq -r '.video_id')
-            S_OFF=$(echo "$INIT" | jq -r '.start_offset')
+
+          for attempt in 1 2 3; do
+            echo "Facebook post attempt $attempt..."
+            INIT=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"start\",\"access_token\":\"${PAGE_TOKEN}\"}") || true
+            SESSION=$(echo "$INIT" | jq -r '.upload_session_id' 2>/dev/null)
+            VID_ID=$(echo "$INIT" | jq -r '.video_id' 2>/dev/null)
+
             if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
-              echo "Both endpoints failed: $INIT"
-              exit 1
+              INIT=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/videos" -H "Content-Type: application/json" -d "{\"upload_phase\":\"start\",\"file_size\":${SIZE},\"access_token\":\"${PAGE_TOKEN}\"}") || true
+              SESSION=$(echo "$INIT" | jq -r '.upload_session_id' 2>/dev/null)
+              VID_ID=$(echo "$INIT" | jq -r '.video_id' 2>/dev/null)
+              S_OFF=$(echo "$INIT" | jq -r '.start_offset' 2>/dev/null)
+
+              if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
+                echo "Session failed attempt $attempt: $INIT"
+                sleep 10
+                continue
+              fi
+
+              timeout 90 curl -sf -X POST "${API}/${PAGE_ID}/videos" -F "upload_phase=transfer" -F "upload_session_id=${SESSION}" -F "start_offset=${S_OFF}" -F "video_file_chunk=@${FILE};type=video/mp4" -F "access_token=${PAGE_TOKEN}" > /dev/null || true
+              FINISH=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/videos" -H "Content-Type: application/json" -d "{\"upload_phase\":\"finish\",\"upload_session_id\":\"${SESSION}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}") || true
+            else
+              UPLOAD_URL=$(echo "$INIT" | jq -r '.upload_url' 2>/dev/null)
+              timeout 90 curl -sf -X POST "$UPLOAD_URL" -H "Authorization: OAuth ${PAGE_TOKEN}" -H "offset: 0" -H "file_size: ${SIZE}" --data-binary "@${FILE}" > /dev/null || true
+              FINISH=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"finish\",\"video_id\":\"${VID_ID}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}") || true
             fi
-            timeout 60 curl -sf -X POST "${API}/${PAGE_ID}/videos" -F "upload_phase=transfer" -F "upload_session_id=${SESSION}" -F "start_offset=${S_OFF}" -F "video_file_chunk=@${FILE};type=video/mp4" -F "access_token=${PAGE_TOKEN}" > /dev/null
-            FINISH=$(timeout 15 curl -sf -X POST "${API}/${PAGE_ID}/videos" -H "Content-Type: application/json" -d "{\"upload_phase\":\"finish\",\"upload_session_id\":\"${SESSION}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}")
-          else
-            UPLOAD_URL=$(echo "$INIT" | jq -r '.upload_url')
-            timeout 60 curl -sf -X POST "$UPLOAD_URL" -H "Authorization: OAuth ${PAGE_TOKEN}" -H "offset: 0" -H "file_size: ${SIZE}" --data-binary "@${FILE}" > /dev/null
-            FINISH=$(timeout 15 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"finish\",\"video_id\":\"${VID_ID}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}")
-          fi
-          echo "Result: $FINISH"
-          OK=$(echo "$FINISH" | jq -r '.success // .id // empty')
-          if [ -z "$OK" ]; then
-            echo "Publish failed: $FINISH"
-            exit 1
-          fi
-          echo "Posted! Video ID: $VID_ID"
+
+            OK=$(echo "$FINISH" | jq -r '.success // .id // empty' 2>/dev/null)
+            if [ -n "$OK" ]; then
+              echo "Posted! Video ID: $VID_ID"
+              exit 0
+            fi
+
+            echo "Post failed attempt $attempt: $FINISH"
+            sleep 10
+          done
+
+          echo "All post attempts failed"
+          exit 1
