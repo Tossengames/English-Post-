@@ -39,7 +39,7 @@ jobs:
           VIDEO_URL=""
           VALID_VIDEO=0
 
-          TERMS="rain window|fire crackling|water stream|waves beach|rain roof|forest path|mountain trail|beach sunset|misty forest morning|countryside road|coffee shop rain|fireplace cozy|cabin snow|candle rain window|cozy winter|sunset timelapse|clouds timelapse|storm timelapse|flowers timelapse|underwater ocean|coral reef|aerial mountains|drone coastline|waterfall nature|lake reflection"
+          TERMS="forest|nature|city night|landmarks|snow|snowfall|snow mountain|snowfall night|snowy forest|winter nature|city lights night|mountain snow|snow landscape|forest walk|nature timelapse"
           IFS='|' read -ra TERM_ARR <<< "$TERMS"
 
           for TERM in $(printf "%s\n" "${TERM_ARR[@]}" | shuf); do
