@@ -44,7 +44,8 @@ jobs:
 
           for TERM in $(printf "%s\n" "${TERM_ARR[@]}" | shuf); do
             [ "$VALID_VIDEO" -eq 1 ] && break
-            PAGE=$((RANDOM % 5 + 1))
+            PAGE=$((RANDOM % 15 + 1))
+            OFFSET=$((RANDOM % 20))
             ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$TERM")
             URL="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=${ENCODED}&video_type=film&per_page=20&page=${PAGE}"
             RESP=$(timeout 10 curl -sf --max-time 10 "$URL" 2>/dev/null) || continue
@@ -52,10 +53,11 @@ jobs:
             [ "$COUNT" -eq 0 ] && continue
             for i in $(seq 0 $((COUNT - 1)) | shuf); do
               [ "$VALID_VIDEO" -eq 1 ] && break
-              DUR=$(echo "$RESP" | jq -r ".hits[$i].duration" 2>/dev/null)
+              IDX=$(( (i + OFFSET) % COUNT ))
+              DUR=$(echo "$RESP" | jq -r ".hits[$IDX].duration" 2>/dev/null)
               [[ "$DUR" =~ ^[0-9]+$ ]] || continue
               [ "$DUR" -lt "$MIN_DUR" ] && continue
-              VURL=$(echo "$RESP" | jq -r ".hits[$i].videos.large.url // .hits[$i].videos.medium.url // .hits[$i].videos.small.url" 2>/dev/null)
+              VURL=$(echo "$RESP" | jq -r ".hits[$IDX].videos.large.url // .hits[$IDX].videos.medium.url // .hits[$IDX].videos.small.url" 2>/dev/null)
               [ -z "$VURL" ] || [ "$VURL" = "null" ] && continue
               ZONE_END=$((DUR - SKIP_TAIL - CLIP))
               RANGE=$((ZONE_END - SKIP_HEAD))
