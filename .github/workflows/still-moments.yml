@@ -32,7 +32,7 @@ jobs:
           PIXABAY_KEY: "50973339-3e27fd59ddfd9c68378e78753"
         run: |
           set -e
-          CLIP=25
+          CLIP=10
           SKIP_HEAD=15
           SKIP_TAIL=10
           MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
@@ -169,9 +169,9 @@ jobs:
           VFILTER="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5,drawtext=text='${CTA}':fontfile=/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf:fontcolor=white@1.0:fontsize=90:x=(w-text_w)/2:y=80:alpha='if(lt(t,${CTA_START}),0,min(1,(t-${CTA_START})/1.5))'[vout]"
 
           if [ -n "$HAS_VIDEO_AUDIO" ]; then
-            timeout 180 ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[0:a]volume=1.0[va];[1:a]volume=0.3,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[ma];[va][ma]amix=inputs=2:duration=first[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -preset fast -crf 18 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
+            timeout 180 ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[0:a]volume=1.0[va];[1:a]volume=0.3,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[ma];[va][ma]amix=inputs=2:duration=first[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -preset medium -crf 16 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
           else
-            timeout 180 ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[1:a]volume=1.0,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -preset fast -crf 18 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
+            timeout 180 ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[1:a]volume=1.0,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -preset medium -crf 16 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
           fi
 
           ls -lh final.mp4
