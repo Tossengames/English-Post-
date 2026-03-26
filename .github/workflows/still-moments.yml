@@ -13,23 +13,21 @@ name: still-moments-post
 jobs:
   post:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: write
+    timeout-minutes: 12
 
     steps:
       - name: checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: install-deps
+        timeout-minutes: 3
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg bc jq python3
 
       - name: find-video
         id: vid
+        timeout-minutes: 3
         env:
           PIXABAY_KEY: "50973339-3e27fd59ddfd9c68378e78753"
         run: |
@@ -41,94 +39,112 @@ jobs:
           VIDEO_URL=""
           VALID_VIDEO=0
 
-          TERMS="city night|city lights night|urban night|night traffic lights|dark city street|night cityscape"
+          TERMS="forest|nature|city night|landmarks|snow|snowfall|snow mountain|snowfall night|snowy forest|winter nature|city lights night|mountain snow|snow landscape|forest walk|nature timelapse"
           IFS='|' read -ra TERM_ARR <<< "$TERMS"
-
-          touch seen_videos.txt
 
           for TERM in $(printf "%s\n" "${TERM_ARR[@]}" | shuf); do
             [ "$VALID_VIDEO" -eq 1 ] && break
-            PAGE=$((RANDOM % 10 + 1))
+            PAGE=$((RANDOM % 15 + 1))
+            OFFSET=$((RANDOM % 20))
             ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$TERM")
-            URL="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=${ENCODED}&video_type=film&per_page=30&page=${PAGE}"
-            
+            URL="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=${ENCODED}&video_type=film&per_page=20&page=${PAGE}"
             RESP=$(timeout 10 curl -sf --max-time 10 "$URL" 2>/dev/null) || continue
             COUNT=$(echo "$RESP" | jq -r '.hits | length' 2>/dev/null) || continue
             [ "$COUNT" -eq 0 ] && continue
-
             for i in $(seq 0 $((COUNT - 1)) | shuf); do
               [ "$VALID_VIDEO" -eq 1 ] && break
-              VIDEO_ID=$(echo "$RESP" | jq -r ".hits[$i].id" 2>/dev/null)
-              
-              if grep -q "^${VIDEO_ID}$" seen_videos.txt; then
-                continue
-              fi
-
-              DUR=$(echo "$RESP" | jq -r ".hits[$i].duration" 2>/dev/null)
+              IDX=$(( (i + OFFSET) % COUNT ))
+              DUR=$(echo "$RESP" | jq -r ".hits[$IDX].duration" 2>/dev/null)
               [[ "$DUR" =~ ^[0-9]+$ ]] || continue
               [ "$DUR" -lt "$MIN_DUR" ] && continue
-              
-              VURL=$(echo "$RESP" | jq -r ".hits[$i].videos.large.url // .hits[$i].videos.medium.url // .hits[$i].videos.small.url" 2>/dev/null)
+              VURL=$(echo "$RESP" | jq -r ".hits[$IDX].videos.large.url // .hits[$IDX].videos.medium.url // .hits[$IDX].videos.small.url" 2>/dev/null)
               [ -z "$VURL" ] || [ "$VURL" = "null" ] && continue
-
               ZONE_END=$((DUR - SKIP_TAIL - CLIP))
               RANGE=$((ZONE_END - SKIP_HEAD))
               [ "$RANGE" -le 0 ] && continue
               START=$((SKIP_HEAD + RANDOM % RANGE))
-
+              echo "Testing video: $VURL"
               timeout 30 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$VURL" -t 5 -c copy test_probe.mp4 2>/dev/null || true
               TEST_STREAM=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_type -of csv=p=0 test_probe.mp4 2>/dev/null || echo "")
               rm -f test_probe.mp4
-              
-              if [ -n "$TEST_STREAM" ]; then
-                VIDEO_URL="$VURL"
-                VALID_VIDEO=1
-                echo "video_url=$VIDEO_URL" >> "$GITHUB_OUTPUT"
-                echo "start=$START" >> "$GITHUB_OUTPUT"
-                echo "clip=$CLIP" >> "$GITHUB_OUTPUT"
-                echo "$VIDEO_ID" >> seen_videos.txt
+              if [ -z "$TEST_STREAM" ]; then
+                echo "Video failed probe, skipping..."
+                continue
               fi
+              VIDEO_URL="$VURL"
+              VALID_VIDEO=1
+              echo "video_url=$VIDEO_URL" >> "$GITHUB_OUTPUT"
+              echo "start=$START" >> "$GITHUB_OUTPUT"
+              echo "clip=$CLIP" >> "$GITHUB_OUTPUT"
+              echo "Found valid video: start=${START}s dur=${DUR}s"
             done
           done
-          if [ -z "$VIDEO_URL" ]; then exit 1; fi
+
+          if [ -z "$VIDEO_URL" ]; then
+            echo "No valid video found"
+            exit 1
+          fi
 
       - name: pick-music
         id: music
+        timeout-minutes: 1
         run: |
           TRACKS=(bgmusic/*.mp3 bgmusic/*.wav bgmusic/*.m4a bgmusic/*.mp4 bgmusic/*.aac bgmusic/*.ogg bgmusic/*.flac)
           VALID=()
-          for t in "${TRACKS[@]}"; do [ -f "$t" ] && VALID+=("$t"); done
+          for t in "${TRACKS[@]}"; do
+            [ -f "$t" ] && VALID+=("$t")
+          done
+          if [ ${#VALID[@]} -eq 0 ]; then
+            echo "No music files found"
+            exit 1
+          fi
           IDX=$((RANDOM % ${#VALID[@]}))
-          echo "music_file=${VALID[$IDX]}" >> "$GITHUB_OUTPUT"
+          PICKED="${VALID[$IDX]}"
+          echo "music_file=$PICKED" >> "$GITHUB_OUTPUT"
+          echo "Selected: $PICKED"
 
       - name: pick-caption
         id: caption
+        timeout-minutes: 1
         run: |
           INPUT_CAPTION="${{ github.event.inputs.caption }}"
           if [ -n "$INPUT_CAPTION" ]; then
-            echo "caption=$INPUT_CAPTION" >> "$GITHUB_OUTPUT"; exit 0
+            echo "caption=$INPUT_CAPTION" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           CAPTIONS=(
-            "City lights and quiet nights. ✨ #NightVibes #Cityscape #Aesthetic"
-            "The world looks different after dark. 🌙 #NightLife #Aesthetic #Vibes"
-            "Finding peace in the glow. ✨ #Midnight #Chill #Aesthetic"
-            "Lost in the city lights. 🌃 #Urban #NightVibes #Mood"
-            "Silence in the city. 🤍 #Aesthetic #NightLife #Vibes"
-            "Chasing the night glow. ✨ #CityLights #Aesthetic #Mood"
-            "A moment of midnight calm. 🌙 #Chill #Vibes #NightCity"
-            "Late night energy. 🌃 #Cityscape #Mood #Aesthetic"
-            "Neon dreams and city nights. 🤍 #NightLife #Vibes #Aesthetic"
-            "Watching the world glow. 🤍 #CityLights #Vibes #Mood"
+            "Breathe. 🤍 #Vibes #Aesthetic #Chill"
+            "Reset. ✨ #Mood #Aesthetic #Vibes"
+            "Peace. 🤍 #Chill #Aesthetic #Vibes"
+            "Still. ✨ #Aesthetic #Mood #Vibes"
+            "Soft. 🤍 #Vibes #Aesthetic #Chill"
+            "Slow down. ✨ #Aesthetic #Mood #Chill"
+            "Just be. 🤍 #Vibes #Aesthetic #Mood"
+            "Feel this. ✨ #Chill #Aesthetic #Vibes"
+            "Save this. 🤍 #Mood #Vibes #Aesthetic"
+            "Watch this. ✨ #Aesthetic #Chill #Vibes"
+            "Stay here. 🤍 #Vibes #Mood #Aesthetic"
+            "Be present. ✨ #Chill #Aesthetic #Vibes"
+            "Sit with this. 🤍 #Aesthetic #Mood #Vibes"
+            "No rush. ✨ #Vibes #Chill #Aesthetic"
+            "Take a breath. 🤍 #Mood #Aesthetic #Vibes"
           )
-          echo "caption=${CAPTIONS[$((RANDOM % ${#CAPTIONS[@]}))]}" >> "$GITHUB_OUTPUT"
+          IDX=$((RANDOM % ${#CAPTIONS[@]}))
+          PICKED="${CAPTIONS[$IDX]}"
+          echo "caption=$PICKED" >> "$GITHUB_OUTPUT"
 
       - name: pick-cta
         id: cta
+        timeout-minutes: 1
         run: |
-          CTAS=("Follow for more" "Like this" "Share this" "Save this")
-          echo "cta=${CTAS[$((RANDOM % ${#CTAS[@]}))]}" >> "$GITHUB_OUTPUT"
+          CTAS=("Follow for more" "Like this" "Share this" "Save this" "Follow us" "Tag a friend")
+          IDX=$((RANDOM % ${#CTAS[@]}))
+          PICKED="${CTAS[$IDX]}"
+          echo "cta=$PICKED" >> "$GITHUB_OUTPUT"
+          echo "Selected CTA: $PICKED"
 
       - name: process-video
+        timeout-minutes: 5
         run: |
           URL="${{ steps.vid.outputs.video_url }}"
           START="${{ steps.vid.outputs.start }}"
@@ -139,49 +155,74 @@ jobs:
           FADEOUT=$(echo "$DUR - 1.5" | bc)
           CTA_START=$(echo "$DUR - 4" | bc)
 
-          ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4
+          echo "Downloading video..."
+          timeout 90 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4
+
+          HAS_VIDEO_AUDIO=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of csv=p=0 source.mp4 2>/dev/null || echo "")
           MDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$MUSIC_FILE" 2>/dev/null | cut -d. -f1)
-          MSTART=$((RANDOM % (MDUR > 12 ? MDUR-11 : 1)))
-          ffmpeg -hide_banner -loglevel error -y -stream_loop -1 -i "$MUSIC_FILE" -ss "$MSTART" -t "$FETCH" -ac 2 -ar 44100 music_clip.mp3
-          
+          MMAX=$((MDUR - 5))
+          [ "$MMAX" -le 5 ] && MMAX=5
+          MSTART=$((RANDOM % MMAX))
+
+          timeout 60 ffmpeg -hide_banner -loglevel error -y -stream_loop -1 -i "$MUSIC_FILE" -ss "$MSTART" -t "$FETCH" -ac 2 -ar 44100 music_clip.mp3
+
           VFILTER="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5,drawtext=text='${CTA}':fontfile=/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf:fontcolor=white@1.0:fontsize=90:x=(w-text_w)/2:y=80:alpha='if(lt(t,${CTA_START}),0,min(1,(t-${CTA_START})/1.5))'[vout]"
-          
-          # Optimized for Facebook Reels compatibility
-          ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[1:a]volume=1.0,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -profile:v main -level 4.0 -preset medium -crf 22 -c:a aac -b:a 128k -movflags +faststart -pix_fmt yuv420p final.mp4
+
+          if [ -n "$HAS_VIDEO_AUDIO" ]; then
+            timeout 180 ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[0:a]volume=1.0[va];[1:a]volume=0.3,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[ma];[va][ma]amix=inputs=2:duration=first[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -preset medium -crf 16 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
+          else
+            timeout 180 ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[1:a]volume=1.0,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -preset medium -crf 16 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
+          fi
+
+          ls -lh final.mp4
 
       - name: post-to-facebook
-        id: fb_post
+        timeout-minutes: 3
         env:
           PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           CAPTION: ${{ steps.caption.outputs.caption }}
         run: |
+          set -e
           FILE="final.mp4"
           SIZE=$(stat -c%s "$FILE")
           API="https://graph.facebook.com/v19.0"
-          
-          INIT=$(curl -s -X POST "${API}/${PAGE_ID}/video_reels" -d "upload_phase=start&access_token=${PAGE_TOKEN}")
-          UPLOAD_URL=$(echo "$INIT" | jq -r '.upload_url')
-          VID_ID=$(echo "$INIT" | jq -r '.video_id')
-          
-          if [ "$UPLOAD_URL" == "null" ] || [ -z "$UPLOAD_URL" ]; then echo "Init Failed: $INIT"; exit 1; fi
 
-          curl -s -X POST "$UPLOAD_URL" -H "Authorization: OAuth ${PAGE_TOKEN}" -H "offset: 0" -H "file_size: ${SIZE}" --data-binary "@${FILE}"
-          
-          # Wait 5 seconds for background processing
-          sleep 5
-          
-          FINISH=$(curl -s -X POST "${API}/${PAGE_ID}/video_reels" -d "upload_phase=finish&video_id=${VID_ID}&description=${CAPTION}&video_state=PUBLISHED&access_token=${PAGE_TOKEN}")
-          echo "Response: $FINISH"
-          
-          OK=$(echo "$FINISH" | jq -r '.success')
-          if [ "$OK" == "true" ]; then exit 0; else exit 1; fi
+          for attempt in 1 2 3; do
+            echo "Facebook post attempt $attempt..."
+            INIT=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"start\",\"access_token\":\"${PAGE_TOKEN}\"}") || true
+            SESSION=$(echo "$INIT" | jq -r '.upload_session_id' 2>/dev/null)
+            VID_ID=$(echo "$INIT" | jq -r '.video_id' 2>/dev/null)
 
-      - name: save-history
-        if: always() && steps.fb_post.outcome == 'success'
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add seen_videos.txt
-          git commit -m "Update video history [skip ci]" || exit 0
-          git push
+            if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
+              INIT=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/videos" -H "Content-Type: application/json" -d "{\"upload_phase\":\"start\",\"file_size\":${SIZE},\"access_token\":\"${PAGE_TOKEN}\"}") || true
+              SESSION=$(echo "$INIT" | jq -r '.upload_session_id' 2>/dev/null)
+              VID_ID=$(echo "$INIT" | jq -r '.video_id' 2>/dev/null)
+              S_OFF=$(echo "$INIT" | jq -r '.start_offset' 2>/dev/null)
+
+              if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
+                echo "Session failed attempt $attempt: $INIT"
+                sleep 10
+                continue
+              fi
+
+              timeout 90 curl -sf -X POST "${API}/${PAGE_ID}/videos" -F "upload_phase=transfer" -F "upload_session_id=${SESSION}" -F "start_offset=${S_OFF}" -F "video_file_chunk=@${FILE};type=video/mp4" -F "access_token=${PAGE_TOKEN}" > /dev/null || true
+              FINISH=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/videos" -H "Content-Type: application/json" -d "{\"upload_phase\":\"finish\",\"upload_session_id\":\"${SESSION}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}") || true
+            else
+              UPLOAD_URL=$(echo "$INIT" | jq -r '.upload_url' 2>/dev/null)
+              timeout 90 curl -sf -X POST "$UPLOAD_URL" -H "Authorization: OAuth ${PAGE_TOKEN}" -H "offset: 0" -H "file_size: ${SIZE}" --data-binary "@${FILE}" > /dev/null || true
+              FINISH=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"finish\",\"video_id\":\"${VID_ID}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}") || true
+            fi
+
+            OK=$(echo "$FINISH" | jq -r '.success // .id // empty' 2>/dev/null)
+            if [ -n "$OK" ]; then
+              echo "Posted! Video ID: $VID_ID"
+              exit 0
+            fi
+
+            echo "Post failed attempt $attempt: $FINISH"
+            sleep 10
+          done
+
+          echo "All post attempts failed"
+          exit 1
