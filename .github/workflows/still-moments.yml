@@ -14,7 +14,6 @@ jobs:
   post:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # THIS LINE FIXES THE 403 ERROR:
     permissions:
       contents: write
 
@@ -42,7 +41,6 @@ jobs:
           VIDEO_URL=""
           VALID_VIDEO=0
 
-          # Only Night/City terms
           TERMS="city night|city lights night|urban night|night traffic lights|dark city street|night cityscape"
           IFS='|' read -ra TERM_ARR <<< "$TERMS"
 
@@ -108,8 +106,7 @@ jobs:
         run: |
           INPUT_CAPTION="${{ github.event.inputs.caption }}"
           if [ -n "$INPUT_CAPTION" ]; then
-            echo "caption=$INPUT_CAPTION" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "caption=$INPUT_CAPTION" >> "$GITHUB_OUTPUT"; exit 0
           fi
           CAPTIONS=(
             "City lights and quiet nights. ✨ #NightVibes #Cityscape #Aesthetic"
@@ -123,15 +120,13 @@ jobs:
             "Neon dreams and city nights. 🤍 #NightLife #Vibes #Aesthetic"
             "Watching the world glow. 🤍 #CityLights #Vibes #Mood"
           )
-          IDX=$((RANDOM % ${#CAPTIONS[@]}))
-          echo "caption=${CAPTIONS[$IDX]}" >> "$GITHUB_OUTPUT"
+          echo "caption=${CAPTIONS[$((RANDOM % ${#CAPTIONS[@]}))]}" >> "$GITHUB_OUTPUT"
 
       - name: pick-cta
         id: cta
         run: |
           CTAS=("Follow for more" "Like this" "Share this" "Save this")
-          IDX=$((RANDOM % ${#CTAS[@]}))
-          echo "cta=${CTAS[$IDX]}" >> "$GITHUB_OUTPUT"
+          echo "cta=${CTAS[$((RANDOM % ${#CTAS[@]}))]}" >> "$GITHUB_OUTPUT"
 
       - name: process-video
         run: |
@@ -148,8 +143,11 @@ jobs:
           MDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$MUSIC_FILE" 2>/dev/null | cut -d. -f1)
           MSTART=$((RANDOM % (MDUR > 12 ? MDUR-11 : 1)))
           ffmpeg -hide_banner -loglevel error -y -stream_loop -1 -i "$MUSIC_FILE" -ss "$MSTART" -t "$FETCH" -ac 2 -ar 44100 music_clip.mp3
+          
           VFILTER="[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fade=t=in:st=0:d=1,fade=t=out:st=${FADEOUT}:d=1.5,drawtext=text='${CTA}':fontfile=/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf:fontcolor=white@1.0:fontsize=90:x=(w-text_w)/2:y=80:alpha='if(lt(t,${CTA_START}),0,min(1,(t-${CTA_START})/1.5))'[vout]"
-          ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[1:a]volume=1.0,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -preset medium -crf 16 -c:a aac -b:a 192k -movflags +faststart -pix_fmt yuv420p final.mp4
+          
+          # Optimized for Facebook Reels compatibility
+          ffmpeg -hide_banner -loglevel error -y -i source.mp4 -i music_clip.mp3 -filter_complex "${VFILTER};[1:a]volume=1.0,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[aout]" -map "[vout]" -map "[aout]" -t "$DUR" -c:v libx264 -profile:v main -level 4.0 -preset medium -crf 22 -c:a aac -b:a 128k -movflags +faststart -pix_fmt yuv420p final.mp4
 
       - name: post-to-facebook
         id: fb_post
@@ -162,17 +160,22 @@ jobs:
           SIZE=$(stat -c%s "$FILE")
           API="https://graph.facebook.com/v19.0"
           
-          # Your existing Facebook upload logic
-          INIT=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"start\",\"access_token\":\"${PAGE_TOKEN}\"}")
-          SESSION=$(echo "$INIT" | jq -r '.upload_session_id')
+          INIT=$(curl -s -X POST "${API}/${PAGE_ID}/video_reels" -d "upload_phase=start&access_token=${PAGE_TOKEN}")
           UPLOAD_URL=$(echo "$INIT" | jq -r '.upload_url')
           VID_ID=$(echo "$INIT" | jq -r '.video_id')
           
-          timeout 90 curl -sf -X POST "$UPLOAD_URL" -H "Authorization: OAuth ${PAGE_TOKEN}" -H "offset: 0" -H "file_size: ${SIZE}" --data-binary "@${FILE}"
-          FINISH=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"finish\",\"video_id\":\"${VID_ID}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}")
+          if [ "$UPLOAD_URL" == "null" ] || [ -z "$UPLOAD_URL" ]; then echo "Init Failed: $INIT"; exit 1; fi
+
+          curl -s -X POST "$UPLOAD_URL" -H "Authorization: OAuth ${PAGE_TOKEN}" -H "offset: 0" -H "file_size: ${SIZE}" --data-binary "@${FILE}"
           
-          OK=$(echo "$FINISH" | jq -r '.success // .id // empty')
-          if [ -n "$OK" ]; then exit 0; else exit 1; fi
+          # Wait 5 seconds for background processing
+          sleep 5
+          
+          FINISH=$(curl -s -X POST "${API}/${PAGE_ID}/video_reels" -d "upload_phase=finish&video_id=${VID_ID}&description=${CAPTION}&video_state=PUBLISHED&access_token=${PAGE_TOKEN}")
+          echo "Response: $FINISH"
+          
+          OK=$(echo "$FINISH" | jq -r '.success')
+          if [ "$OK" == "true" ]; then exit 0; else exit 1; fi
 
       - name: save-history
         if: always() && steps.fb_post.outcome == 'success'
