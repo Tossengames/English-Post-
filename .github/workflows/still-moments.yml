@@ -113,20 +113,20 @@ jobs:
             exit 0
           fi
           CAPTIONS=(
-            "Breathe. 🤍 #Vibes #Aesthetic #Chill"
-            "Reset. ✨ #Mood #Aesthetic #Vibes"
+            "like & share.🤍 #Vibes #Aesthetic #Chill"
+            "Follow up. #Mood #Aesthetic #Vibes"
             "Peace. 🤍 #Chill #Aesthetic #Vibes"
-            "Still. ✨ #Aesthetic #Mood #Vibes"
-            "Soft. 🤍 #Vibes #Aesthetic #Chill"
-            "Slow down. ✨ #Aesthetic #Mood #Chill"
-            "Just be. 🤍 #Vibes #Aesthetic #Mood"
-            "Feel this. ✨ #Chill #Aesthetic #Vibes"
-            "Save this. 🤍 #Mood #Vibes #Aesthetic"
-            "Watch this. ✨ #Aesthetic #Chill #Vibes"
+            "like. #Aesthetic #Mood #Vibes"
+            "Share 🤍 #Vibes #Aesthetic #Chill"
+            "Follow up. #Aesthetic #Mood #Chill"
+            "🤍 #Vibes #Aesthetic #Mood"
+            "Follow #Chill #Aesthetic #Vibes"
+            "like and share. 🤍 #Mood #Vibes #Aesthetic"
+            "Watch this. #Aesthetic #Chill #Vibes"
             "Stay here. 🤍 #Vibes #Mood #Aesthetic"
-            "Be present. ✨ #Chill #Aesthetic #Vibes"
+            "leave a comment #Chill #Aesthetic #Vibes"
             "Sit with this. 🤍 #Aesthetic #Mood #Vibes"
-            "No rush. ✨ #Vibes #Chill #Aesthetic"
+            "No rush. #Vibes #Chill #Aesthetic"
             "Take a breath. 🤍 #Mood #Aesthetic #Vibes"
           )
           IDX=$((RANDOM % ${#CAPTIONS[@]}))
