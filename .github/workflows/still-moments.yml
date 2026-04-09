@@ -8,7 +8,7 @@ name: still-moments-post
         required: false
         default: ""
   schedule:
-    - cron: "0 9,13,19 * * *"
+    - cron: "0 20 * * *"
 
 jobs:
   post:
@@ -39,7 +39,7 @@ jobs:
           VIDEO_URL=""
           VALID_VIDEO=0
 
-          TERMS="forest|nature|city night|landmarks|snow|snowfall|snow mountain|snowfall night|snowy forest|winter nature|city lights night|mountain snow|snow landscape|forest walk|nature timelapse"
+          TERMS="forest|animals|lions|lion|tiger|bear|cats|dogs|pet|pets|weather|rain"
           IFS='|' read -ra TERM_ARR <<< "$TERMS"
 
           for TERM in $(printf "%s\n" "${TERM_ARR[@]}" | shuf); do
