@@ -18,25 +18,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Cache apt
-        uses: actions/cache@v4
-        with:
-          path: /var/cache/apt/archives
-          key: apt-ubuntu22-lavalamp-v1
-
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y \
-            xvfb chromium-browser libnss3 libgbm1 libasound2 ffmpeg pulseaudio
-
-      - name: Cache pip and ChromeDriver
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/pip
-            ~/.wdm
-          key: pip-wdm-lavalamp-v1
+          sudo apt-get install -y xvfb chromium-browser libnss3 libgbm1 libasound2 ffmpeg pulseaudio
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -45,9 +30,6 @@ jobs:
 
       - name: Install Python deps
         run: pip install selenium webdriver-manager requests
-
-      - name: Set timestamp
-        run: echo "TS=$(date +%Y%m%d_%H%M%S)" >> $GITHUB_ENV
 
       - name: Start virtual display and audio
         run: |
@@ -66,7 +48,7 @@ jobs:
           from webdriver_manager.chrome import ChromeDriverManager
 
           duration   = int(os.environ.get("DURATION", "10"))
-          ts         = os.environ.get("TS", "test")
+          ts         = time.strftime("%Y%m%d_%H%M%S")
           webm_file  = f"/tmp/lavalamp_{ts}.webm"
           mp4_file   = f"/tmp/lavalamp_{ts}.mp4"
           mix_file   = f"/tmp/lavalamp_{ts}_mixed.mp4"
@@ -75,163 +57,83 @@ jobs:
           fb_page_id = os.environ.get("FB_PAGE_ID")
 
           music_files = []
-          for ext in ["mp3","m4a","wav","ogg","flac","wv","MP3","M4A","WAV"]:
+          for ext in ["mp3","m4a","wav","ogg"]:
             music_files.extend(glob.glob(f"bgmusic/*.{ext}"))
-          if music_files:
-            music_track = random.choice(music_files)
-            print(f"Selected music: {music_track}")
-          else:
-            music_track = None
-            print("No music files found in bgmusic/")
+          music_track = random.choice(music_files) if music_files else None
 
           opts = Options()
+          opts.add_argument("--headless=new")
           opts.add_argument("--no-sandbox")
           opts.add_argument("--disable-dev-shm-usage")
           opts.add_argument("--disable-gpu")
           opts.add_argument("--window-size=390,844")
-          opts.add_argument("--window-position=0,0")
-          opts.add_argument("--force-device-scale-factor=1")
-          opts.add_argument("--autoplay-policy=no-user-gesture-required")
+          
+          # ANTI-THROTTLING FLAGS
           opts.add_argument("--disable-background-timer-throttling")
-          opts.add_argument("--disable-renderer-backgrounding")
           opts.add_argument("--disable-backgrounding-occluded-windows")
-          opts.add_argument("--no-first-run")
-          opts.add_argument("--disable-infobars")
-          opts.add_argument("--disable-notifications")
-          opts.add_argument("--disable-translate")
-          opts.add_argument("--use-fake-ui-for-media-stream")
-          opts.add_argument("--use-fake-device-for-media-stream")
-          opts.add_argument("--allow-file-access-from-files")
-          opts.add_argument("--enable-usermedia-screen-capturing")
-          opts.add_experimental_option("excludeSwitches", ["enable-automation"])
-          opts.add_experimental_option("useAutomationExtension", False)
-          opts.add_experimental_option("mobileEmulation", {
-            "deviceMetrics": {"width": 390, "height": 844, "pixelRatio": 1.0},
-            "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"
-          })
+          opts.add_argument("--disable-renderer-backgrounding")
+          opts.add_argument("--disable-features=CalculateNativeWinOcclusion")
+          opts.add_argument("--autoplay-policy=no-user-gesture-required")
 
           print("Starting Chrome...")
           driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=opts)
           driver.set_window_size(390, 844)
-          driver.set_script_timeout(120)
 
           print(f"Loading file://{html_path}")
           driver.get(f"file://{html_path}")
-          time.sleep(4)
+          time.sleep(5)
 
-          driver.execute_script("if(typeof AC !== 'undefined') AC.resume();")
-          time.sleep(1)
-
-          driver.execute_script("window.startRecording(30);")
-          print(f"Recording started for {duration}s...")
+          print("Recording started...")
+          driver.execute_script(f"window.startRecording(30);")
           time.sleep(duration)
 
+          print("Stopping recording...")
           driver.execute_script("window.stopRecording();")
-          print("Waiting for recording to finalize...")
-
-          for _ in range(30):
-            done = driver.execute_script("return window._recordingDone;")
-            if done:
-              print("Recording finalized normally")
-              break
-            time.sleep(0.5)
-          else:
-            print("onstop did not fire, force finalizing...")
-            driver.execute_script("window.forceFinalize();")
-            time.sleep(2)
-
-          done = driver.execute_script("return window._recordingDone;")
-          if not done:
-            driver.quit()
-            raise RuntimeError("Recording failed to finalize")
+          
+          # Increased wait time for file finalization
+          time.sleep(5)
 
           print("Extracting video...")
           b64 = driver.execute_async_script("""
             var done = arguments[0];
-            window.getRecordingBase64().then(done).catch(function(e){
-              console.error('getRecordingBase64 error:', e);
-              done(null);
-            });
+            window.getRecordingBase64().then(done).catch(e => done(null));
           """)
 
           driver.quit()
-          print("Browser closed")
 
           if not b64:
-            raise RuntimeError("Failed to get base64 from browser")
+            raise RuntimeError("Recording failed or returned no data.")
 
           with open(webm_file, 'wb') as f:
             f.write(base64.b64decode(b64))
-          print(f"Webm saved: {os.path.getsize(webm_file)/1024/1024:.1f} MB")
 
-          print("Converting to mp4...")
-          result = subprocess.run([
+          print("Converting and mixing...")
+          subprocess.run([
             "ffmpeg", "-y", "-i", webm_file,
-            "-c:v", "libx264", "-preset", "slow", "-crf", "16",
-            "-pix_fmt", "yuv420p", "-vf", "scale=390:844:flags=lanczos",
-            "-c:a", "aac", "-b:a", "192k", "-ar", "44100",
-            "-movflags", "+faststart", mp4_file
-          ], capture_output=True, text=True)
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+            "-pix_fmt", "yuv420p", "-vf", "scale=390:844", mp4_file
+          ], check=True)
 
-          if not os.path.exists(mp4_file) or os.path.getsize(mp4_file) < 50000:
-            print("ffmpeg stderr:", result.stderr[-2000:])
-            raise RuntimeError("mp4 conversion failed")
-
-          os.remove(webm_file)
-          print(f"mp4 ready: {os.path.getsize(mp4_file)/1024/1024:.1f} MB")
-
+          final_file = mp4_file
           if music_track:
-            print(f"Mixing music: {music_track}")
-            mix_result = subprocess.run([
+            subprocess.run([
               "ffmpeg", "-y", "-i", mp4_file, "-stream_loop", "-1", "-i", music_track,
-              "-c:v", "copy",
-              "-filter_complex", "[0:a]volume=1.0[sfx];[1:a]volume=0.35[music];[sfx][music]amix=inputs=2:duration=first[aout]",
-              "-map", "0:v", "-map", "[aout]",
-              "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", mix_file
-            ], capture_output=True, text=True)
-            if os.path.exists(mix_file) and os.path.getsize(mix_file) > 50000:
-              os.remove(mp4_file); final_file = mix_file
-              print("Music mixed successfully")
-            else:
-              print("Music mix failed, using original audio"); final_file = mp4_file
-          else:
-            final_file = mp4_file
+              "-filter_complex", "[0:a]volume=1.0[sfx];[1:a]volume=0.3[music];[sfx][music]amix=inputs=2:duration=first",
+              "-c:v", "copy", "-c:a", "aac", "-shortest", mix_file
+            ], check=True)
+            final_file = mix_file
 
-          print(f"Final video: {os.path.getsize(final_file)/1024/1024:.1f} MB")
-
-          captions = [
-            "🌋 Lava lamp vibes — pure hypnotic color ✨ #LavaLamp #Satisfying #Relaxing #Hypnotic #ASMR #ColorVibes #Chill #AbstractArt #SatisfyingVideos #FYP",
-            "🫧 Watch the blobs move and glow 💫 #LavaLamp #Satisfying #Relaxing #Hypnotic #ASMR #ColorVibes #Chill #AbstractArt #SatisfyingVideos #FYP",
-            "✨ This never gets old — lava lamp forever 🌈 #LavaLamp #Satisfying #Relaxing #Hypnotic #ASMR #ColorVibes #Chill #AbstractArt #SatisfyingVideos #FYP",
-            "🌀 Melting colors, melting stress 🎨 #LavaLamp #Satisfying #Relaxing #Hypnotic #ASMR #ColorVibes #Chill #AbstractArt #SatisfyingVideos #FYP",
-            "💥 When the colors just flow perfectly 🔥 #LavaLamp #Satisfying #Relaxing #Hypnotic #ASMR #ColorVibes #Chill #AbstractArt #SatisfyingVideos #FYP",
-            "🎨 Every second is a new masterpiece 👀 #LavaLamp #Satisfying #Relaxing #Hypnotic #ASMR #ColorVibes #Chill #AbstractArt #SatisfyingVideos #FYP",
-            "🫧 Glowing blobs doing their thing 💜 #LavaLamp #Satisfying #Relaxing #Hypnotic #ASMR #ColorVibes #Chill #AbstractArt #SatisfyingVideos #FYP",
-            "🌋 No two runs ever look the same ✨ #LavaLamp #Satisfying #Relaxing #Hypnotic #ASMR #ColorVibes #Chill #AbstractArt #SatisfyingVideos #FYP",
-          ]
-          description = random.choice(captions)
-
-          print("Posting to Facebook...")
+          # Post to FB
+          caption = "🌋 Lava lamp vibes #Satisfying #Relaxing #LavaLamp"
           with open(final_file, 'rb') as f:
-            response = requests.post(
+            r = requests.post(
               f"https://graph-video.facebook.com/v18.0/{fb_page_id}/videos",
-              data={"description": description, "access_token": fb_token},
+              data={"description": caption, "access_token": fb_token},
               files={"source": (os.path.basename(final_file), f, "video/mp4")}
             )
-
-          print(f"Facebook response: {response.status_code}")
-          print(response.text)
-          if response.status_code == 200:
-            print(f"Posted! Video ID: {response.json().get('id')}")
-          else:
-            raise RuntimeError(f"Facebook post failed: {response.text}")
-
-          os.remove(final_file)
+          print(f"Facebook response: {r.text}")
           print("Done!")
           PYEOF
         env:
-          DURATION:      ${{ github.event.inputs.duration || '10' }}
-          TS:            ${{ env.TS }}
-          DISPLAY:       ":99"
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           FB_PAGE_ID:    ${{ secrets.FB_PAGE_ID }}
