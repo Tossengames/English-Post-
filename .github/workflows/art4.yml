@@ -6,7 +6,7 @@ on:
       duration:
         description: "Duration in seconds"
         required: false
-        default: "15"
+        default: "10"
   schedule:
     - cron: "0 10 * * *"
 
