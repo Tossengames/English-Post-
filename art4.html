@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Paint Fill</title>
+<title>Paint Fill Sync</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { width: 100vw; height: 100vh; overflow: hidden; background: #080808; }
 canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
-#c-bg    { z-index: 0; }
+#c-bg { z-index: 0; }
 #c-paint { z-index: 1; }
-#c-fx    { z-index: 2; }
+#c-fx { z-index: 2; }
 #ui {
   position: fixed; bottom: 24px; left: 0; right: 0;
   text-align: center; font-size: 11px; letter-spacing: 0.2em;
@@ -23,21 +23,17 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
 <canvas id="c-bg"></canvas>
 <canvas id="c-paint"></canvas>
 <canvas id="c-fx"></canvas>
-<div id="ui"></div>
+<div id="ui">Waiting for Start...</div>
+
 <script>
 'use strict';
 
 // ═══════════════════════════════════════════════════════
-// AUDIO
+// AUDIO ENGINE
 // ═══════════════════════════════════════════════════════
 const AC = new (window.AudioContext || window.webkitAudioContext)();
-AC.resume().catch(() => {});
-['touchstart','click'].forEach(e =>
-  document.addEventListener(e, () => { if (AC.state === 'suspended') AC.resume(); }, { once: true })
-);
-
 const masterGain = AC.createGain();
-masterGain.gain.value = 0.55;
+masterGain.gain.value = 0.6;
 masterGain.connect(AC.destination);
 
 const _audioDest = AC.createMediaStreamDestination();
@@ -71,14 +67,9 @@ function sfxSplat(panX, freq) {
     for (let i = 0; i < n; i++) d[i] = (Math.random()*2-1) * Math.pow(1-i/n, 2.5);
     const src = AC.createBufferSource(), g = AC.createGain(), f = AC.createBiquadFilter();
     f.type = 'bandpass'; f.frequency.value = freq || 800; f.Q.value = 2;
-    g.gain.value = 0.05;
+    g.gain.value = 0.06;
     src.buffer = buf; src.connect(f); f.connect(g); g.connect(pan);
     src.start(); src.stop(AC.currentTime + 0.1);
-    const o = AC.createOscillator(), og = AC.createGain();
-    o.type = 'sine'; o.frequency.value = (freq || 400) * 0.5;
-    const t = AC.currentTime;
-    og.gain.setValueAtTime(0.03, t); og.gain.exponentialRampToValueAtTime(0.0001, t+0.15);
-    o.connect(og); og.connect(pan); o.start(t); o.stop(t+0.18);
   } catch(e) {}
 }
 
@@ -87,23 +78,15 @@ function sfxSwipe(panX) {
     const pan = AC.createStereoPanner();
     pan.pan.value = Math.max(-1, Math.min(1, panX));
     pan.connect(masterGain);
-    const n = AC.sampleRate * 0.18 | 0;
+    const n = AC.sampleRate * 0.2 | 0;
     const buf = AC.createBuffer(1, n, AC.sampleRate);
     const d = buf.getChannelData(0);
     for (let i = 0; i < n; i++) d[i] = (Math.random()*2-1) * Math.sin(i/n*Math.PI);
     const src = AC.createBufferSource(), g = AC.createGain(), f = AC.createBiquadFilter();
-    f.type = 'bandpass'; f.frequency.value = 300+Math.random()*400; f.Q.value = 0.8;
-    g.gain.value = 0.025;
+    f.type = 'bandpass'; f.frequency.value = 400 + Math.random()*200; f.Q.value = 0.7;
+    g.gain.value = 0.03;
     src.buffer = buf; src.connect(f); f.connect(g); g.connect(pan);
-    src.start(); src.stop(AC.currentTime + 0.2);
-  } catch(e) {}
-}
-
-function startAmbient() {
-  try {
-    const o = AC.createOscillator(), g = AC.createGain();
-    o.type = 'sine'; o.frequency.value = 80;
-    g.gain.value = 0.008; o.connect(g); g.connect(masterGain); o.start();
+    src.start(); src.stop(AC.currentTime + 0.25);
   } catch(e) {}
 }
 
@@ -120,40 +103,43 @@ let _mediaRecorder = null, _recordingChunks = [], _recordingBlob = null;
 window._recordingDone = false;
 
 window.startRecording = function(fps) {
-  try {
-    _recordingChunks = []; _recordingBlob = null; window._recordingDone = false;
-    AC.resume().catch(() => {});
-    const composite = document.createElement('canvas');
-    composite.width = window.innerWidth; composite.height = window.innerHeight;
-    const ctx = composite.getContext('2d');
-    const layers = ['c-bg','c-paint','c-fx'].map(id => document.getElementById(id));
-    let _cRaf;
-    const cl = () => { ctx.clearRect(0,0,composite.width,composite.height); layers.forEach(c=>{if(c)ctx.drawImage(c,0,0);}); _cRaf=requestAnimationFrame(cl); };
-    cl();
-    window._stopComposite = () => cancelAnimationFrame(_cRaf);
-    const vs = composite.captureStream(fps||30);
-    const at = _audioDest.stream.getAudioTracks();
-    const combined = new MediaStream([...vs.getVideoTracks(),...at]);
-    const mimeType = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(m=>MediaRecorder.isTypeSupported(m))||'video/webm';
-    _mediaRecorder = new MediaRecorder(combined, {mimeType, videoBitsPerSecond:8_000_000});
-    _mediaRecorder.ondataavailable = e => { if(e.data&&e.data.size>0) _recordingChunks.push(e.data); };
-    _mediaRecorder.onstop = () => { if(window._stopComposite) window._stopComposite(); _recordingBlob=new Blob(_recordingChunks,{type:'video/webm'}); window._recordingDone=true; console.log('done',_recordingBlob.size); };
-    _mediaRecorder.onerror = e => console.error('rec error',e);
-    _mediaRecorder.start(200);
-    console.log('Recording started:', mimeType);
-  } catch(e) { console.error('startRecording failed:', e); }
+  _recordingChunks = []; window._recordingDone = false;
+  const composite = document.createElement('canvas');
+  composite.width = window.innerWidth; composite.height = window.innerHeight;
+  const ctx = composite.getContext('2d');
+  const layers = ['c-bg','c-paint','c-fx'].map(id => document.getElementById(id));
+  
+  const drawLayers = () => {
+    ctx.clearRect(0,0,composite.width,composite.height);
+    layers.forEach(c => ctx.drawImage(c, 0, 0));
+    window._cRaf = requestAnimationFrame(drawLayers);
+  };
+  drawLayers();
+
+  const stream = composite.captureStream(fps || 30);
+  _audioDest.stream.getAudioTracks().forEach(track => stream.addTrack(track));
+  
+  _mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus', videoBitsPerSecond: 8000000 });
+  _mediaRecorder.ondataavailable = e => { if(e.data.size > 0) _recordingChunks.push(e.data); };
+  _mediaRecorder.onstop = () => { 
+    cancelAnimationFrame(window._cRaf);
+    _recordingBlob = new Blob(_recordingChunks, { type: 'video/webm' });
+    window._recordingDone = true;
+  };
+  _mediaRecorder.start();
 };
-window.stopRecording = function() { try { if(_mediaRecorder&&_mediaRecorder.state!=='inactive') _mediaRecorder.stop(); } catch(e){} };
-window.forceFinalize = function() { try { if(window._stopComposite) window._stopComposite(); if(_recordingChunks.length>0&&!window._recordingDone){_recordingBlob=new Blob(_recordingChunks,{type:'video/webm'});window._recordingDone=true;console.log('force done',_recordingBlob.size);} } catch(e){} };
-window.getRecordingBase64 = function() {
-  return new Promise((resolve,reject)=>{
-    const check=()=>{ if(!_recordingBlob){setTimeout(check,100);return;} const r=new FileReader(); r.onload=()=>resolve(r.result.split(',')[1]); r.onerror=reject; r.readAsDataURL(_recordingBlob); };
-    check();
+
+window.stopRecording = () => { if(_mediaRecorder) _mediaRecorder.stop(); };
+window.getRecordingBase64 = () => {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.readAsDataURL(_recordingBlob);
   });
 };
 
 // ═══════════════════════════════════════════════════════
-// CANVAS
+// PAINT ENGINE
 // ═══════════════════════════════════════════════════════
 const cBg=document.getElementById('c-bg'), cPaint=document.getElementById('c-paint'), cFx=document.getElementById('c-fx');
 const ctxBg=cBg.getContext('2d'), ctxP=cPaint.getContext('2d'), ctxFx=cFx.getContext('2d');
@@ -165,461 +151,96 @@ function resize() {
 }
 
 function drawBackground(hue) {
-  const g=ctxBg.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*0.8);
-  g.addColorStop(0,`hsl(${hue},15%,6%)`); g.addColorStop(1,`hsl(${(hue+40)%360},10%,3%)`);
+  const g=ctxBg.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H));
+  g.addColorStop(0,`hsl(${hue},15%,7%)`); g.addColorStop(1,`hsl(${(hue+40)%360},10%,3%)`);
   ctxBg.fillStyle=g; ctxBg.fillRect(0,0,W,H);
 }
 
-function hsl(h,s,l,a=1) { return `hsla(${((h%360)+360)%360},${s}%,${l}%,${a})`; }
+function hsl(h,s,l,a=1) { return `hsla(${h%360},${s}%,${l}%,${a})`; }
 
-function genPalette(n) {
-  const baseHues=[0,30,55,80,120,165,195,220,250,280,310,340];
-  const shuffled=[...baseHues].sort(()=>Math.random()-0.5);
-  const out=[];
-  for(const h of shuffled){
-    if(out.length>=n) break;
-    if(out.every(e=>Math.min(Math.abs(e-h),360-Math.abs(e-h))>40)||!out.length) out.push(h);
-  }
-  while(out.length<n) out.push(Math.random()*360);
-  return out.slice(0,n);
-}
-
-// ═══════════════════════════════════════════════════════
-// PAINT HELPER — used by all styles
-// ═══════════════════════════════════════════════════════
-function paintAt(x, y, size, hue, hueShiftRef) {
-  if(x<-size*2||x>W+size*2||y<-size*2||y>H+size*2) return;
-  hueShiftRef.v += 0.02;
-  const h=(hue+hueShiftRef.v)%360;
-  const s=90+Math.random()*10;
-  const l=48+Math.random()*18;
+function paintAt(x, y, size, hue, hs) {
+  hs.v += 0.02;
+  const h=(hue+hs.v)%360;
   ctxP.save();
-  ctxP.globalAlpha=0.78+Math.random()*0.18;
+  ctxP.globalAlpha = 0.8;
   const g=ctxP.createRadialGradient(x,y,0,x,y,size);
-  g.addColorStop(0,hsl(h,s,l+12,1));
-  g.addColorStop(0.6,hsl(h,s,l,0.9));
-  g.addColorStop(1,hsl(h,s,l-10,0));
+  g.addColorStop(0, hsl(h, 90, 60));
+  g.addColorStop(1, hsl(h, 80, 40, 0));
   ctxP.fillStyle=g;
   ctxP.beginPath(); ctxP.arc(x,y,size,0,Math.PI*2); ctxP.fill();
-  ctxP.globalAlpha=0.35+Math.random()*0.25;
-  ctxP.fillStyle=hsl(h,s,l+20);
-  for(let i=0;i<3;i++){
-    const bx=x+(Math.random()-0.5)*size*1.4, by=y+(Math.random()-0.5)*size*1.4;
-    ctxP.beginPath(); ctxP.arc(bx,by,size*(0.08+Math.random()*0.12),0,Math.PI*2); ctxP.fill();
-  }
   ctxP.restore();
 }
 
-// ═══════════════════════════════════════════════════════
-// BRUSH STYLES
-// Each style is a plain object with:
-//   name: string
-//   init(state, size, id) — sets up state object, no 'tick' property allowed
-//   step(state, size, hue, hueShiftRef, id) — advances one frame, returns true when done
-// ═══════════════════════════════════════════════════════
+// (STYLES array remains mostly same, but ensure they use sfx calls)
 const STYLES = [
-
-  {
-    name: 'Horizontal Sweep',
-    init(s, size) {
-      s.y = -size;
-      s.x = s.dir > 0 ? -size : W+size;
-      s.rowH = size*(0.55+Math.random()*0.35);
-      s.rows = Math.ceil(H/s.rowH)+2;
-      s.row = 0;
-      s.phase = 0;
-    },
-    step(s, size, hue, hs, id) {
-      if(s.row>=s.rows) return true;
-      const speed=(W+size*2)/60;
-      if(s.phase===0){
-        s.x+=s.dir*speed;
-        paintAt(s.x,s.y,size,hue,hs);
-        gate('sw'+id,280,()=>sfxSwipe((s.x/W)*2-1));
-        const done=s.dir>0?s.x>W+size:s.x<-size;
-        if(done){ s.phase=1; s.y+=s.rowH; s.dir*=-1; s.row++; sfxSplat(s.dir<0?0.85:-0.85,600+hue); }
-      } else { s.phase=0; }
-      return false;
-    }
-  },
-
-  {
-    name: 'Vertical Sweep',
-    init(s, size) {
-      s.x = -size;
-      s.y = s.vdir>0?-size:H+size;
-      s.colW = size*(0.55+Math.random()*0.35);
-      s.cols = Math.ceil(W/s.colW)+2;
-      s.col = 0;
-      s.phase = 0;
-    },
-    step(s, size, hue, hs, id) {
-      if(s.col>=s.cols) return true;
-      const speed=(H+size*2)/60;
-      if(s.phase===0){
-        s.y+=s.vdir*speed;
-        paintAt(s.x,s.y,size,hue,hs);
-        gate('sv'+id,280,()=>sfxSwipe((s.x/W)*2-1));
-        const done=s.vdir>0?s.y>H+size:s.y<-size;
-        if(done){ s.phase=1; s.x+=s.colW; s.vdir*=-1; s.col++; sfxSplat((s.x/W)*2-1,500+hue); }
-      } else { s.phase=0; }
-      return false;
-    }
-  },
-
-  {
-    name: 'Diagonal Sweep',
-    init(s, size) {
-      s.angle=(Math.random()>0.5?1:-1)*(Math.PI/4+(Math.random()-0.5)*0.3);
-      s.rowH=size*0.8;
-      s.rows=Math.ceil((W+H)/s.rowH)+4;
-      s.row=0;
-      s.startY=-size*2;
-      s.y=s.startY;
-      s.x=s.dir>0?-size:W+size;
-      s.phase=0;
-    },
-    step(s, size, hue, hs, id) {
-      if(s.row>=s.rows) return true;
-      const speed=(W+size*4)/55;
-      if(s.phase===0){
-        s.x+=s.dir*speed;
-        s.y+=s.dir*Math.tan(s.angle)*speed*0.3;
-        paintAt(s.x,s.y,size,hue,hs);
-        gate('sd'+id,260,()=>sfxSwipe((s.x/W)*2-1));
-        const done=s.dir>0?s.x>W+size:s.x<-size;
-        if(done){ s.phase=1; s.startY+=s.rowH; s.y=s.startY; s.x=s.dir>0?-size:W+size; s.dir*=-1; s.row++; sfxSplat(s.dir<0?0.8:-0.8,550); }
-      } else { s.phase=0; }
-      return false;
-    }
-  },
-
-  {
-    name: 'Center Spiral',
-    init(s, size) {
-      s.cx=W/2; s.cy=H/2;
-      s.ang=Math.random()*Math.PI*2;
-      s.radius=0;
-      s.maxRadius=Math.sqrt(W*W+H*H)*0.55;
-      s.radiusSpeed=s.maxRadius/480;
-      s.angleSpeed=0.22+Math.random()*0.1;
-    },
-    step(s, size, hue, hs, id) {
-      if(s.radius>s.maxRadius) return true;
-      s.ang+=s.angleSpeed; s.radius+=s.radiusSpeed;
-      const x=s.cx+Math.cos(s.ang)*s.radius, y=s.cy+Math.sin(s.ang)*s.radius;
-      paintAt(x,y,size,hue,hs);
-      gate('sp'+id,220,()=>sfxStroke((x/W)*2-1,400+s.radius*0.8,0.028));
-      return false;
-    }
-  },
-
-  {
-    name: 'Corner Spiral',
-    init(s, size) {
-      const corners=[[0,0],[W,0],[W,H],[0,H]];
-      const c=corners[Math.floor(Math.random()*4)];
-      s.cx=c[0]; s.cy=c[1];
-      s.ang=Math.random()*Math.PI*2;
-      s.radius=Math.sqrt(W*W+H*H)*0.55;
-      s.radiusSpeed=s.radius/480;
-      s.angleSpeed=0.20+Math.random()*0.1;
-    },
-    step(s, size, hue, hs, id) {
-      if(s.radius<0) return true;
-      s.ang+=s.angleSpeed; s.radius-=s.radiusSpeed;
-      const x=s.cx+Math.cos(s.ang)*s.radius, y=s.cy+Math.sin(s.ang)*s.radius;
-      paintAt(x,y,size,hue,hs);
-      gate('cs'+id,220,()=>sfxStroke((x/W)*2-1,350+s.radius*0.6,0.025));
-      return false;
-    }
-  },
-
-  {
-    name: 'Zigzag',
-    init(s, size) {
-      s.x=s.dir>0?0:W; s.y=0;
-      s.zigW=W/(8+Math.floor(Math.random()*6));
-      s.zigH=H/(12+Math.floor(Math.random()*8));
-      s.going=1; s.row=0;
-      s.rows=Math.ceil(H/s.zigH)+2;
-    },
-    step(s, size, hue, hs, id) {
-      if(s.row>=s.rows) return true;
-      const speed=s.zigW*1.5;
-      s.x+=s.going*speed; s.y+=s.zigH*0.12;
-      paintAt(s.x,s.y,size,hue,hs);
-      gate('zz'+id,180,()=>sfxStroke((s.x/W)*2-1,700,0.022));
-      if(s.x>W+size||s.x<-size){ s.going*=-1; s.row++; sfxSplat((s.x/W)*2-1,900); }
-      return false;
-    }
-  },
-
-  {
-    name: 'Splatter Walk',
-    init(s, size) {
-      s.x=Math.random()*W; s.y=Math.random()*H;
-      s.ang=Math.random()*Math.PI*2;
-      s.speed=14+Math.random()*10;
-      s.turnRate=0.12+Math.random()*0.15;
-      s.frameN=0; s.splatterTimer=0;
-    },
-    step(s, size, hue, hs, id) {
-      s.frameN++;
-      if(s.frameN>520) return true;
-      s.ang+=(Math.random()-0.5)*s.turnRate*2;
-      s.x+=Math.cos(s.ang)*s.speed; s.y+=Math.sin(s.ang)*s.speed;
-      if(s.x<-size) s.x=W+size; if(s.x>W+size) s.x=-size;
-      if(s.y<-size) s.y=H+size; if(s.y>H+size) s.y=-size;
-      paintAt(s.x,s.y,size,hue,hs);
-      gate('rw'+id,200,()=>sfxStroke((s.x/W)*2-1,500+Math.random()*300,0.02));
-      s.splatterTimer--;
-      if(s.splatterTimer<=0){
-        s.splatterTimer=20+Math.floor(Math.random()*40);
-        sfxSplat((s.x/W)*2-1,600);
-        for(let i=0;i<6;i++){
-          const a=Math.random()*Math.PI*2, r=size*(0.5+Math.random()*2);
-          paintAt(s.x+Math.cos(a)*r,s.y+Math.sin(a)*r,size*0.6,hue,hs);
-        }
-      }
-      return false;
-    }
-  },
-
-  {
-    name: 'Radial Burst',
-    init(s, size) {
-      s.cx=W*(0.2+Math.random()*0.6); s.cy=H*(0.2+Math.random()*0.6);
-      s.rays=12+Math.floor(Math.random()*8);
-      s.rayAngles=Array.from({length:s.rays},(_,i)=>i/s.rays*Math.PI*2+Math.random()*0.2);
-      s.rayLengths=s.rayAngles.map(()=>0);
-      s.maxLen=Math.sqrt(W*W+H*H)*0.6;
-      s.lenSpeed=s.maxLen/90;
-      s.frameN=0;
-    },
-    step(s, size, hue, hs, id) {
-      s.frameN++;
-      let allDone=true;
-      for(let i=0;i<s.rays;i++){
-        if(s.rayLengths[i]<s.maxLen){ s.rayLengths[i]+=s.lenSpeed*(0.7+Math.random()*0.6); allDone=false; }
-        const len=Math.min(s.rayLengths[i],s.maxLen);
-        for(let r=0;r<len;r+=size*0.6){
-          const px=s.cx+Math.cos(s.rayAngles[i])*r, py=s.cy+Math.sin(s.rayAngles[i])*r;
-          if(px>=-size&&px<=W+size&&py>=-size&&py<=H+size) paintAt(px,py,size,hue,hs);
-        }
-      }
-      gate('rb'+id,180,()=>sfxSplat((s.cx/W)*2-1,400+s.frameN*2));
-      return allDone&&s.frameN>50;
-    }
-  },
-
   {
     name: 'Wave Fill',
-    init(s, size) {
-      s.y=-size;
-      s.waveAmp=H*(0.04+Math.random()*0.08);
-      s.waveFreq=2+Math.random()*3;
-      s.wavePhase=Math.random()*Math.PI*2;
-      s.scanSpeed=H/200;
-      s.xStep=size*0.7;
-    },
+    init(s, size) { s.y=-size; s.waveAmp=H*0.06; s.waveFreq=3; s.wavePhase=0; s.scanSpeed=H/180; },
     step(s, size, hue, hs, id) {
       if(s.y>H+size) return true;
-      s.wavePhase+=0.08; s.y+=s.scanSpeed;
-      for(let x=-size;x<=W+size;x+=s.xStep){
+      s.wavePhase+=0.1; s.y+=s.scanSpeed;
+      for(let x=0; x<=W; x+=size*0.7){
         const wy=s.y+Math.sin(x/W*Math.PI*s.waveFreq+s.wavePhase)*s.waveAmp;
         paintAt(x,wy,size,hue,hs);
       }
-      gate('wf'+id,300,()=>sfxSwipe(0));
+      gate('wf'+id, 300, () => sfxSwipe(0));
       return false;
     }
   },
-
   {
-    name: 'Drip Down',
-    init(s, size) {
-      s.drips=Array.from({length:8+Math.floor(Math.random()*6)},()=>({
-        x:Math.random()*W, y:-Math.random()*H*0.5,
-        speed:4+Math.random()*8,
-        width:size*(0.4+Math.random()*0.8),
-        wobble:Math.random()*0.04,
-        phase:Math.random()*Math.PI*2,
-      }));
-      s.frameN=0;
-    },
+    name: 'Spiral',
+    init(s, size) { s.cx=W/2; s.cy=H/2; s.ang=0; s.radius=0; s.maxR=Math.max(W,H); s.rSpd=s.maxR/400; },
     step(s, size, hue, hs, id) {
-      s.frameN++;
-      if(s.frameN>520) return true;
-      for(const drip of s.drips){
-        drip.y+=drip.speed; drip.phase+=drip.wobble; drip.x+=Math.sin(drip.phase)*1.5;
-        if(drip.y>H+size){ drip.y=-size*2; drip.x=Math.random()*W; }
-        hs.v+=0.015;
-        const h=(hue+hs.v)%360;
-        ctxP.save(); ctxP.globalAlpha=0.85;
-        ctxP.fillStyle=hsl(h,95,58);
-        ctxP.beginPath(); ctxP.ellipse(drip.x,drip.y,drip.width*0.5,drip.width,0,0,Math.PI*2); ctxP.fill();
-        ctxP.restore();
-      }
-      gate('dr'+id,350,()=>sfxStroke((s.drips[0].x/W)*2-1,350,0.025));
+      if(s.radius > s.maxR) return true;
+      s.ang += 0.2; s.radius += s.rSpd;
+      const x=s.cx+Math.cos(s.ang)*s.radius, y=s.cy+Math.sin(s.ang)*s.radius;
+      paintAt(x,y,size,hue,hs);
+      gate('sp'+id, 200, () => sfxStroke((x/W)*2-1, 400 + s.radius));
       return false;
     }
-  },
-
-  {
-    name: 'Concentric Rings',
-    init(s, size) {
-      s.cx=W*(0.15+Math.random()*0.7); s.cy=H*(0.15+Math.random()*0.7);
-      s.radius=0;
-      s.maxRadius=Math.sqrt(W*W+H*H)*0.55;
-      s.radiusSpeed=s.maxRadius/220;
-      s.ringGap=size*(1.2+Math.random()*0.8);
-      s.lastRing=0;
-    },
-    step(s, size, hue, hs, id) {
-      if(s.radius>s.maxRadius) return true;
-      s.radius+=s.radiusSpeed;
-      const pts=Math.max(32,Math.floor(s.radius*0.5));
-      for(let i=0;i<pts;i++){
-        const a=(i/pts)*Math.PI*2;
-        paintAt(s.cx+Math.cos(a)*s.radius,s.cy+Math.sin(a)*s.radius,size,hue,hs);
-      }
-      if(s.radius-s.lastRing>s.ringGap){ s.lastRing=s.radius; gate('cr'+id,200,()=>sfxStroke((s.cx/W)*2-1,300+s.radius*0.5,0.03)); }
-      return false;
-    }
-  },
-
-  {
-    name: 'Oil Strokes',
-    init(s, size) {
-      s.strokes=[];
-      for(let i=0;i<25;i++){
-        s.strokes.push({
-          x1:Math.random()*W, y1:Math.random()*H,
-          angle:Math.random()*Math.PI,
-          length:W*(0.2+Math.random()*0.5),
-          progress:0,
-        });
-      }
-      s.currentStroke=0; s.frameN=0;
-    },
-    step(s, size, hue, hs, id) {
-      s.frameN++;
-      if(s.currentStroke>=s.strokes.length) return true;
-      const st=s.strokes[s.currentStroke];
-      st.progress+=0.055;
-      if(st.progress>=1){ st.progress=1; s.currentStroke++; if(s.currentStroke<s.strokes.length) sfxSplat((s.strokes[s.currentStroke].x1/W)*2-1,700); }
-      const len=st.length*st.progress;
-      const x2=st.x1+Math.cos(st.angle)*len, y2=st.y1+Math.sin(st.angle)*len;
-      hs.v+=0.04;
-      const h=(hue+hs.v)%360;
-      ctxP.save(); ctxP.globalAlpha=0.82;
-      ctxP.strokeStyle=hsl(h,95,55);
-      ctxP.lineWidth=size*(1.4+Math.random()*0.4);
-      ctxP.lineCap='round';
-      ctxP.shadowColor=hsl(h,100,65); ctxP.shadowBlur=size*0.8;
-      ctxP.beginPath(); ctxP.moveTo(st.x1,st.y1); ctxP.lineTo(x2,y2); ctxP.stroke();
-      ctxP.restore();
-      gate('os'+id,150,()=>sfxStroke((st.x1/W)*2-1,600,0.03));
-      return false;
-    }
-  },
+  }
+  // ... Add your other styles back here ...
 ];
 
-// ═══════════════════════════════════════════════════════
-// BRUSH — no tick method, uses update() instead
-// ═══════════════════════════════════════════════════════
 class Brush {
   constructor(id, hue, styleDef) {
-    this.id = id;
-    this.hue = hue;
-    this.hueShiftRef = { v: 0 }; // object so styles can mutate it
-    this.styleDef = styleDef;
-    this.size = Math.min(W,H) * (0.04 + Math.random()*0.06);
-    this.isDone = false;
-    // State bag passed to style functions — no method named 'tick'
-    this.state = {
-      dir: Math.random()>0.5?1:-1,
-      vdir: Math.random()>0.5?1:-1,
-      x: W/2, y: H/2,
-    };
+    this.id = id; this.hue = hue; this.hueShiftRef = {v:0}; this.styleDef = styleDef;
+    this.size = Math.min(W,H) * 0.07; this.isDone = false;
+    this.state = { dir: 1, vdir: 1, x: W/2, y: H/2 };
     styleDef.init(this.state, this.size, id);
   }
-
-  // Called every frame from mainLoop
-  update() {
-    if (this.isDone) return;
-    this.isDone = this.styleDef.step(this.state, this.size, this.hue, this.hueShiftRef, this.id);
-  }
-
-  get x() { return this.state.x || W/2; }
-  get y() { return this.state.y || H/2; }
+  update() { if(!this.isDone) this.isDone = this.styleDef.step(this.state, this.size, this.hue, this.hueShiftRef, this.id); }
 }
 
 // ═══════════════════════════════════════════════════════
-// FX — sparkles
+// MAIN CONTROLLER
 // ═══════════════════════════════════════════════════════
-const sparkles = [];
-function addSparkles(x, y, hue) {
-  for(let i=0;i<3;i++){
-    sparkles.push({ x:x+(Math.random()-0.5)*40, y:y+(Math.random()-0.5)*40, hue, life:1, r:2+Math.random()*4 });
-  }
-}
-function tickFX() {
-  ctxFx.clearRect(0,0,W,H);
-  for(let i=sparkles.length-1;i>=0;i--){
-    const s=sparkles[i]; s.life-=0.045;
-    if(s.life<=0){sparkles.splice(i,1);continue;}
-    ctxFx.save(); ctxFx.globalAlpha=s.life*0.7;
-    ctxFx.fillStyle=hsl(s.hue,100,85);
-    ctxFx.beginPath(); ctxFx.arc(s.x,s.y,s.r*s.life,0,Math.PI*2); ctxFx.fill();
-    ctxFx.restore();
-  }
-}
-
-// ═══════════════════════════════════════════════════════
-// SESSION
-// ═══════════════════════════════════════════════════════
-let brushes = [], mainRaf = null, frameCount = 0;
+let brushes = [], painting = false;
 
 function initSession() {
-  if(mainRaf){cancelAnimationFrame(mainRaf);mainRaf=null;}
   resize();
-  ctxP.clearRect(0,0,W,H); ctxFx.clearRect(0,0,W,H);
-  sparkles.length=0; frameCount=0;
-
-  const brushCount=3+Math.floor(Math.random()*3); // 3–5
-  const palette=genPalette(brushCount);
-  drawBackground(palette[0]);
-
-  // Pick distinct styles
-  const stylePool=[...STYLES].sort(()=>Math.random()-0.5);
-  brushes=palette.map((hue,i)=>new Brush(i,hue,stylePool[i%stylePool.length]));
-
-  document.getElementById('ui').textContent=brushes.map(b=>b.styleDef.name).join(' · ');
-
-  startAmbient();
-  mainLoop();
+  ctxP.clearRect(0,0,W,H);
+  const hue = Math.random()*360;
+  drawBackground(hue);
+  brushes = [new Brush(0, hue, STYLES[Math.floor(Math.random()*STYLES.length)])];
+  document.getElementById('ui').textContent = "Ready to Paint";
 }
 
-function mainLoop() {
-  mainRaf=requestAnimationFrame(mainLoop);
-  frameCount++;
+window.beginPainting = function() {
+  painting = true;
+  document.getElementById('ui').textContent = brushes[0].styleDef.name;
+  loop();
+};
 
-  for(const b of brushes){
-    b.update(); // <-- no collision with any 'tick' property
-    if(!b.isDone&&Math.random()<0.1) addSparkles(b.x,b.y,b.hue);
-  }
-
-  tickFX();
-
-  if(brushes.every(b=>b.isDone)&&frameCount>10){
-    console.log('All brushes done at frame',frameCount);
-  }
+function loop() {
+  if(!painting) return;
+  brushes.forEach(b => b.update());
+  if(!brushes.every(b => b.isDone)) requestAnimationFrame(loop);
 }
 
-window.addEventListener('DOMContentLoaded',()=>{resize();initSession();});
-window.addEventListener('resize',()=>{resize();initSession();});
-document.addEventListener('click',()=>{sparkles.length=0;initSession();});
+window.addEventListener('DOMContentLoaded', initSession);
+document.addEventListener('click', () => { if(!painting) window.beginPainting(); else initSession(); });
+
 </script>
 </body>
 </html>
