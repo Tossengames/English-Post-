@@ -39,7 +39,7 @@ jobs:
           VIDEO_URL=""
           VALID_VIDEO=0
 
-          TERMS="cockpit| plane landing| takeoff|pov"
+          TERMS="pets| animals| lions| lion| tiger| dog| cat| pet| wildlife"
           IFS='|' read -ra TERM_ARR <<< "$TERMS"
 
           for TERM in $(printf "%s\n" "${TERM_ARR[@]}" | shuf); do
