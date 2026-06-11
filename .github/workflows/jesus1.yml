@@ -1,4 +1,4 @@
-name: gospel-moments-post
+name: gospel-moments-post 1
 
 "on":
   workflow_dispatch:
@@ -8,7 +8,7 @@ name: gospel-moments-post
         required: false
         default: ""
   schedule:
-    - cron: "0 6 * * *"
+    - cron: "0 22 * * *"
 
 jobs:
   post:
@@ -365,6 +365,7 @@ jobs:
           VERSE="${{ steps.verse.outputs.verse }}"
           FETCH=$(echo "$DUR + 5" | bc)
           FADEOUT=$(echo "$DUR - 1.5" | bc)
+          CTA_START=$(echo "$DUR - 4" | bc)
 
           echo "Downloading video..."
           timeout 90 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4
@@ -376,28 +377,140 @@ jobs:
           timeout 60 ffmpeg -hide_banner -loglevel error -y -stream_loop -1 -i "$MUSIC_FILE" -ss "$MSTART" -t "$FETCH" -ac 2 -ar 44100 music_clip.mp3
 
           python3 << 'PYEOF'
-          import os
+          import os, math, random
 
           verse = os.environ.get("VERSE", "God is with you.")
-          cta = os.environ.get("CTA", "Follow for daily Word")
+          dur = float(os.environ.get("DUR", "20"))
           fadeout = float(os.environ.get("FADEOUT", "18.5"))
+          cta = os.environ.get("CTA", "Follow for daily Word")
 
-          # Verse formatting: wrap to lines for readability
+          font = "/usr/share/fonts/truetype/liberation/LiberationSerif-BoldItalic.ttf"
+          font_fallback = "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf"
+          if not os.path.exists(font):
+              font = font_fallback
+
+          # --- RANDOM COLOR (one per run, warm readable tones) ---
+          colors = [
+              "white", "gold", "lightyellow", "lightcyan",
+              "lightpink", "peachpuff", "lavender", "palegreen",
+              "lightskyblue", "wheat"
+          ]
+          text_color = random.choice(colors)
+
+          # --- TITLE (faith hook) ---
+          titles = [
+              "He is speaking to you right now.",
+              "This word is for you today.",
+              "God hasn't forgotten you.",
+              "Read this. It's not a coincidence.",
+              "Someone needed to hear this.",
+              "His word never returns empty.",
+              "This is your sign.",
+              "He sees you. He loves you.",
+              "Open your heart for a moment.",
+              "Let this reach you today.",
+              "Stop scrolling. God is here.",
+              "You are not alone.",
+              "Jesus loves you. Full stop.",
+              "His grace is enough for you.",
+              "This is your word for today.",
+          ]
+          title_text = random.choice(titles)
+          title_escaped = title_text.replace("'", "\u2019").replace(":", "\\:").replace(",", "\\,")
+
+          title_filter = (
+              f"drawtext=text='{title_escaped}'"
+              f":fontfile={font}"
+              f":fontcolor={text_color}@0.95"
+              f":fontsize=52"
+              f":x=(w-text_w)/2"
+              f":y=160"
+              f":alpha='if(lt(t,0.4),0,min(1,(t-0.4)/0.6))'"
+              f":shadowcolor=black@0.85"
+              f":shadowx=3:shadowy=3"
+          )
+
+          # --- CTA just below title ---
+          cta_escaped = cta.replace("'", "\u2019").replace(":", "\\:").replace(",", "\\,")
+          cta_filter = (
+              f"drawtext=text='{cta_escaped}'"
+              f":fontfile={font}"
+              f":fontcolor={text_color}@0.85"
+              f":fontsize=44"
+              f":x=(w-text_w)/2"
+              f":y=230"
+              f":alpha='if(lt(t,1.0),0,min(1,(t-1.0)/0.8))'"
+              f":shadowcolor=black@0.8"
+              f":shadowx=2:shadowy=2"
+          )
+
+          # --- VERSE: natural body text, typed out word by word ---
           words = verse.split()
-          lines = [" ".join(words[i:i+6]) for i in range(0, len(words), 6)]
-          formatted_verse = "\\\n".join(lines)
+          words_per_line = 5
+          lines = []
+          for i in range(0, len(words), words_per_line):
+              lines.append(words[i:i+words_per_line])
 
-          # Simplified filter: CTA at top, Verse in center, simple fade-in
+          text_start = 1.8
+          text_end = dur * 0.82
+          total_text_time = text_end - text_start
+          total_words = len(words)
+          interval = total_text_time / max(total_words - 1, 1)
+
+          line_height = 90
+          total_lines = len(lines)
+          center_y = 980
+          block_top = center_y - (total_lines * line_height) // 2
+
+          filters = [title_filter, cta_filter]
+          word_idx = 0
+
+          for line_num, line_words in enumerate(lines):
+              y_pos = block_top + line_num * line_height
+
+              for w_in_line, word in enumerate(line_words):
+                  t_show = text_start + word_idx * interval
+                  visible_text = " ".join(line_words[:w_in_line + 1])
+                  visible_escaped = visible_text.replace("'", "\u2019").replace(":", "\\:").replace(",", "\\,")
+
+                  # Each step of the line fades out when next word replaces it
+                  if w_in_line < len(line_words) - 1:
+                      t_next = text_start + (word_idx + 1) * interval
+                      alpha_expr = f"if(lt(t,{t_show:.2f}),0,if(lt(t,{t_next:.2f}),min(1,(t-{t_show:.2f})/0.2),0))"
+                  else:
+                      # Last word on line stays visible
+                      alpha_expr = f"if(lt(t,{t_show:.2f}),0,min(1,(t-{t_show:.2f})/0.2))"
+
+                  ft = (
+                      f"drawtext=text='{visible_escaped}'"
+                      f":fontfile={font}"
+                      f":fontcolor={text_color}"
+                      f":fontsize=68"
+                      f":x=(w-text_w)/2"
+                      f":y={y_pos}"
+                      f":alpha='{alpha_expr}'"
+                      f":shadowcolor=black@0.8"
+                      f":shadowx=3:shadowy=3"
+                  )
+                  filters.append(ft)
+                  word_idx += 1
+
+          all_dt = ",".join(filters)
+
           vfilter = (
               f"[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
-              f"crop=1080:1920,setsar=1,gblur=sigma=25,"
-              f"fade=t=in:st=0:d=1,fade=t=out:st={fadeout:.2f}:d=1.5,"
-              f"drawtext=text='{cta}':fontfile=/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf:fontsize=44:x=(w-text_w)/2:y=200:fontcolor=white:alpha='if(lt(t,2),0,min(1,(t-2)/1))',"
-              f"drawtext=text='{formatted_verse}':fontfile=/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf:fontsize=65:x=(w-text_w)/2:y=(h-text_h)/2:fontcolor=white:alpha='if(lt(t,2),0,min(1,(t-2)/1))':shadowx=2:shadowy=2[vout]"
+              f"crop=1080:1920,"
+              f"setsar=1,"
+              f"gblur=sigma=25,"
+              f"fade=t=in:st=0:d=1,"
+              f"fade=t=out:st={fadeout:.2f}:d=1.5,"
+              f"{all_dt}[vout]"
           )
 
           with open("/tmp/vfilter.txt", "w") as f:
               f.write(vfilter)
+
+          print(f"Built filter for {len(words)} words | color: {text_color} | title: {title_text}")
           PYEOF
 
           VFILTER=$(cat /tmp/vfilter.txt)
