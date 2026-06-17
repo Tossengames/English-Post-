@@ -3,7 +3,7 @@ name: 🙏 Post Gospel to Facebook
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 18 * * *"
+#    - cron: "0 18 * * *"
 
 jobs:
   record:
