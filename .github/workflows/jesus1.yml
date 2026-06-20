@@ -8,7 +8,7 @@ name: gospel-moments-post 1
         required: false
         default: ""
   schedule:
-    - cron: "0 22 * * *"
+  #  - cron: "0 22 * * *"
 
 jobs:
   post:
