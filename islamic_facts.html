@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<title>حكم إسلامية</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700&family=Noto+Sans+Arabic:wght@400;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{--headline-font:'Noto Naskh Arabic',serif;--sub-font:'Noto Sans Arabic',sans-serif;--label-font:'Noto Sans Arabic',sans-serif;}
+html,body{width:100%;height:100%;overflow:hidden;background:#04080f;}
+
+#bgCanvas{position:fixed;inset:0;width:100%;height:100%;z-index:0;}
+#vig{position:fixed;inset:0;z-index:2;pointer-events:none;background:radial-gradient(ellipse at 50% 48%,transparent 30%,rgba(0,5,15,0.5) 100%);}
+
+#ui{
+  position:fixed;inset:0;z-index:10;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:0 8vw;gap:3.6vw;
+}
+
+#label{
+  position:fixed;top:0;left:0;right:0;
+  display:flex;flex-direction:column;align-items:center;
+  padding:7vw 6vw 2vw;z-index:11;
+  opacity:0;transform:translateY(-16px);
+  transition:opacity .5s ease,transform .5s ease;
+}
+#label-eyebrow{
+  font-family:var(--label-font);font-weight:700;
+  font-size:clamp(0.5rem,2.5vw,0.7rem);
+  letter-spacing:0.2em;
+  color:#c9a84c;
+  -webkit-text-stroke:0.5px rgba(4,10,20,0.6);
+}
+#label-rule{width:46px;height:1px;background:#c9a84c;opacity:0.55;margin-top:1.4vw;}
+
+#quote-wrap{display:flex;flex-direction:column;align-items:center;gap:1.8vw;width:100%;}
+.qline{
+  font-family:var(--headline-font);font-weight:700;
+  font-size:clamp(2.2rem,10.5vw,3.5rem);
+  color:#fff;text-align:center;line-height:1.35;
+  opacity:0;letter-spacing:0.01em;
+  -webkit-text-stroke:0.045em rgba(6,6,10,0.85);
+  paint-order:stroke fill;
+  text-shadow:0 3px 16px rgba(0,0,0,0.4);
+  max-width:100%;min-width:0;white-space:normal;word-break:normal;
+}
+.qline.small{
+  font-family:var(--sub-font);font-weight:600;
+  font-size:clamp(0.95rem,4.4vw,1.35rem);
+  color:rgba(255,245,220,0.93);
+  -webkit-text-stroke:0.03em rgba(6,6,10,0.75);
+  paint-order:stroke fill;
+  text-shadow:0 2px 8px rgba(0,0,0,0.35);
+  line-height:1.6;
+}
+.qline.ref{
+  font-family:var(--label-font);font-weight:700;
+  font-size:clamp(0.58rem,2.8vw,0.82rem);
+  letter-spacing:0.15em;
+  color:#c9a84c;
+  -webkit-text-stroke:0.04em rgba(6,6,10,0.75);
+  paint-order:stroke fill;
+  margin-top:0.8vw;
+}
+
+#underbar{height:2px;width:0;max-width:60vw;background:linear-gradient(90deg,transparent,#c9a84c,transparent);transition:width .6s cubic-bezier(.22,1,.36,1);margin-top:0.4vw;}
+
+#bottom{
+  position:fixed;bottom:0;left:0;right:0;
+  display:flex;flex-direction:column;align-items:center;
+  padding:3vw 6vw 8vw;z-index:11;
+  opacity:0;transform:translateY(12px);
+  transition:opacity .6s ease,transform .6s ease;
+}
+#cta{
+  font-family:var(--label-font);font-weight:600;
+  font-size:clamp(0.5rem,2.4vw,0.72rem);
+  letter-spacing:0.15em;
+  color:rgba(255,245,220,0.55);
+  -webkit-text-stroke:0.03em rgba(6,6,10,0.6);
+}
+
+/* ── ANIMATIONS ── */
+.s-green .qline{transform:translateY(22px) scale(0.96);transition:opacity .5s ease,transform .6s cubic-bezier(.22,1,.36,1);}
+.s-green .qline.in{opacity:1;transform:translateY(0) scale(1);}
+
+.s-gold .qline{transform:translateY(38px);transition:opacity .6s ease,transform .75s cubic-bezier(.16,1,.3,1);}
+.s-gold .qline.in{opacity:1;transform:translateY(0);}
+
+.s-kaaba .qline{transform:scale(0.85);transition:opacity .6s ease,transform .75s cubic-bezier(.22,1,.36,1);}
+.s-kaaba .qline.in{opacity:1;transform:scale(1);}
+
+.s-geometric .qline{transform:translateY(-10px) scale(1.05);transition:opacity .22s ease,transform .32s ease;}
+.s-geometric .qline.in{opacity:1;transform:translateY(0) scale(1);}
+
+.s-night .qline{transform:translateY(-30px);transition:opacity .6s ease,transform .8s cubic-bezier(.16,1,.3,1);}
+.s-night .qline.in{opacity:1;transform:translateY(0);}
+
+@keyframes qSettle{0%{filter:brightness(1.7);}100%{filter:brightness(1);}}
+.qline.in{animation:qSettle .5s ease-out;}
+
+#text-scrim{
+  position:absolute;left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  width:94vw;max-width:680px;height:50vh;
+  border-radius:32px;opacity:0;
+  transition:opacity .5s ease;
+  pointer-events:none;filter:blur(1px);z-index:-1;
+}
+#text-scrim.dark{background:radial-gradient(ellipse at center, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.22) 50%, rgba(0,0,0,0) 78%);}
+#text-scrim.light{background:radial-gradient(ellipse at center, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 78%);}
+</style>
+</head>
+<body class="s-green">
+<canvas id="bgCanvas"></canvas>
+<div id="vig"></div>
+<div id="label">
+  <div id="label-eyebrow">✦ حكم إسلامية ✦</div>
+  <div id="label-rule"></div>
+</div>
+<div id="ui">
+  <div id="text-scrim" class="dark"></div>
+  <div id="quote-wrap"></div>
+  <div id="underbar"></div>
+</div>
+<div id="bottom"><div id="cta">شارك هذه الحكمة</div></div>
+
+<script>
+(function() {
+'use strict';
+
+function safeR(v){return Math.max(0.01,isFinite(v)?v:0.01);}
+function easeOutCubic(x){return 1-Math.pow(1-x,3);}
+function lerp(a,b,t){return a+(b-a)*t;}
+function wrapToLines(text,maxWords){
+  const words=text.split(' ');const lines=[];
+  for(let i=0;i<words.length;i+=maxWords){lines.push(words.slice(i,i+maxWords).join(' '));}
+  return lines;
+}
+
+// ── CONTENT ──
+const CONTENT = [
+  // green
+  {cat:'green',lines:['إِنَّ مَعَ الْعُسْرِ يُسْرًا'],sub:'كل ضيقة تحمل في طياتها فرجًا قريبًا من الله.',ref:'سورة الشرح'},
+  {cat:'green',lines:['وَمَن يَتَوَكَّلْ عَلَى اللَّهِ','فَهُوَ حَسْبُهُ'],sub:'التوكل الحق هو أن تأخذ بالأسباب وتثق بالله.',ref:'سورة الطلاق'},
+  {cat:'green',lines:['الصلاة عماد الدين'],sub:'من أقامها أقام دينه، ومن هدمها هدم دينه.',ref:'حديث شريف'},
+  {cat:'green',lines:['وَاصْبِرْ فَإِنَّ اللَّهَ','لَا يُضِيعُ أَجْرَ الْمُحْسِنِينَ'],sub:'الصبر مفتاح الفرج والأجر العظيم.',ref:'سورة هود'},
+  {cat:'green',lines:['من سلك طريقًا','يلتمس فيه علمًا'],sub:'سهّل الله له به طريقًا إلى الجنة.',ref:'صحيح مسلم'},
+  // gold
+  {cat:'gold',lines:['بِسْمِ اللَّهِ','الرَّحْمَٰنِ الرَّحِيمِ'],sub:'كل أمر ذي بال لا يبدأ بها فهو أجذم.',ref:'حديث شريف'},
+  {cat:'gold',lines:['اللَّهُ نُورُ السَّمَاوَاتِ','وَالْأَرْضِ'],sub:'نوره سبحانه يملأ الوجود ويهدي من يشاء.',ref:'سورة النور'},
+  {cat:'gold',lines:['الدنيا سجن المؤمن','وجنة الكافر'],sub:'فابشر أيها المؤمن بما ينتظرك من النعيم.',ref:'صحيح مسلم'},
+  {cat:'gold',lines:['خيركم من تعلّم القرآن','وعلّمه'],sub:'حامل القرآن هو حامل راية الإسلام.',ref:'صحيح البخاري'},
+  {cat:'gold',lines:['الجنة تحت أقدام الأمهات'],sub:'برّ الوالدين باب من أعظم أبواب الجنة.',ref:'حديث شريف'},
+  // kaaba
+  {cat:'kaaba',lines:['لَبَّيْكَ اللَّهُمَّ لَبَّيْكَ'],sub:'نداء المسلم لبيت الله الحرام منذ آلاف السنين.',ref:'تلبية الحج'},
+  {cat:'kaaba',lines:['الحج المبرور','ليس له جزاء إلا الجنة'],sub:'من حجّ فلم يرفث ولم يفسق رجع كيوم ولدته أمه.',ref:'متفق عليه'},
+  {cat:'kaaba',lines:['وَأَذِّن فِي النَّاسِ بِالْحَجِّ'],sub:'أقدم نداء يتردد صداه في قلوب المؤمنين.',ref:'سورة الحج'},
+  {cat:'kaaba',lines:['مكة المكرمة','أم القرى'],sub:'أشرف بقعة على وجه الأرض عند الله.',ref:'سورة الأنعام'},
+  {cat:'kaaba',lines:['الكعبة المشرفة','قبلة المسلمين'],sub:'يتوجه إليها مليار ونصف مسلم في كل صلاة.',ref:null},
+  // geometric
+  {cat:'geometric',lines:['سبحان الله','وبحمده'],sub:'من قالها مئة مرة غُفرت ذنوبه ولو كانت مثل زبد البحر.',ref:'متفق عليه'},
+  {cat:'geometric',lines:['أسماء الله الحسنى'],sub:'له تسعة وتسعون اسمًا، من أحصاها دخل الجنة.',ref:'صحيح البخاري'},
+  {cat:'geometric',lines:['الذكر','غذاء الروح'],sub:'ألا بذكر الله تطمئن القلوب.',ref:'سورة الرعد'},
+  {cat:'geometric',lines:['استغفر الله','العظيم'],sub:'الاستغفار يفتح أبواب الرزق والرحمة والفرج.',ref:'حديث شريف'},
+  {cat:'geometric',lines:['لا إله إلا الله','محمد رسول الله'],sub:'أفضل الذكر وأعظم كلمة نطق بها لسان.',ref:'حديث شريف'},
+  // night
+  {cat:'night',lines:['وَمِنَ اللَّيْلِ','فَتَهَجَّدْ بِهِ'],sub:'صلاة الليل سر العارفين وزاد المحبين.',ref:'سورة الإسراء'},
+  {cat:'night',lines:['رمضان شهر القرآن'],sub:'فيه أُنزل القرآن هدىً للناس وبينات من الهدى والفرقان.',ref:'سورة البقرة'},
+  {cat:'night',lines:['ليلة القدر','خير من ألف شهر'],sub:'من قامها إيمانًا واحتسابًا غُفر له ما تقدّم من ذنبه.',ref:'سورة القدر'},
+  {cat:'night',lines:['الدعاء سلاح المؤمن'],sub:'ادعُ ربك في ظلام الليل وسيجيبك بنور النهار.',ref:'حديث شريف'},
+  {cat:'night',lines:['إِنَّ اللَّهَ مَعَ الصَّابِرِينَ'],sub:'فاصبر صبرًا جميلًا فإن الفرج مع الكرب.',ref:'سورة البقرة'},
+];
+
+const bgC=document.getElementById('bgCanvas');
+const bgCtx=bgC.getContext('2d');
+let W=window.innerWidth,H=window.innerHeight;
+bgC.width=W;bgC.height=H;
+let _t=0,_sceneStart=0,_styleIdx=0;
+
+// ════════════════════════════════════
+// DRAW FUNCTIONS
+// ════════════════════════════════════
+
+// ── Bright Emerald: mosque silhouette + crescent on light sky ──
+function drawGreen(ctx,t,w,h,st){
+  const g=ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'#0a3d1f');g.addColorStop(0.5,'#1a6b3a');g.addColorStop(1,'#0d4a22');
+  ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+  // bright scattered light particles
+  for(let i=0;i<160;i++){
+    const x=(Math.sin(i*127.1)*0.5+0.5)*w;
+    const y=(Math.sin(i*311.7)*0.5+0.5)*h*0.75;
+    const bri=0.45+Math.sin(t*0.9+i*0.7)*0.35;
+    ctx.fillStyle=`rgba(180,255,180,${bri})`;
+    ctx.beginPath();ctx.arc(x,y,safeR(0.8+Math.sin(i*99)*0.5),0,Math.PI*2);ctx.fill();
+  }
+  // bright radial glow from centre
+  const rg=ctx.createRadialGradient(w/2,h*0.4,0,w/2,h*0.4,safeR(h*0.55));
+  rg.addColorStop(0,'rgba(100,255,140,0.18)');rg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=rg;ctx.fillRect(0,0,w,h);
+  const p=easeOutCubic(Math.min(1,st/1.0));
+  // bright crescent moon
+  const mx=w*0.72,my=h*0.13,mr=safeR(Math.min(w,h)*0.085*p);
+  ctx.save();ctx.globalAlpha=p;
+  ctx.fillStyle='rgba(255,230,100,1)';
+  ctx.beginPath();ctx.arc(mx,my,mr,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#1a6b3a';
+  ctx.beginPath();ctx.arc(mx+mr*0.3,my-mr*0.05,mr*0.82,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(255,230,100,1)';
+  ctx.font=`${mr*0.7}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('★',mx+mr*1.15,my-mr*0.6);
+  ctx.restore();
+  // mosque silhouette — lighter teal-green
+  ctx.save();ctx.globalAlpha=p*0.9;ctx.fillStyle='#083d18';
+  const bx=w/2,by=h*0.74;
+  ctx.beginPath();ctx.arc(bx,by,w*0.18,Math.PI,0);ctx.lineTo(bx+w*0.18,by+h*0.06);ctx.lineTo(bx-w*0.18,by+h*0.06);ctx.closePath();ctx.fill();
+  [[bx-w*0.22,h*0.17],[bx+w*0.22,h*0.17]].forEach(([mx2,mh])=>{
+    ctx.fillRect(mx2-w*0.018,by-mh,w*0.036,mh);
+    ctx.beginPath();ctx.arc(mx2,by-mh,w*0.022,Math.PI,0);ctx.fill();
+  });
+  ctx.fillStyle='#062e10';ctx.fillRect(0,by+h*0.06,w,h);
+  ctx.restore();
+}
+
+// ── Bright Gold: warm sunshine divine nur ──
+function drawGold(ctx,t,w,h,st){
+  const g=ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'#7a4a00');g.addColorStop(0.4,'#b87000');g.addColorStop(1,'#5a3500');
+  ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+  const p=easeOutCubic(Math.min(1,st/1.1));
+  // bright radiant beams
+  ctx.save();ctx.globalAlpha=p*0.28;
+  for(let i=0;i<20;i++){
+    const angle=-Math.PI/2+(i-10)*(Math.PI/18)+Math.sin(t*0.3+i)*0.02;
+    ctx.beginPath();ctx.moveTo(w/2,0);
+    ctx.lineTo(w/2+Math.cos(angle)*h*1.5,Math.sin(angle)*h*1.5);
+    ctx.lineWidth=w*0.05;ctx.strokeStyle='rgba(255,220,80,0.9)';ctx.stroke();
+  }
+  ctx.restore();
+  // strong central glow
+  const cg=ctx.createRadialGradient(w/2,h*0.1,0,w/2,h*0.1,h*0.7);
+  cg.addColorStop(0,'rgba(255,230,100,0.7)');
+  cg.addColorStop(0.3,'rgba(220,160,20,0.35)');
+  cg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=cg;ctx.fillRect(0,0,w,h);
+  // bright floating orbs
+  for(let i=0;i<80;i++){
+    const x=(Math.sin(i*213.1)*0.5+0.5)*w;
+    const y=(Math.sin(i*419.7)*0.5+0.5)*h;
+    const bri=0.4+Math.sin(t*0.8+i*0.9)*0.35;
+    ctx.fillStyle=`rgba(255,240,140,${bri})`;
+    ctx.beginPath();ctx.arc(x,y,safeR(0.8+Math.sin(i*77)*0.5),0,Math.PI*2);ctx.fill();
+  }
+  // Allah watermark brighter
+  ctx.save();ctx.globalAlpha=p*0.14;
+  ctx.font=`${Math.min(w,h)*0.7}px 'Noto Naskh Arabic',serif`;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillStyle='#ffe87a';ctx.fillText('الله',w/2,h/2);
+  ctx.restore();
+}
+
+// ── Kaaba: rich indigo sky + tawaf rings ──
+function drawKaaba(ctx,t,w,h,st){
+  const g=ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'#1a0f3a');g.addColorStop(0.6,'#2d1a5e');g.addColorStop(1,'#100828');
+  ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+  const p=easeOutCubic(Math.min(1,st/1.1));
+  // tawaf orbit rings
+  ctx.save();ctx.globalAlpha=p*0.5;
+  const cx2=w/2,cy2=h*0.46;
+  for(let i=0;i<5;i++){
+    const r=safeR(w*0.12+i*w*0.09);
+    const rot=t*0.08*(i%2===0?1:-1);
+    ctx.beginPath();
+    ctx.ellipse(cx2,cy2,r,r*0.28,rot,0,Math.PI*2);
+    ctx.strokeStyle='rgba(220,190,100,0.9)';ctx.lineWidth=1.5;ctx.stroke();
+    const dx=cx2+Math.cos(t*0.4+i)*r;
+    const dy=cy2+Math.sin(t*0.4+i)*r*0.28;
+    ctx.fillStyle='rgba(255,220,80,1)';
+    ctx.beginPath();ctx.arc(dx,dy,safeR(3.5),0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+  // Kaaba cube
+  const kw=w*0.32,kh=h*0.3,kx=w/2-kw/2,ky=h*0.35;
+  ctx.save();ctx.globalAlpha=p;
+  // deep cloth with slight color
+  ctx.fillStyle='#12103a';ctx.fillRect(kx,ky,kw,kh);
+  // gold stripe (kiswa band)
+  const stripeH=kh*0.18;
+  const stripeY=ky+kh*0.3;
+  const sg=ctx.createLinearGradient(kx,0,kx+kw,0);
+  sg.addColorStop(0,'rgba(201,168,76,0.6)');sg.addColorStop(0.5,'rgba(201,168,76,1)');sg.addColorStop(1,'rgba(201,168,76,0.6)');
+  ctx.fillStyle=sg;ctx.fillRect(kx,stripeY,kw,stripeH);
+  // door
+  ctx.fillStyle='rgba(201,168,76,0.85)';
+  ctx.fillRect(kx+kw*0.38,ky+kh*0.45,kw*0.24,kh*0.42);
+  // edge shading
+  ctx.strokeStyle='rgba(201,168,76,0.3)';ctx.lineWidth=1;ctx.strokeRect(kx,ky,kw,kh);
+  ctx.restore();
+  // ground
+  const sandG=ctx.createLinearGradient(0,h*0.72,0,h);
+  sandG.addColorStop(0,'#3a2a10');sandG.addColorStop(1,'#1a1008');
+  ctx.fillStyle=sandG;ctx.fillRect(0,h*0.72,w,h*0.28);
+  // bright stars
+  for(let i=0;i<150;i++){
+    const x=(Math.sin(i*127.1)*0.5+0.5)*w;
+    const y=(Math.sin(i*311.7)*0.5+0.5)*h*0.3;
+    const bri=0.55+Math.sin(t+i*0.6)*0.35;
+    ctx.fillStyle=`rgba(255,255,200,${bri})`;
+    ctx.beginPath();ctx.arc(x,y,safeR(0.8+Math.sin(i*99)*0.5),0,Math.PI*2);ctx.fill();
+  }
+}
+
+// ── Geometric: Islamic tile pattern ──
+function drawGeometric(ctx,t,w,h,st){
+  const g=ctx.createLinearGradient(0,0,w,h);
+  g.addColorStop(0,'#06030e');g.addColorStop(1,'#02060e');
+  ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+  const p=easeOutCubic(Math.min(1,st/1.2));
+  ctx.save();ctx.globalAlpha=p*0.22;
+  const s=Math.min(w,h)*0.12;
+  const cols=Math.ceil(w/s)+2,rows=Math.ceil(h/s)+2;
+  ctx.strokeStyle='rgba(201,168,76,0.8)';ctx.lineWidth=0.8;
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const x=(c-1)*s+((r%2)*s/2);
+      const y=(r-1)*s;
+      const rot=t*0.05*(((r+c)%2)*2-1);
+      ctx.save();ctx.translate(x+s/2,y+s/2);ctx.rotate(rot);
+      // 8-pointed star
+      ctx.beginPath();
+      for(let k=0;k<8;k++){
+        const a=(Math.PI*2/8)*k-Math.PI/8;
+        const r1=s*0.42,r2=s*0.2;
+        if(k===0)ctx.moveTo(Math.cos(a)*r1,Math.sin(a)*r1);
+        else ctx.lineTo(Math.cos(a)*r1,Math.sin(a)*r1);
+        const a2=a+Math.PI/8;
+        ctx.lineTo(Math.cos(a2)*r2,Math.sin(a2)*r2);
+      }
+      ctx.closePath();ctx.stroke();
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+  // central glow
+  const cg=ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,safeR(h*0.5));
+  cg.addColorStop(0,'rgba(201,168,76,0.18)');
+  cg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=cg;ctx.fillRect(0,0,w,h);
+}
+
+// ── Night / Tahajjud: deep blue night, crescent, du'a hands ──
+function drawNight(ctx,t,w,h,st){
+  const g=ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'#000510');g.addColorStop(0.6,'#00091a');g.addColorStop(1,'#000208');
+  ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+  // milky way shimmer
+  for(let i=0;i<250;i++){
+    const x=(Math.sin(i*127.1)*0.5+0.5)*w;
+    const y=(Math.sin(i*311.7)*0.5+0.5)*h*0.72;
+    const bri=0.35+Math.sin(t*1.1+i*0.8)*0.3;
+    const size=safeR(0.4+Math.sin(i*99)*0.5);
+    ctx.fillStyle=`rgba(200,220,255,${bri})`;
+    ctx.beginPath();ctx.arc(x,y,size,0,Math.PI*2);ctx.fill();
+  }
+  const p=easeOutCubic(Math.min(1,st/1.0));
+  // large crescent
+  const mx=w/2,my=h*0.18,mr=safeR(Math.min(w,h)*0.13*p);
+  ctx.save();ctx.globalAlpha=p*0.95;
+  ctx.fillStyle='rgba(201,168,76,0.9)';
+  ctx.beginPath();ctx.arc(mx,my,mr,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#00091a';
+  ctx.beginPath();ctx.arc(mx+mr*0.28,my-mr*0.04,mr*0.84,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+  // horizon glow (Fajr light)
+  const hg=ctx.createLinearGradient(0,h*0.72,0,h);
+  hg.addColorStop(0,'rgba(201,168,76,0.12)');
+  hg.addColorStop(0.4,'rgba(100,50,0,0.08)');
+  hg.addColorStop(1,'rgba(0,0,0,0.8)');
+  ctx.fillStyle=hg;ctx.fillRect(0,h*0.72,w,h*0.28);
+  // dark ground
+  ctx.fillStyle='#000208';ctx.fillRect(0,h*0.82,w,h*0.18);
+}
+
+// ── STYLES ──
+const STYLES=[
+  {id:'green',    category:'green',    bodyClass:'s-green',    showUnderline:true, weight:3, draw:drawGreen},
+  {id:'gold',     category:'gold',     bodyClass:'s-gold',     showUnderline:true, weight:3, draw:drawGold},
+  {id:'kaaba',    category:'kaaba',    bodyClass:'s-kaaba',    showUnderline:true, weight:2, draw:drawKaaba},
+  {id:'geometric',category:'geometric',bodyClass:'s-geometric',showUnderline:true, weight:2, draw:drawGeometric},
+  {id:'night',    category:'night',    bodyClass:'s-night',    showUnderline:true, weight:2, draw:drawNight},
+];
+
+const LIGHT_THEMES=[];
+
+function pickWeightedStyleIdx(){
+  const total=STYLES.reduce((sum,s)=>sum+(s.weight||1),0);
+  let r=Math.random()*total;
+  for(let i=0;i<STYLES.length;i++){r-=(STYLES[i].weight||1);if(r<=0)return i;}
+  return STYLES.length-1;
+}
+
+const DEFAULT_TEXT={headFill:'#ffffff',headStroke:'rgba(6,6,10,0.85)',smallFill:'rgba(255,245,220,0.92)',smallStroke:'rgba(6,6,10,0.75)',refFill:'#c9a84c',refStroke:'rgba(6,6,10,0.8)'};
+const STYLE_TEXT={
+  green:     {headFill:'#e8ffe8',headStroke:'rgba(0,10,0,0.88)',smallFill:'rgba(220,255,220,0.92)',smallStroke:'rgba(0,10,0,0.78)',refFill:'#7fffb0',refStroke:'rgba(0,10,0,0.8)'},
+  gold:      {headFill:'#fff8d0',headStroke:'rgba(8,4,0,0.88)',smallFill:'rgba(255,245,190,0.92)',smallStroke:'rgba(8,4,0,0.78)',refFill:'#ffd700',refStroke:'rgba(8,4,0,0.8)'},
+  kaaba:     {headFill:'#fff8d0',headStroke:'rgba(4,4,8,0.92)',smallFill:'rgba(255,245,190,0.9)',smallStroke:'rgba(4,4,8,0.82)',refFill:'#c9a84c',refStroke:'rgba(4,4,8,0.8)'},
+  geometric: {headFill:'#ffffff',headStroke:'rgba(2,2,6,0.9)',smallFill:'rgba(255,245,200,0.92)',smallStroke:'rgba(2,2,6,0.8)',refFill:'#c9a84c',refStroke:'rgba(2,2,6,0.85)'},
+  night:     {headFill:'#e8f0ff',headStroke:'rgba(0,3,12,0.9)',smallFill:'rgba(220,235,255,0.92)',smallStroke:'rgba(0,3,12,0.8)',refFill:'#c9a84c',refStroke:'rgba(0,3,12,0.8)'},
+};
+function getStyleText(id){return STYLE_TEXT[id]||DEFAULT_TEXT;}
+
+// ── AUDIO ──
+const AC=new (window.AudioContext||window.webkitAudioContext)();
+const master=AC.createGain();master.gain.value=0.85;master.connect(AC.destination);
+let _recDest=null,_audioOn=false;
+function unlockAC(){if(_audioOn)return;AC.resume().then(()=>{_audioOn=true;startPad();});}
+let _pads=[];
+function startPad(){
+  stopPad();
+  try{
+    [293.66,349.23,392.00,440.00].forEach((f,i)=>{
+      const o=AC.createOscillator(),g=AC.createGain(),lfo=AC.createOscillator(),lg2=AC.createGain();
+      o.type='sine';o.frequency.value=f;lfo.type='sine';lfo.frequency.value=0.07+i*0.02;lg2.gain.value=1.2;
+      lfo.connect(lg2);lg2.connect(o.frequency);
+      const tt=AC.currentTime;g.gain.setValueAtTime(0,tt);g.gain.linearRampToValueAtTime(0.026-i*0.003,tt+2.2);
+      o.connect(g);g.connect(master);o.start(tt);lfo.start(tt);_pads.push({o,g,lfo});
+    });
+  }catch(e){}
+}
+function stopPad(){_pads.forEach(p=>{try{p.g.gain.setTargetAtTime(0,AC.currentTime,0.35);setTimeout(()=>{try{p.o.stop();p.lfo.stop();}catch(e){}},900);}catch(e){}});_pads=[];}
+function sfxWhoosh(){if(!_audioOn)return;try{const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.setValueAtTime(500,AC.currentTime);o.frequency.exponentialRampToValueAtTime(150,AC.currentTime+0.2);g.gain.setValueAtTime(0.05,AC.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,AC.currentTime+0.5);o.connect(g);g.connect(master);o.start();o.stop(AC.currentTime+0.5);}catch(e){}}
+function sfxSoft(){if(!_audioOn)return;try{const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.setValueAtTime(400,AC.currentTime);o.frequency.exponentialRampToValueAtTime(120,AC.currentTime+0.25);g.gain.setValueAtTime(0.04,AC.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,AC.currentTime+0.6);o.connect(g);g.connect(master);o.start();o.stop(AC.currentTime+0.6);}catch(e){}}
+function sfxTick(){if(!_audioOn)return;try{const o=AC.createOscillator(),g=AC.createGain();o.type='triangle';o.frequency.setValueAtTime(600,AC.currentTime);o.frequency.exponentialRampToValueAtTime(200,AC.currentTime+0.1);g.gain.setValueAtTime(0.04,AC.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,AC.currentTime+0.15);o.connect(g);g.connect(master);o.start();o.stop(AC.currentTime+0.15);}catch(e){}}
+
+// ── SCENE ──
+let _pools={},_pidxs={};
+function nextC(cat){
+  if(!_pools[cat]||_pidxs[cat]>=(_pools[cat]||[]).length){
+    _pools[cat]=CONTENT.filter(c=>c.cat===cat).sort(()=>Math.random()-0.5);_pidxs[cat]=0;
+  }
+  if(!_pools[cat]||_pools[cat].length===0){_pools[cat]=CONTENT.slice().sort(()=>Math.random()-0.5);_pidxs[cat]=0;}
+  return _pools[cat][_pidxs[cat]++];
+}
+let _timers=[];
+function clearT(){_timers.forEach(clearTimeout);_timers=[];}
+
+function showScene(){
+  clearT();unlockAC();
+  _styleIdx=pickWeightedStyleIdx();
+  const style=STYLES[_styleIdx];
+  document.body.className=style.bodyClass;
+  _sceneStart=_t;
+  const C=nextC(style.category);
+  const wrap=document.getElementById('quote-wrap');
+  wrap.innerHTML='';const els=[];
+  C.lines.forEach(l=>{const d=document.createElement('div');d.className='qline';d.textContent=l;wrap.appendChild(d);els.push(d);});
+  if(C.sub){const d=document.createElement('div');d.className='qline small';d.innerHTML=wrapToLines(C.sub,4).join('<br>');wrap.appendChild(d);els.push(d);}
+  if(C.ref){const d=document.createElement('div');d.className='qline ref';d.textContent=C.ref;wrap.appendChild(d);els.push(d);}
+  const label=document.getElementById('label');
+  const bottom=document.getElementById('bottom');
+  const ubar=document.getElementById('underbar');
+  const scrim=document.getElementById('text-scrim');
+  label.style.opacity='0';label.style.transform='translateY(-16px)';
+  bottom.style.opacity='0';bottom.style.transform='translateY(12px)';
+  ubar.style.width='0';ubar.style.display=style.showUnderline?'':'none';
+  const isLight=LIGHT_THEMES.includes(style.id);
+  scrim.classList.toggle('light',isLight);scrim.classList.toggle('dark',!isLight);scrim.style.opacity='0';
+  sfxWhoosh();
+  _timers.push(setTimeout(()=>{label.style.opacity='1';label.style.transform='translateY(0)';},220));
+  _timers.push(setTimeout(()=>{scrim.style.opacity='1';},340));
+  let delay=420;
+  els.forEach(el=>{
+    el.classList.remove('in');
+    _timers.push(setTimeout(()=>{
+      el.classList.add('in');
+      if(el.classList.contains('ref'))sfxTick();
+      else if(el.classList.contains('small'))sfxSoft();
+      else sfxWhoosh();
+    },delay));
+    delay+=(el.classList.contains('small')||el.classList.contains('ref'))?560:420;
+  });
+  if(style.showUnderline){_timers.push(setTimeout(()=>{ubar.style.width=Math.min(W*0.55,220)+'px';},delay-100));}
+  _timers.push(setTimeout(()=>{bottom.style.opacity='1';bottom.style.transform='translateY(0)';sfxWhoosh();},delay+280));
+}
+
+// ── RECORDING ──
+let _compC=null,_compCtx=null;
+window._recActive=false;
+window._recordingDone=false;
+window._recordingBlob=null;
+let _recChunks=[],_recorder=null;
+
+function drawOutlinedText(ctx,text,x,y,fillColor,strokeColor,strokeWidth){
+  ctx.lineJoin='round';ctx.miterLimit=2;ctx.lineWidth=strokeWidth;
+  ctx.strokeStyle=strokeColor;ctx.strokeText(text,x,y);
+  ctx.fillStyle=fillColor;ctx.fillText(text,x,y);
+}
+
+function _drawComposite(){
+  if(!_compCtx)return;
+  const ctx=_compCtx,cW=_compC.width,cH=_compC.height;
+  ctx.clearRect(0,0,cW,cH);
+  try{ctx.drawImage(bgC,0,0,cW,cH);}catch(e){}
+  const vg=ctx.createRadialGradient(cW/2,cH*0.48,cH*0.1,cW/2,cH*0.48,safeR(cH*0.78));
+  vg.addColorStop(0,'transparent');vg.addColorStop(1,'rgba(0,5,15,0.4)');
+  ctx.fillStyle=vg;ctx.fillRect(0,0,cW,cH);
+  const currentId=STYLES[_styleIdx].id;
+  const textCfg=getStyleText(currentId);
+  const isLightTheme=LIGHT_THEMES.includes(currentId);
+  const scrimEl=document.getElementById('text-scrim');
+  const scrimOp=parseFloat(window.getComputedStyle(scrimEl).opacity)||0;
+  if(scrimOp>0.01){
+    const sr=scrimEl.getBoundingClientRect();
+    const sgrad=ctx.createRadialGradient(sr.left+sr.width/2,sr.top+sr.height/2,0,sr.left+sr.width/2,sr.top+sr.height/2,safeR(Math.max(sr.width,sr.height)*0.55));
+    if(isLightTheme){sgrad.addColorStop(0,'rgba(255,255,255,0.55)');sgrad.addColorStop(0.5,'rgba(255,255,255,0.3)');sgrad.addColorStop(1,'rgba(255,255,255,0)');}
+    else{sgrad.addColorStop(0,'rgba(0,0,0,0.42)');sgrad.addColorStop(0.5,'rgba(0,0,0,0.22)');sgrad.addColorStop(1,'rgba(0,0,0,0)');}
+    ctx.save();ctx.globalAlpha=scrimOp;ctx.fillStyle=sgrad;ctx.fillRect(sr.left,sr.top,sr.width,sr.height);ctx.restore();
+  }
+  const labelEl=document.getElementById('label');
+  const labelOp=parseFloat(window.getComputedStyle(labelEl).opacity)||0;
+  if(labelOp>0.01){
+    const ebEl=document.getElementById('label-eyebrow');
+    const ebR=ebEl.getBoundingClientRect();
+    ctx.save();ctx.globalAlpha=labelOp;
+    ctx.font=`700 ${Math.max(11,ebR.height)}px 'Noto Sans Arabic',sans-serif`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    drawOutlinedText(ctx,ebEl.textContent,cW/2,ebR.top+ebR.height/2,textCfg.refFill,textCfg.refStroke,Math.max(2,ebR.height*0.09));
+    ctx.restore();
+    const ruleEl=document.getElementById('label-rule');
+    const rr=ruleEl.getBoundingClientRect();
+    ctx.save();ctx.globalAlpha=labelOp*0.55;ctx.strokeStyle=textCfg.refFill;ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(cW/2-23,rr.top+rr.height/2);ctx.lineTo(cW/2+23,rr.top+rr.height/2);ctx.stroke();
+    ctx.restore();
+  }
+  document.querySelectorAll('.qline').forEach(el=>{
+    const op=parseFloat(window.getComputedStyle(el).opacity)||0;
+    if(op<0.01)return;
+    const r=el.getBoundingClientRect();
+    if(r.width<1||r.height<1)return;
+    const cs=window.getComputedStyle(el);
+    const fs=parseFloat(cs.fontSize)||32;
+    ctx.save();ctx.globalAlpha=op;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    const cx=r.left+r.width/2,cy=r.top+r.height/2;
+    if(el.classList.contains('ref')){
+      ctx.font=`700 ${fs}px 'Noto Sans Arabic',sans-serif`;
+      drawOutlinedText(ctx,el.textContent,cx,cy,textCfg.refFill,textCfg.refStroke,Math.max(1.5,fs*0.07));
+    }else if(el.classList.contains('small')){
+      ctx.font=`600 ${fs}px 'Noto Sans Arabic',sans-serif`;
+      const lines=el.innerHTML.split('<br>');
+      const lh=r.height/lines.length;
+      lines.forEach((line,li)=>{
+        const ly=r.top+lh*(li+0.5);
+        drawOutlinedText(ctx,line,cx,ly,textCfg.smallFill,textCfg.smallStroke,Math.max(1.5,fs*0.065));
+      });
+    }else{
+      ctx.font=`700 ${fs}px 'Noto Naskh Arabic',serif`;
+      ctx.shadowColor='rgba(0,0,0,0.4)';ctx.shadowBlur=14;
+      drawOutlinedText(ctx,el.textContent,cx,cy,textCfg.headFill,textCfg.headStroke,Math.max(2,fs*0.09));
+    }
+    ctx.restore();
+  });
+  const ub=document.getElementById('underbar');
+  if(ub.style.display!=='none'){
+    const ubW=parseFloat(ub.style.width)||0;
+    if(ubW>2){
+      const ubR=ub.getBoundingClientRect();
+      const lg=ctx.createLinearGradient(cW/2-ubW/2,0,cW/2+ubW/2,0);
+      lg.addColorStop(0,'rgba(201,168,76,0)');lg.addColorStop(0.5,'rgba(201,168,76,0.9)');lg.addColorStop(1,'rgba(201,168,76,0)');
+      ctx.save();ctx.fillStyle=lg;ctx.fillRect(cW/2-ubW/2,ubR.top,ubW,2);ctx.restore();
+    }
+  }
+  const botEl=document.getElementById('bottom');
+  const botOp=parseFloat(window.getComputedStyle(botEl).opacity)||0;
+  if(botOp>0.01){
+    const botR=botEl.getBoundingClientRect();
+    ctx.save();ctx.globalAlpha=botOp*0.7;
+    ctx.font=`700 ${Math.max(10,cW*0.023)}px 'Noto Sans Arabic',sans-serif`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    drawOutlinedText(ctx,'شارك هذه الحكمة',cW/2,botR.top+botR.height*0.4,isLightTheme?'#1a0800':'#ffffff','rgba(5,11,22,0.7)',Math.max(1.5,cW*0.023));
+    ctx.restore();
+  }
+}
+
+window.startRecording = function(fps){
+  fps=fps||30;
+  try{
+    AC.resume().catch(()=>{});
+    _compC=document.createElement('canvas');
+    _compC.width=W;_compC.height=H;
+    _compCtx=_compC.getContext('2d');
+    window._recActive=true;
+    window._recordingDone=false;
+    _recChunks=[];
+    _recDest=AC.createMediaStreamDestination();
+    master.connect(_recDest);
+    const vs=_compC.captureStream(fps);
+    const combined=new MediaStream([...vs.getVideoTracks(),..._recDest.stream.getAudioTracks()]);
+    const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(m=>MediaRecorder.isTypeSupported(m))||'video/webm';
+    _recorder=new MediaRecorder(combined,{mimeType:mime,videoBitsPerSecond:8000000,audioBitsPerSecond:192000});
+    _recorder.ondataavailable=e=>{if(e.data&&e.data.size>0)_recChunks.push(e.data);};
+    _recorder.onstop=()=>{
+      window._recActive=false;
+      try{master.disconnect(_recDest);}catch(e){}
+      window._recordingBlob=new Blob(_recChunks,{type:'video/webm'});
+      window._recordingDone=true;
+    };
+    _recorder.start(200);
+    console.log('Recording started');
+  }catch(e){console.error('startRecording error:',e);}
+};
+
+window.stopRecording = function(){
+  try{if(_recorder&&_recorder.state!=='inactive')_recorder.stop();}catch(e){}
+};
+
+window.forceFinalize = function(){
+  window._recActive=false;
+  if(_recChunks.length>0&&!window._recordingDone){
+    window._recordingBlob=new Blob(_recChunks,{type:'video/webm'});
+    window._recordingDone=true;
+  }
+};
+
+window.getRecordingBase64 = function(){
+  return new Promise((resolve,reject)=>{
+    const chk=()=>{
+      if(!window._recordingBlob){setTimeout(chk,100);return;}
+      const r=new FileReader();
+      r.onloadend=()=>resolve(r.result.split(',')[1]);
+      r.onerror=reject;
+      r.readAsDataURL(window._recordingBlob);
+    };chk();
+  });
+};
+
+// ── LOOP ──
+(function loop(){
+  requestAnimationFrame(loop);
+  _t+=0.016;
+  const st=Math.max(0,_t-_sceneStart);
+  STYLES[_styleIdx].draw(bgCtx,_t,W,H,st);
+  if(window._recActive)_drawComposite();
+})();
+
+// ── BOOT ──
+window.addEventListener('resize',()=>{W=window.innerWidth;H=window.innerHeight;bgC.width=W;bgC.height=H;});
+document.body.addEventListener('click',showScene);
+document.body.addEventListener('touchend',e=>{e.preventDefault();showScene();},{passive:false});
+showScene();
+window.AC=AC;
+window.master=master;
+
+})();
+</script>
+</body>
+</html>
