@@ -185,110 +185,111 @@ let _t=0,_sceneStart=0,_styleIdx=0;
 // DRAW FUNCTIONS
 // ════════════════════════════════════
 
-// ── Bright Emerald: mosque silhouette + crescent on light sky ──
+// ── Deep Green: mosque silhouette + crescent ──
 function drawGreen(ctx,t,w,h,st){
   const g=ctx.createLinearGradient(0,0,0,h);
-  g.addColorStop(0,'#0a3d1f');g.addColorStop(0.5,'#1a6b3a');g.addColorStop(1,'#0d4a22');
+  g.addColorStop(0,'#010f06');g.addColorStop(0.6,'#021a0a');g.addColorStop(1,'#010a04');
   ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
-  // bright scattered light particles
-  for(let i=0;i<160;i++){
+  // stars
+  for(let i=0;i<180;i++){
     const x=(Math.sin(i*127.1)*0.5+0.5)*w;
     const y=(Math.sin(i*311.7)*0.5+0.5)*h*0.75;
-    const bri=0.45+Math.sin(t*0.9+i*0.7)*0.35;
-    ctx.fillStyle=`rgba(180,255,180,${bri})`;
-    ctx.beginPath();ctx.arc(x,y,safeR(0.8+Math.sin(i*99)*0.5),0,Math.PI*2);ctx.fill();
+    const bri=0.25+Math.sin(t*0.9+i*0.7)*0.3;
+    ctx.fillStyle=`rgba(220,255,220,${bri})`;
+    ctx.beginPath();ctx.arc(x,y,safeR(0.5+Math.sin(i*99)*0.35),0,Math.PI*2);ctx.fill();
   }
-  // bright radial glow from centre
-  const rg=ctx.createRadialGradient(w/2,h*0.4,0,w/2,h*0.4,safeR(h*0.55));
-  rg.addColorStop(0,'rgba(100,255,140,0.18)');rg.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=rg;ctx.fillRect(0,0,w,h);
   const p=easeOutCubic(Math.min(1,st/1.0));
-  // bright crescent moon
+  // crescent moon
   const mx=w*0.72,my=h*0.13,mr=safeR(Math.min(w,h)*0.085*p);
   ctx.save();ctx.globalAlpha=p;
-  ctx.fillStyle='rgba(255,230,100,1)';
+  ctx.fillStyle='rgba(201,168,76,0.95)';
   ctx.beginPath();ctx.arc(mx,my,mr,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='#1a6b3a';
+  ctx.fillStyle='#021a0a';
   ctx.beginPath();ctx.arc(mx+mr*0.3,my-mr*0.05,mr*0.82,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='rgba(255,230,100,1)';
+  // star next to crescent
+  ctx.fillStyle='rgba(201,168,76,0.9)';
   ctx.font=`${mr*0.7}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
   ctx.fillText('★',mx+mr*1.15,my-mr*0.6);
   ctx.restore();
-  // mosque silhouette — lighter teal-green
-  ctx.save();ctx.globalAlpha=p*0.9;ctx.fillStyle='#083d18';
+  // mosque silhouette
+  ctx.save();ctx.globalAlpha=p*0.9;ctx.fillStyle='#00160a';
   const bx=w/2,by=h*0.74;
+  // main dome
   ctx.beginPath();ctx.arc(bx,by,w*0.18,Math.PI,0);ctx.lineTo(bx+w*0.18,by+h*0.06);ctx.lineTo(bx-w*0.18,by+h*0.06);ctx.closePath();ctx.fill();
+  // minarets
   [[bx-w*0.22,h*0.17],[bx+w*0.22,h*0.17]].forEach(([mx2,mh])=>{
     ctx.fillRect(mx2-w*0.018,by-mh,w*0.036,mh);
     ctx.beginPath();ctx.arc(mx2,by-mh,w*0.022,Math.PI,0);ctx.fill();
   });
-  ctx.fillStyle='#062e10';ctx.fillRect(0,by+h*0.06,w,h);
+  // ground
+  ctx.fillStyle='#00100a';ctx.fillRect(0,by+h*0.06,w,h);
   ctx.restore();
 }
 
-// ── Bright Gold: warm sunshine divine nur ──
+// ── Gold: radiant light from above like divine nur ──
 function drawGold(ctx,t,w,h,st){
   const g=ctx.createLinearGradient(0,0,0,h);
-  g.addColorStop(0,'#7a4a00');g.addColorStop(0.4,'#b87000');g.addColorStop(1,'#5a3500');
+  g.addColorStop(0,'#0d0900');g.addColorStop(0.5,'#1a1000');g.addColorStop(1,'#0a0600');
   ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
   const p=easeOutCubic(Math.min(1,st/1.1));
-  // bright radiant beams
-  ctx.save();ctx.globalAlpha=p*0.28;
+  // radiant light beams from top centre
+  ctx.save();ctx.globalAlpha=p*0.12;
   for(let i=0;i<20;i++){
     const angle=-Math.PI/2+(i-10)*(Math.PI/18)+Math.sin(t*0.3+i)*0.02;
     ctx.beginPath();ctx.moveTo(w/2,0);
     ctx.lineTo(w/2+Math.cos(angle)*h*1.5,Math.sin(angle)*h*1.5);
-    ctx.lineWidth=w*0.05;ctx.strokeStyle='rgba(255,220,80,0.9)';ctx.stroke();
+    ctx.lineWidth=w*0.04;ctx.strokeStyle='rgba(201,168,76,0.8)';ctx.stroke();
   }
   ctx.restore();
-  // strong central glow
-  const cg=ctx.createRadialGradient(w/2,h*0.1,0,w/2,h*0.1,h*0.7);
-  cg.addColorStop(0,'rgba(255,230,100,0.7)');
-  cg.addColorStop(0.3,'rgba(220,160,20,0.35)');
+  // central glow
+  const cg=ctx.createRadialGradient(w/2,h*0.12,0,w/2,h*0.12,h*0.6);
+  cg.addColorStop(0,'rgba(201,168,76,0.35)');
+  cg.addColorStop(0.3,'rgba(150,100,10,0.15)');
   cg.addColorStop(1,'rgba(0,0,0,0)');
   ctx.fillStyle=cg;ctx.fillRect(0,0,w,h);
-  // bright floating orbs
-  for(let i=0;i<80;i++){
+  // stars
+  for(let i=0;i<100;i++){
     const x=(Math.sin(i*213.1)*0.5+0.5)*w;
     const y=(Math.sin(i*419.7)*0.5+0.5)*h;
-    const bri=0.4+Math.sin(t*0.8+i*0.9)*0.35;
-    ctx.fillStyle=`rgba(255,240,140,${bri})`;
-    ctx.beginPath();ctx.arc(x,y,safeR(0.8+Math.sin(i*77)*0.5),0,Math.PI*2);ctx.fill();
+    const bri=0.2+Math.sin(t*0.8+i*0.9)*0.2;
+    ctx.fillStyle=`rgba(255,240,180,${bri})`;
+    ctx.beginPath();ctx.arc(x,y,safeR(0.4+Math.sin(i*77)*0.3),0,Math.PI*2);ctx.fill();
   }
-  // Allah watermark brighter
-  ctx.save();ctx.globalAlpha=p*0.14;
+  // Arabic calligraphy watermark (Allah name shape)
+  ctx.save();ctx.globalAlpha=p*0.07;
   ctx.font=`${Math.min(w,h)*0.7}px 'Noto Naskh Arabic',serif`;
   ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillStyle='#ffe87a';ctx.fillText('الله',w/2,h/2);
+  ctx.fillStyle='#c9a84c';ctx.fillText('الله',w/2,h/2);
   ctx.restore();
 }
 
-// ── Kaaba: rich indigo sky + tawaf rings ──
+// ── Kaaba: dark cube + tawaf rings ──
 function drawKaaba(ctx,t,w,h,st){
   const g=ctx.createLinearGradient(0,0,0,h);
-  g.addColorStop(0,'#1a0f3a');g.addColorStop(0.6,'#2d1a5e');g.addColorStop(1,'#100828');
+  g.addColorStop(0,'#050508');g.addColorStop(1,'#010104');
   ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
   const p=easeOutCubic(Math.min(1,st/1.1));
   // tawaf orbit rings
-  ctx.save();ctx.globalAlpha=p*0.5;
+  ctx.save();ctx.globalAlpha=p*0.18;
   const cx2=w/2,cy2=h*0.46;
   for(let i=0;i<5;i++){
     const r=safeR(w*0.12+i*w*0.09);
     const rot=t*0.08*(i%2===0?1:-1);
     ctx.beginPath();
     ctx.ellipse(cx2,cy2,r,r*0.28,rot,0,Math.PI*2);
-    ctx.strokeStyle='rgba(220,190,100,0.9)';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.strokeStyle='rgba(201,168,76,0.7)';ctx.lineWidth=1;ctx.stroke();
+    // small dot on orbit
     const dx=cx2+Math.cos(t*0.4+i)*r;
     const dy=cy2+Math.sin(t*0.4+i)*r*0.28;
-    ctx.fillStyle='rgba(255,220,80,1)';
-    ctx.beginPath();ctx.arc(dx,dy,safeR(3.5),0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(201,168,76,0.9)';
+    ctx.beginPath();ctx.arc(dx,dy,safeR(2.5),0,Math.PI*2);ctx.fill();
   }
   ctx.restore();
   // Kaaba cube
   const kw=w*0.32,kh=h*0.3,kx=w/2-kw/2,ky=h*0.35;
   ctx.save();ctx.globalAlpha=p;
-  // deep cloth with slight color
-  ctx.fillStyle='#12103a';ctx.fillRect(kx,ky,kw,kh);
+  // black cloth
+  ctx.fillStyle='#0a0a12';ctx.fillRect(kx,ky,kw,kh);
   // gold stripe (kiswa band)
   const stripeH=kh*0.18;
   const stripeY=ky+kh*0.3;
@@ -303,15 +304,15 @@ function drawKaaba(ctx,t,w,h,st){
   ctx.restore();
   // ground
   const sandG=ctx.createLinearGradient(0,h*0.72,0,h);
-  sandG.addColorStop(0,'#3a2a10');sandG.addColorStop(1,'#1a1008');
+  sandG.addColorStop(0,'#1a1508');sandG.addColorStop(1,'#060502');
   ctx.fillStyle=sandG;ctx.fillRect(0,h*0.72,w,h*0.28);
-  // bright stars
+  // stars
   for(let i=0;i<150;i++){
     const x=(Math.sin(i*127.1)*0.5+0.5)*w;
     const y=(Math.sin(i*311.7)*0.5+0.5)*h*0.3;
-    const bri=0.55+Math.sin(t+i*0.6)*0.35;
-    ctx.fillStyle=`rgba(255,255,200,${bri})`;
-    ctx.beginPath();ctx.arc(x,y,safeR(0.8+Math.sin(i*99)*0.5),0,Math.PI*2);ctx.fill();
+    const bri=0.3+Math.sin(t+i*0.6)*0.25;
+    ctx.fillStyle=`rgba(255,255,230,${bri})`;
+    ctx.beginPath();ctx.arc(x,y,safeR(0.5+Math.sin(i*99)*0.4),0,Math.PI*2);ctx.fill();
   }
 }
 
