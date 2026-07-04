@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<title>حقائق عربية</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700&family=Noto+Sans+Arabic:wght@300;400;600;700&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:#060a12;font-family:'Noto Sans Arabic',sans-serif;}
+
+/* ── CANVAS: flag zone fills top 40% ── */
+#flagCanvas{
+  position:fixed;top:0;left:0;right:0;
+  width:100%;height:42%;z-index:0;
+}
+/* scan line sweep */
+#scanLine{
+  position:fixed;top:0;left:0;right:0;height:3px;
+  z-index:3;pointer-events:none;
+  background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.9) 50%,transparent 100%);
+  opacity:0;transform:translateY(0);
+  transition:none;
+}
+/* flag bottom edge glow */
+#flagGlow{
+  position:fixed;top:0;left:0;right:0;height:42%;
+  z-index:2;pointer-events:none;
+  background:linear-gradient(to bottom,
+    transparent 55%,
+    rgba(6,10,18,0.7) 80%,
+    rgba(6,10,18,1) 100%);
+}
+/* dark bg below flag */
+#bgDark{
+  position:fixed;top:42%;left:0;right:0;bottom:0;
+  background:#060a12;z-index:0;
+}
+
+/* ── COUNTRY IDENTITY BAR ── */
+#identityBar{
+  position:fixed;top:0;left:0;right:0;height:42%;
+  z-index:4;display:flex;flex-direction:column;
+  align-items:center;justify-content:flex-end;
+  padding-bottom:3vw;
+  opacity:0;transform:translateY(-8px);
+  transition:opacity .4s ease,transform .4s ease;
+}
+#countryName{
+  font-family:'Noto Sans Arabic',sans-serif;
+  font-weight:700;
+  font-size:clamp(1.6rem,7vw,2.4rem);
+  color:#fff;
+  letter-spacing:0.06em;
+  text-shadow:0 2px 20px rgba(0,0,0,0.9),0 0 40px rgba(0,0,0,0.8);
+  -webkit-text-stroke:0.04em rgba(0,0,0,0.6);
+  paint-order:stroke fill;
+}
+#countrySubtitle{
+  font-size:clamp(0.5rem,2.2vw,0.65rem);
+  font-weight:600;
+  letter-spacing:0.22em;
+  color:rgba(255,255,255,0.6);
+  text-shadow:0 1px 8px rgba(0,0,0,0.9);
+  margin-top:0.6vw;
+  text-transform:uppercase;
+}
+
+/* ── CONTENT PANEL ── */
+#contentPanel{
+  position:fixed;
+  top:38%; /* overlaps flag bottom by 4% for continuity */
+  left:4vw;right:4vw;bottom:0;
+  z-index:10;
+  display:flex;flex-direction:column;
+  opacity:0;transform:translateY(32px);
+  transition:opacity .5s ease,transform .6s cubic-bezier(.16,1,.3,1);
+}
+#contentPanel.visible{opacity:1;transform:translateY(0);}
+
+/* glass card */
+#card{
+  flex:1;
+  border-radius:22px 22px 0 0;
+  border:1px solid rgba(255,255,255,0.1);
+  border-bottom:none;
+  background:rgba(8,14,26,0.88);
+  backdrop-filter:blur(18px);
+  -webkit-backdrop-filter:blur(18px);
+  display:flex;flex-direction:column;
+  padding:0 5vw 4vw;
+  position:relative;
+  overflow:hidden;
+}
+/* accent top border line */
+#card::before{
+  content:'';
+  position:absolute;top:0;left:8%;right:8%;height:2px;
+  border-radius:0 0 4px 4px;
+  background:var(--accent,#4af);
+  box-shadow:0 0 16px 2px var(--accent,#4af);
+  opacity:0.85;
+}
+/* corner brackets sci-fi */
+#card::after{
+  content:'';
+  position:absolute;top:12px;left:16px;
+  width:22px;height:22px;
+  border-top:2px solid var(--accent,#4af);
+  border-left:2px solid var(--accent,#4af);
+  border-radius:4px 0 0 0;
+  opacity:0.6;
+}
+#cardCornerBR{
+  position:absolute;bottom:16px;right:16px;
+  width:22px;height:22px;
+  border-bottom:2px solid var(--accent,#4af);
+  border-right:2px solid var(--accent,#4af);
+  border-radius:0 0 4px 0;
+  opacity:0.6;
+}
+
+/* type badge */
+#typeBadge{
+  display:inline-flex;align-items:center;gap:0.5em;
+  align-self:center;
+  margin-top:-1px; /* sit on the top border */
+  margin-bottom:3.5vw;
+  background:rgba(8,14,26,0.95);
+  border:1px solid var(--accent,#4af);
+  border-top:none;
+  border-radius:0 0 12px 12px;
+  padding:0.5em 1.4em 0.55em;
+  font-size:clamp(0.5rem,2.4vw,0.68rem);
+  font-weight:700;
+  letter-spacing:0.18em;
+  color:var(--accent,#4af);
+  text-transform:uppercase;
+  position:relative;
+  z-index:2;
+}
+#typeBadgeDot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--accent,#4af);
+  box-shadow:0 0 6px 2px var(--accent,#4af);
+  animation:pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.4;transform:scale(0.7);}}
+
+/* headlines */
+#headWrap{
+  display:flex;flex-direction:column;
+  align-items:center;gap:1.6vw;
+  flex:1;justify-content:center;
+}
+.hline{
+  font-family:'Noto Naskh Arabic',serif;
+  font-weight:700;
+  font-size:clamp(2rem,9.5vw,3.2rem);
+  color:#fff;
+  text-align:center;
+  line-height:1.3;
+  opacity:0;
+  transform:translateY(20px) scale(0.97);
+  transition:opacity .5s ease,transform .6s cubic-bezier(.22,1,.36,1);
+  text-shadow:0 2px 12px rgba(0,0,0,0.5);
+  -webkit-text-stroke:0.035em rgba(0,0,0,0.6);
+  paint-order:stroke fill;
+}
+.hline.in{opacity:1;transform:translateY(0) scale(1);}
+@keyframes settle{0%{filter:brightness(1.5);}100%{filter:brightness(1);}}
+.hline.in{animation:settle .45s ease-out;}
+
+.subline{
+  font-family:'Noto Sans Arabic',sans-serif;
+  font-weight:400;
+  font-size:clamp(0.85rem,4vw,1.2rem);
+  color:rgba(210,225,255,0.88);
+  text-align:center;
+  line-height:1.7;
+  opacity:0;
+  transform:translateY(14px);
+  transition:opacity .55s ease,transform .65s cubic-bezier(.22,1,.36,1);
+  padding:0 2vw;
+}
+.subline.in{opacity:1;transform:translateY(0);}
+
+/* divider */
+#divider{
+  width:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--accent,#4af),transparent);
+  margin:2.5vw auto 0;
+  transition:width .6s cubic-bezier(.22,1,.36,1);
+  opacity:0.5;
+}
+
+/* bottom strip */
+#bottomStrip{
+  position:fixed;bottom:0;left:4vw;right:4vw;
+  z-index:11;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 5vw 7vw;
+  opacity:0;
+  transition:opacity .5s ease;
+}
+#bottomStrip.visible{opacity:1;}
+#ctaText{
+  font-size:clamp(0.45rem,2.1vw,0.62rem);
+  font-weight:600;
+  letter-spacing:0.14em;
+  color:rgba(180,200,255,0.5);
+}
+#tapHint{
+  font-size:clamp(0.42rem,2vw,0.58rem);
+  letter-spacing:0.1em;
+  color:rgba(180,200,255,0.3);
+  display:flex;align-items:center;gap:0.4em;
+}
+#tapDot{
+  width:5px;height:5px;border-radius:50%;
+  background:var(--accent,#4af);opacity:0.5;
+  animation:pulse 1.8s ease-in-out infinite;
+}
+
+/* HUD corner markers on screen edge */
+.hudCorner{
+  position:fixed;z-index:5;pointer-events:none;
+  width:18px;height:18px;opacity:0.35;
+}
+#hcTL{top:8px;left:8px;border-top:1px solid rgba(255,255,255,0.6);border-left:1px solid rgba(255,255,255,0.6);}
+#hcTR{top:8px;right:8px;border-top:1px solid rgba(255,255,255,0.6);border-right:1px solid rgba(255,255,255,0.6);}
+#hcBL{bottom:8px;left:8px;border-bottom:1px solid rgba(255,255,255,0.6);border-left:1px solid rgba(255,255,255,0.6);}
+#hcBR{bottom:8px;right:8px;border-bottom:1px solid rgba(255,255,255,0.6);border-right:1px solid rgba(255,255,255,0.6);}
+
+/* engagement question overlay */
+#engageBox{
+  display:none;
+  border:1px solid var(--accent,#4af);
+  border-radius:14px;
+  padding:3vw 4vw;
+  margin-top:2.5vw;
+  background:rgba(255,255,255,0.04);
+  text-align:center;
+  opacity:0;
+  transition:opacity .4s ease;
+}
+#engageBox.show{display:block;}
+#engageBox.in{opacity:1;}
+#engageQ{
+  font-family:'Noto Sans Arabic',sans-serif;
+  font-size:clamp(0.78rem,3.6vw,1.05rem);
+  color:rgba(210,230,255,0.9);
+  font-weight:600;
+  line-height:1.6;
+}
+</style>
+</head>
+<body>
+
+<!-- HUD corners -->
+<div class="hudCorner" id="hcTL"></div>
+<div class="hudCorner" id="hcTR"></div>
+<div class="hudCorner" id="hcBL"></div>
+<div class="hudCorner" id="hcBR"></div>
+
+<!-- Flag zone -->
+<canvas id="flagCanvas"></canvas>
+<div id="flagGlow"></div>
+<div id="scanLine"></div>
+<div id="bgDark"></div>
+
+<!-- Country identity -->
+<div id="identityBar">
+  <div id="countryName">مصر</div>
+  <div id="countrySubtitle">EGYPT • دولة عربية</div>
+</div>
+
+<!-- Content panel -->
+<div id="contentPanel">
+  <div id="card">
+    <div id="cardCornerBR"></div>
+    <div id="typeBadge"><div id="typeBadgeDot"></div><span id="typeLabel">حقيقة</span></div>
+    <div id="headWrap">
+      <div id="divider"></div>
+    </div>
+    <div id="engageBox"><div id="engageQ"></div></div>
+  </div>
+</div>
+
+<div id="bottomStrip">
+  <div id="ctaText">شارك</div>
+  <div id="tapHint"><div id="tapDot"></div><span>اضغط للتالي</span></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ══════════════════════════════════════════════
+// COUNTRY CONFIG
+// ══════════════════════════════════════════════
+const COUNTRIES = {
+  egypt:   { nameAr:'مصر',         nameEn:'Egypt',        accent:'#e8b44a', accentDark:'rgba(232,180,74,0.15)',  flagUrl:'https://upload.wikimedia.org/wikipedia/commons/f/fe/Flag_of_Egypt.svg'   },
+  saudi:   { nameAr:'السعودية',    nameEn:'Saudi Arabia', accent:'#4ade80', accentDark:'rgba(74,222,128,0.12)', flagUrl:'https://upload.wikimedia.org/wikipedia/commons/0/0d/Flag_of_Saudi_Arabia.svg'},
+  uae:     { nameAr:'الإمارات',    nameEn:'UAE',          accent:'#f87171', accentDark:'rgba(248,113,113,0.13)', flagUrl:'https://upload.wikimedia.org/wikipedia/commons/c/cb/Flag_of_the_United_Arab_Emirates.svg'},
+  morocco: { nameAr:'المغرب',      nameEn:'Morocco',      accent:'#f97316', accentDark:'rgba(249,115,22,0.13)',  flagUrl:'https://upload.wikimedia.org/wikipedia/commons/2/2c/Flag_of_Morocco.svg'   },
+  jordan:  { nameAr:'الأردن',      nameEn:'Jordan',       accent:'#38bdf8', accentDark:'rgba(56,189,248,0.12)',  flagUrl:'https://upload.wikimedia.org/wikipedia/commons/c/c0/Flag_of_Jordan.svg'   },
+  kuwait:  { nameAr:'الكويت',      nameEn:'Kuwait',       accent:'#a78bfa', accentDark:'rgba(167,139,250,0.12)', flagUrl:'https://upload.wikimedia.org/wikipedia/commons/a/aa/Flag_of_Kuwait.svg'  },
+};
+
+// Preload flag images
+const flagImgs = {};
+Object.entries(COUNTRIES).forEach(([key,c])=>{
+  const img = new Image();
+  img.crossOrigin='anonymous';
+  img.onload = ()=>{ flagImgs[key]=img; };
+  img.onerror= ()=>{ flagImgs[key]=null; };
+  img.src = c.flagUrl;
+});
+
+// ── Canvas fallback flag drawers ──
+function drawFlagFallback(ctx, key, w, h){
+  const f = {
+    egypt:(c,w,h)=>{
+      c.fillStyle='#CC0001';c.fillRect(0,0,w,h/3);
+      c.fillStyle='#FFFFFF';c.fillRect(0,h/3,w,h/3);
+      c.fillStyle='#000000';c.fillRect(0,h*2/3,w,h/3);
+      // eagle (simplified golden disc)
+      c.save();c.globalAlpha=0.55;
+      c.fillStyle='#C09300';
+      c.beginPath();c.arc(w/2,h/2,h*0.08,0,Math.PI*2);c.fill();
+      c.restore();
+    },
+    saudi:(c,w,h)=>{
+      c.fillStyle='#006C35';c.fillRect(0,0,w,h);
+      // white arabic text band (simulate shahada)
+      c.save();c.globalAlpha=0.9;
+      c.font=`bold ${h*0.13}px 'Noto Naskh Arabic',serif`;
+      c.fillStyle='#FFFFFF';c.textAlign='center';c.textBaseline='middle';
+      c.fillText('لا إله إلا الله محمد رسول الله',w/2,h*0.38);
+      // sword
+      const sx=w/2, sy=h*0.62, slen=w*0.42;
+      c.strokeStyle='#FFFFFF';c.lineWidth=h*0.025;c.lineCap='round';
+      c.beginPath();c.moveTo(sx-slen/2,sy);c.lineTo(sx+slen/2,sy);c.stroke();
+      c.beginPath();c.moveTo(sx+slen/2,sy);c.lineTo(sx+slen/2-slen*0.12,sy-slen*0.055);c.stroke();
+      c.beginPath();c.moveTo(sx+slen/2,sy);c.lineTo(sx+slen/2-slen*0.12,sy+slen*0.055);c.stroke();
+      c.restore();
+    },
+    uae:(c,w,h)=>{
+      const bar=w*0.24;
+      c.fillStyle='#EF3340';c.fillRect(0,0,bar,h);
+      c.fillStyle='#007A3D';c.fillRect(bar,0,w-bar,h/3);
+      c.fillStyle='#FFFFFF';c.fillRect(bar,h/3,w-bar,h/3);
+      c.fillStyle='#000000';c.fillRect(bar,h*2/3,w-bar,h/3);
+    },
+    morocco:(c,w,h)=>{
+      c.fillStyle='#C1272D';c.fillRect(0,0,w,h);
+      // green pentagram
+      const cx=w/2,cy=h/2,r=Math.min(w,h)*0.22;
+      c.beginPath();
+      for(let i=0;i<5;i++){
+        const a=(Math.PI*2/5)*i-Math.PI/2;
+        const ai=(Math.PI*2/5)*(i+0.5)-Math.PI/2;
+        const x1=cx+Math.cos(a)*r,y1=cy+Math.sin(a)*r;
+        const x2=cx+Math.cos(ai)*r*0.38,y2=cy+Math.sin(ai)*r*0.38;
+        if(i===0)c.moveTo(x1,y1);else c.lineTo(x1,y1);
+        c.lineTo(x2,y2);
+      }
+      c.closePath();c.strokeStyle='#006233';c.lineWidth=Math.max(2,r*0.1);c.stroke();
+    },
+    jordan:(c,w,h)=>{
+      c.fillStyle='#000000';c.fillRect(0,0,w,h/3);
+      c.fillStyle='#FFFFFF';c.fillRect(0,h/3,w,h/3);
+      c.fillStyle='#007A3D';c.fillRect(0,h*2/3,w,h/3);
+      c.fillStyle='#CE1126';
+      c.beginPath();c.moveTo(0,0);c.lineTo(w*0.36,h/2);c.lineTo(0,h);c.closePath();c.fill();
+      // white star
+      const sx=w*0.12,sy=h/2,sr=Math.min(w,h)*0.073;
+      c.beginPath();
+      for(let i=0;i<7;i++){
+        const a=(Math.PI*2/7)*i-Math.PI/2;
+        const ai=(Math.PI*2/7)*(i+0.5)-Math.PI/2;
+        const x1=sx+Math.cos(a)*sr,y1=sy+Math.sin(a)*sr;
+        const x2=sx+Math.cos(ai)*sr*0.42,y2=sy+Math.sin(ai)*sr*0.42;
+        if(i===0)c.moveTo(x1,y1);else c.lineTo(x1,y1);
+        c.lineTo(x2,y2);
+      }
+      c.closePath();c.fillStyle='#FFFFFF';c.fill();
+    },
+    kuwait:(c,w,h)=>{
+      c.fillStyle='#007A3D';c.fillRect(0,0,w,h/3);
+      c.fillStyle='#FFFFFF';c.fillRect(0,h/3,w,h/3);
+      c.fillStyle='#CE1126';c.fillRect(0,h*2/3,w,h/3);
+      c.fillStyle='#000000';
+      c.beginPath();c.moveTo(0,0);c.lineTo(w*0.26,h/3);c.lineTo(w*0.26,h*2/3);c.lineTo(0,h);c.closePath();c.fill();
+    },
+  };
+  if(f[key]) f[key](ctx,w,h);
+  else { ctx.fillStyle='#111';ctx.fillRect(0,0,w,h); }
+}
+
+// ══════════════════════════════════════════════
+// CONTENT
+// ══════════════════════════════════════════════
+// Types: history | fact | didyouknow | culture | engage
+const TYPES = {
+  history:   { label:'تاريخ', labelEn:'HISTORY'   },
+  fact:      { label:'حقيقة', labelEn:'FACT'      },
+  didyouknow:{ label:'هل تعلم؟', labelEn:'DID YOU KNOW'},
+  culture:   { label:'ثقافة', labelEn:'CULTURE'   },
+  engage:    { label:'شاركنا رأيك', labelEn:'ENGAGE'    },
+};
+
+const CONTENT = [
+  // ═══ EGYPT ═══
+  {cat:'egypt',type:'history', lines:['أول إضراب عمالي','في التاريخ'], sub:'نظّمه عمال بناء المقابر عام ١١٥٢ ق.م احتجاجاً على تأخر رواتبهم.'},
+  {cat:'egypt',type:'didyouknow', lines:['الأهرامات','كانت بيضاء ناصعة'], sub:'كُسيت بالحجر الجيري اللامع الذي يمكن رؤيته على بُعد مئات الكيلومترات.'},
+  {cat:'egypt',type:'fact', lines:['الكيمياء','اسمها مصري'], sub:'كلمة chemistry مشتقة من "خيمت" المصرية القديمة التي تعني الأرض السوداء الخصبة.'},
+  {cat:'egypt',type:'culture', lines:['الكحل الأسود','لم يكن زينة فقط'], sub:'استخدمه المصريون كمرهم طبي يحمي العين من عدوى النيل والأشعة فوق البنفسجية.'},
+  {cat:'egypt',type:'didyouknow', lines:['مصر اخترعت','لعبة البولينج'], sub:'وُجدت كرات وأهداف حجرية في مقبرة بمصر العليا عمرها خمسة آلاف وثلاثمئة سنة.'},
+  {cat:'egypt',type:'fact', lines:['الأبجدية الأولى','ولدت في مصر'], sub:'اشتق الفينيقيون أبجديتهم من الكتابة المصرية، وعنها انحدرت كل أبجديات العالم.'},
+  {cat:'egypt',type:'history', lines:['كليوباترا','كانت يونانية الأصل'], sub:'لم تكن مصرية الدم بل من سلالة البطالمة اليونانية، وهي أولهم من تعلم اللغة المصرية.'},
+  {cat:'egypt',type:'culture', lines:['معجون الأسنان','اخترعه المصريون'], sub:'وصفة مكتوبة منذ ٥٠٠٠ سنة: ملح ونعناع وقشر بيض محروق ومرّ.'},
+  {cat:'egypt',type:'engage', lines:['ما أكثر شيء','يبهرك في مصر؟'], sub:'الأهرامات؟ النيل؟ التاريخ؟ أم شيء آخر لم يعرفه كثيرون؟', engage:'أخبرنا في التعليقات 👇'},
+  {cat:'egypt',type:'fact', lines:['السنة المصرية القديمة','ثلاثة فصول فقط'], sub:'فيضان وزراعة وجفاف، كل فصل أربعة أشهر، مرتبطة بدورة نهر النيل.'},
+  {cat:'egypt',type:'didyouknow', lines:['الفراعنة','كانوا يحلقون رؤوسهم'], sub:'ارتدوا الشعر المستعار لأسباب النظافة والدين، وكان الشعر يُصنع من شعر بشري وألياف نباتية.'},
+  {cat:'egypt',type:'history', lines:['البردي المصري','أول ورق في التاريخ'], sub:'كان يُصدَّر لجميع بلدان المتوسط، واشتق اليونانيون منه كلمة papyrus ثم paper.'},
+  {cat:'egypt',type:'fact', lines:['مصر تمتلك','أكثر من ١٣٠ هرماً'], sub:'معظمها مجهول للعامة ومتناثر في مواقع بعيدة عن الجيزة الشهيرة كالسقارة ودهشور.'},
+  {cat:'egypt',type:'culture', lines:['نيلومتر مصر','لقياس الضريبة'], sub:'ابتكروا جهاز النيلومتر لقياس ارتفاع فيضان النيل، وبحسبه يُحدَّد مقدار الضريبة السنوية.'},
+  {cat:'egypt',type:'engage', lines:['هل كنت تعلم','أن عمال الأهرامات تقاضوا رواتب؟'], sub:'أثبتت سجلات أثرية اكتُشفت عام ٢٠١٣ أنهم أُجراء وليسوا عبيداً.', engage:'مفاجأة؟ شاركنا رأيك 👇'},
+
+  // ═══ SAUDI ARABIA ═══
+  {cat:'saudi',type:'fact', lines:['الجزيرة العربية','تنتج ثلث تمر العالم'], sub:'المملكة أكبر مُصدِّر للتمر بأكثر من مئة وتسعين صنفاً مختلفاً.'},
+  {cat:'saudi',type:'history', lines:['طريق البخور','مر بالحجاز'], sub:'الطريق الذي نقل اللبان والمرّ من اليمن لروما قبل ألفي سنة كان يخترق أراضي الحجاز.'},
+  {cat:'saudi',type:'didyouknow', lines:['بئر زمزم','لم تجف منذ ٤٠٠٠ سنة'], sub:'تضخ أحد عشر لتراً في الثانية ولم تُسجَّل لها فترة جفاف واحدة في كل التاريخ المكتوب.'},
+  {cat:'saudi',type:'culture', lines:['الشعر النبطي','فيسبوك الصحراء'], sub:'كانت القصيدة النبطية وسيلة التواصل والإعلام والتوثيق بين قبائل الجزيرة لقرون متواصلة.'},
+  {cat:'saudi',type:'fact', lines:['صحراء الربع الخالي','أكبر رملية بلا توقف'], sub:'تمتد على مساحة تتجاوز مساحة فرنسا كاملة ولا يسكنها أحد بصفة دائمة.'},
+  {cat:'saudi',type:'history', lines:['الحِجر النبطي','أقدم من الأهرامات'], sub:'مدائن صالح تضم مقابر نبطية في الصخر تسبق الميلاد بثلاثة قرون، أقدم من بعض الأهرامات.'},
+  {cat:'saudi',type:'didyouknow', lines:['الجمل','يشرب ١٣٠ لتراً دفعة واحدة'], sub:'يمتص الجمل مئة وثلاثين لتراً في ثلاث عشرة دقيقة فقط، وسنامه يخزن دهوناً لا ماء.'},
+  {cat:'saudi',type:'culture', lines:['القهوة العربية','لا قهوة بلا هيل'], sub:'الهيل في القهوة السعودية ليس مجرد نكهة، بل يُعرض للضيف قبل الطعام رمزاً للكرم.'},
+  {cat:'saudi',type:'engage', lines:['هل سبق وزرت','مدائن صالح في العُلا؟'], sub:'مدينة نبطية تسبق الميلاد بثلاثة قرون، اكتشفها الغرب حديثاً لكنها كانت في قلب الجزيرة دائماً.', engage:'من زار يشاركنا انطباعه 👇'},
+  {cat:'saudi',type:'fact', lines:['أرامكو','أكبر شركة في العالم'], sub:'أرامكو السعودية أعلى قيمة سوقية بين كل شركات الكوكب، تجاوزت اثنين تريليون دولار.'},
+  {cat:'saudi',type:'history', lines:['سوق عكاظ','أوليمبياد الشعر'], sub:'كان أكبر سوق أدبي في التاريخ، تُعقد فيه مسابقات الشعر والخطابة قرب الطائف قبل الإسلام.'},
+  {cat:'saudi',type:'culture', lines:['الصقر الحر','يُباع بمليون ريال'], sub:'بعض الصقور النادرة تُباع بأسعار تتجاوز مليون ريال في المزادات الخليجية السنوية.'},
+  {cat:'saudi',type:'didyouknow', lines:['المملكة بلا أنهار','نهائياً'], sub:'ليس فيها ولو نهر واحد يجري باستمرار طوال العام رغم امتدادها على مليوني كيلومتر مربع.'},
+  {cat:'saudi',type:'engage', lines:['أيهما أكثر جمالاً؟','العُلا أم الرياض الحديثة؟'], sub:'تاريخ عمره آلاف السنين في الصخر مقابل مدينة تصنع المستقبل.', engage:'صوّت في التعليقات 👇'},
+
+  // ═══ UAE ═══
+  {cat:'uae',type:'history', lines:['دبي قبل النفط','قرية صيد صغيرة'], sub:'في عام ١٩٦٠ لم يكن فيها سوى خمسة وثمانين ألف نسمة وبضع مئات من المباني البسيطة.'},
+  {cat:'uae',type:'fact', lines:['برج خليفة','يختلف مناخه من أسفله لأعلاه'], sub:'الفرق في درجة الحرارة بين الطابق الأرضي والطابق المئة والأربعين قد يصل لعشر درجات.'},
+  {cat:'uae',type:'didyouknow', lines:['الصقور في الإمارات','تملك جوازات سفر'], sub:'للصقور جوازات رسمية بصورها تُستخدم في السفر الدولي، وهي وثيقة مقبولة في المطارات.'},
+  {cat:'uae',type:'culture', lines:['لوفر أبوظبي','قبة الضوء والظل'], sub:'السقف المثقوب يُنتج "شجرة الضوء"، تأثير بصري مستوحى من نخيل الواحة صممه معماري فرنسي.'},
+  {cat:'uae',type:'engage', lines:['في جيل واحد فقط','تحوّل الإمارات'], sub:'أُناس وُلدوا في خيام صحراوية وعاشوا ليروا ناطحات سحاب وسيارات ذاتية القيادة ومسبار للمريخ.', engage:'هل يبهرك ذلك؟ أخبرنا 👇'},
+  {cat:'uae',type:'fact', lines:['مسبار الأمل','من الصفر للمريخ في ٦ سنوات'], sub:'أسرع برنامج فضائي في تاريخ البشرية وأول مهمة عربية تصل لكوكب المريخ.'},
+  {cat:'uae',type:'history', lines:['اتحاد الإمارات','كاد أن يكون بستٍ'], sub:'كادت تتأسس بست إمارات فقط عام ١٩٧١، وانضمت رأس الخيمة بعد شهر من الإعلان.'},
+  {cat:'uae',type:'didyouknow', lines:['سبعة وثمانون بالمئة','من سكانها وافدون'], sub:'أعلى نسبة مقيمين أجانب في أي دولة بالعالم، مع أكثر من مئتي جنسية تعيش في وئام.'},
+  {cat:'uae',type:'culture', lines:['المرأة الإماراتية','تقود مقاتلات حربية'], sub:'مريم المنصوري أولى المقاتلات العربيات قادت طائرات F-16 في مهمات قتالية فعلية.'},
+  {cat:'uae',type:'fact', lines:['ماكينة صراف آلي','تصرف ذهباً حقيقياً'], sub:'في فندق أبوظبي ماكينة صراف تصرف قطع ذهب عيار اثنين وعشرين عوضاً عن الأوراق النقدية.'},
+  {cat:'uae',type:'engage', lines:['ما الأكثر إذهالاً','في الإمارات؟'], sub:'البنية التحتية؟ الطموح الفضائي؟ التنوع الثقافي؟ أم شيء آخر رأيته بنفسك؟', engage:'شاركنا في التعليقات 👇'},
+  {cat:'uae',type:'history', lines:['اللؤلؤ الإماراتي','كان نفط الخليج القديم'], sub:'قبل اكتشاف البترول، كان أجداد الإماراتيين غواصين يبيعون لؤلؤهم لبلاط الهند وأوروبا.'},
+  {cat:'uae',type:'didyouknow', lines:['الإمارات','تصنع المطر اصطناعياً'], sub:'تعتمد تقنية استمطار السحب بضخ ذرات الفضة فيها، وتجري مئات الطلعات سنوياً.'},
+
+  // ═══ MOROCCO ═══
+  {cat:'morocco',type:'history', lines:['جامعة القرويين','أقدم جامعة في العالم'], sub:'أسستها فاطمة الفهرية عام ٨٥٩ ميلادية، وتُدرّس حتى اليوم ومعترف بها رسمياً من اليونسكو.'},
+  {cat:'morocco',type:'fact', lines:['زيت الأرجان','لا ينمو إلا في المغرب'], sub:'شجرة الأرجان لا تعيش إلا في منطقة سوس المغربية في مساحة محدودة شمال غرب القارة.'},
+  {cat:'morocco',type:'culture', lines:['الدباغة في فاس','ألف سنة بلا كيمياء'], sub:'تعمل بنفس المكوّنات منذ ألف سنة: ماء الحمام وبول الحمام والحناء والنعناع.'},
+  {cat:'morocco',type:'history', lines:['ابن بطوطة','قطع ثلاثة أضعاف ماركو بولو'], sub:'رحلاته تجاوزت مئة وعشرين ألف كيلومتر، أكثر من ثلاثة أضعاف ما قطعه الرحّالة الإيطالي.'},
+  {cat:'morocco',type:'didyouknow', lines:['شفشاون الزرقاء','لم تكن دائماً زرقاء'], sub:'دهانها باللون الأزرق بدأ في الثلاثينيات بمبادرة من الجالية اليهودية التي استوطنتها.'},
+  {cat:'morocco',type:'fact', lines:['المغرب','يملك ٧٥٪ من فوسفات العالم'], sub:'ثلاثة أرباع احتياطيات الفوسفات العالمية تحت الأرض المغربية، وهي المادة الأساسية للأسمدة.'},
+  {cat:'morocco',type:'culture', lines:['موسيقى الأندلس','نجت في المغرب'], sub:'بعد سقوط غرناطة هرب العرب بموسيقاهم، وفاس وحدها حافظت على كل مقاماتها حتى اليوم.'},
+  {cat:'morocco',type:'engage', lines:['هل زرت المغرب؟','ما أول ما أذهلك فيه؟'], sub:'التوابل في جامع الفنا؟ الألوان في المدينة القديمة؟ أم ذلك الشعور بالزمن حين تمشي في أزقة فاس؟', engage:'أخبرنا في التعليقات 👇'},
+  {cat:'morocco',type:'didyouknow', lines:['الطاجين','يطهو بالبخار الداخلي'], sub:'شكل الغطاء المخروطي يُعيد البخار للأسفل فيطهو الطعام من رطوبته الخاصة تماماً دون ماء إضافي.'},
+  {cat:'morocco',type:'fact', lines:['محطة نور ورزازات','أكبر في العالم'], sub:'محطة الطاقة الشمسية المركّزة في المغرب الأكبر عالمياً وتكفي كهرباءها لمليون شخص.'},
+  {cat:'morocco',type:'history', lines:['مراكش الحمراء','سُميت بالحجر لا الدم'], sub:'لونها الأحمر مصدره الحجر الرملي الأحمر الطبيعي لمنطقة الحوز وليس أي حدث تاريخي.'},
+  {cat:'morocco',type:'culture', lines:['الحناء المغربية','رسائل سرية'], sub:'لكل نقشة معنى تتوارثه الأمازيغيات لتوصيل رسائل خفية بين العروس وعائلتها في ليلة الزفاف.'},
+  {cat:'morocco',type:'engage', lines:['أيهما أجمل؟','مراكش أم شفشاون؟'], sub:'المدينة الحمراء بجلبابها وجامع الفنا، أم المدينة الزرقاء التي تحتضنها جبال الريف.', engage:'صوّت في التعليقات 👇'},
+
+  // ═══ JORDAN ═══
+  {cat:'jordan',type:'history', lines:['البتراء','اختبأت ٥٠٠ سنة عن الغرب'], sub:'لم يعرفها الغرب حتى ١٨١٢ حين أرشد أبناء القبيلة مستكشفاً سويسرياً إليها بشرط أن يتنكر.'},
+  {cat:'jordan',type:'fact', lines:['البحر الميت','ملحه عشرة أضعاف المحيط'], sub:'تركيز الملح فيه ثلاثة وثلاثون بالمئة، وهو الأمر الذي يجعل كل أجساد البشر تطفو آلياً.'},
+  {cat:'jordan',type:'didyouknow', lines:['الأنباط','اخترعوا قنوات جمع المطر'], sub:'شعب البتراء بنى نظاماً هيدروليكياً دقيقاً يجمع ماء المطر في الصحراء ويوزعه عبر المدينة.'},
+  {cat:'jordan',type:'culture', lines:['الكوفية الأردنية','خريطة قوافل قديمة'], sub:'نقوشها الشبكية في الأصل ترسم شبكة طرق القوافل التجارية وبُعدها خريطة كانت يحملها المسافر.'},
+  {cat:'jordan',type:'fact', lines:['الأردن','يضم ٤٠٠٠ موقع أثري'], sub:'على مساحة أصغر من ولاية إنديانا الأمريكية، من أعلى كثافات التراث الأثري في العالم.'},
+  {cat:'jordan',type:'history', lines:['طريق الملوك','أقدم طريق تجاري معبّد'], sub:'يمتد ثلاثة آلاف وخمسمئة سنة وكان يربط بلاد الرافدين بمصر عبر الأراضي الأردنية.'},
+  {cat:'jordan',type:'engage', lines:['هل تعلم أن وادي رم','ظهر في أفلام خيال علمي؟'], sub:'تشابهه بكواكب أخرى جعله موقع تصوير لأفلام المريخ والخيال العلمي الكبرى.', engage:'شاهدت أياً منها؟ أخبرنا 👇'},
+  {cat:'jordan',type:'culture', lines:['المنسف','أُكل بيد واحدة'], sub:'يُؤكل وقوفاً باليد اليمنى فقط من إناء مشترك، رمز الوحدة والمساواة في الكرم الأردني.'},
+  {cat:'jordan',type:'didyouknow', lines:['رجم الهيري','ستونهنج الشرق الأوسط'], sub:'دوائر حجرية غامضة في حوران عمرها خمسة آلاف سنة، ووظيفتها لا تزال محل جدل علمي حقيقي.'},
+  {cat:'jordan',type:'fact', lines:['الأردن','أكثر دول العالم استضافةً للاجئين نسبياً'], sub:'يستضيف نسبة من اللاجئين مقارنةً بعدد سكانه أعلى من أي دولة في العالم.'},
+  {cat:'jordan',type:'history', lines:['البتراء','تُنتج ظاهرة ضوئية مرة سنوياً'], sub:'في الانقلاب الصيفي تسقط الشمس عمودياً في الخزنة بزاوية درامية لا تتكرر إلا مرة كل عام.'},
+  {cat:'jordan',type:'engage', lines:['البتراء أم جرش؟','أيهما يستحق الزيارة أكثر؟'], sub:'مدينة نبطية منحوتة في الصخر أم مدينة رومانية محفوظة كاملة؟', engage:'اختر في التعليقات 👇'},
+
+  // ═══ KUWAIT ═══
+  {cat:'kuwait',type:'fact', lines:['الدينار الكويتي','أغلى عملة ورقية في العالم'], sub:'دينار واحد يساوي ما يزيد على ثلاثة دولارات أمريكية، أعلى سعر صرف لعملة ورقية.'},
+  {cat:'kuwait',type:'history', lines:['أول صندوق ثروة سيادي','كان في الكويت'], sub:'تأسس صندوق الاستثمار الكويتي عام ١٩٥٣، قبل أن تكتشف الكويت نفطها بكميات كافية.'},
+  {cat:'kuwait',type:'culture', lines:['الديوانية','نظام اجتماعي فريد في العالم'], sub:'مجلس مفتوح أسبوعي يدخله كل من يشاء دون دعوة، رمزاً للكرم الأصيل الذي لا نظير له.'},
+  {cat:'kuwait',type:'didyouknow', lines:['أبراج الكويت المائية','بُنيت لخزن الماء أصلاً'], sub:'وظيفتها الأصلية خزن مياه الشرب للمدينة وليس الزينة، وهي تعمل بهذه الوظيفة حتى اليوم.'},
+  {cat:'kuwait',type:'fact', lines:['الكويت','أول دستور خليجي عام ١٩٦٢'], sub:'صدر قبل تأسيس معظم دول الخليج المجاورة، وكان أول تجربة ديمقراطية برلمانية في المنطقة.'},
+  {cat:'kuwait',type:'history', lines:['اللؤلؤ الكويتي','بيع لبلاط الهند وأوروبا'], sub:'قبل النفط كان الغواصون يقضون أربعة أشهر في البحر ويبيعون لؤلؤهم لتجار من كلكتا وباريس.'},
+  {cat:'kuwait',type:'engage', lines:['هل تعلم أن أجدادنا','بنوا سفناً وصلت الصين؟'], sub:'التجار الكويتيون أبحروا لساحل مالابار وجنوب شرق آسيا بسفن خشبية بلا بوصلة حديثة.', engage:'يبهرني هذا 💙 أو أعرفه؟ 👇'},
+  {cat:'kuwait',type:'culture', lines:['الفجري والسوت','أغاني رفع الأشرعة'], sub:'فنون بحرية قديمة كانت تُغنّى عند رفع الأشرعة وتحريك المراسي، موروث موسيقي مُدرج في اليونسكو.'},
+  {cat:'kuwait',type:'didyouknow', lines:['الكويت','أول دولة خليجية تبني نظاماً تعليمياً'], sub:'افتُتحت أول مدرسة نظامية عام ١٩١١، قبل أن تصبح الكويت دولة نفطية أو حتى مستقلة.'},
+  {cat:'kuwait',type:'fact', lines:['البريمة الكويتية','موروث أفريقي'], sub:'موسيقى الزار والبريمة وصلت مع الملاحة التاريخية وأصبحت جزءاً من التراث الكويتي الأصيل.'},
+  {cat:'kuwait',type:'engage', lines:['ما أجمل ما في الكويت','برأيك؟'], sub:'تراثها البحري؟ كرم أهلها؟ تاريخها السياسي؟ أم شيء لا يعرفه أحد غيرك؟', engage:'شاركنا في التعليقات 👇'},
+  {cat:'kuwait',type:'history', lines:['الكويت رفضت الضم العراقي','بدعم الشعب'], sub:'حين أعلنت بريطانيا الانسحاب عام ١٩٦١ طالب العراق بضم الكويت فرفضت ودافعت عنها الجامعة العربية.'},
+];
+
+// ══════════════════════════════════════════════
+// CANVAS SETUP
+// ══════════════════════════════════════════════
+const canvas = document.getElementById('flagCanvas');
+const ctx = canvas.getContext('2d');
+let W = window.innerWidth, H = window.innerHeight;
+const FH = () => Math.floor(H * 0.42); // flag zone height
+
+function resizeCanvas(){
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W; canvas.height = FH();
+}
+resizeCanvas();
+
+// ══════════════════════════════════════════════
+// ACCENT CSS VAR
+// ══════════════════════════════════════════════
+function setAccent(hex){
+  document.documentElement.style.setProperty('--accent', hex);
+  // also update live elements that reference it via JS-set backgrounds
+}
+
+// ══════════════════════════════════════════════
+// DRAW FLAG
+// ══════════════════════════════════════════════
+function paintFlag(key){
+  const fh = FH();
+  ctx.clearRect(0, 0, W, fh);
+  const img = flagImgs[key];
+  if(img && img.complete && img.naturalWidth > 0){
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const scale = Math.max(W/iw, fh/ih);
+    const dw = iw*scale, dh = ih*scale;
+    const dx = (W-dw)/2, dy = (fh-dh)/2;
+    ctx.drawImage(img, dx, dy, dw, dh);
+  } else {
+    drawFlagFallback(ctx, key, W, fh);
+  }
+  // subtle darken vignette
+  const vg = ctx.createRadialGradient(W/2, fh*0.45, fh*0.05, W/2, fh*0.45, W*0.8);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,'rgba(0,0,0,0.28)');
+  ctx.fillStyle = vg; ctx.fillRect(0,0,W,fh);
+}
+
+// ══════════════════════════════════════════════
+// SCAN LINE ANIMATION
+// ══════════════════════════════════════════════
+function runScan(){
+  const sl = document.getElementById('scanLine');
+  const fh = FH();
+  sl.style.transition = 'none';
+  sl.style.opacity = '0';
+  sl.style.transform = 'translateY(0px)';
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      sl.style.transition = `opacity 0.05s ease, transform ${fh*1.8}ms linear`;
+      sl.style.opacity = '0.85';
+      sl.style.transform = `translateY(${fh}px)`;
+      setTimeout(()=>{ sl.style.opacity='0'; }, fh*1.8 - 100);
+    });
+  });
+}
+
+// ══════════════════════════════════════════════
+// POOLS
+// ══════════════════════════════════════════════
+let _pools = {}, _pidxs = {};
+function nextC(cat){
+  if(!_pools[cat] || _pidxs[cat] >= _pools[cat].length){
+    _pools[cat] = CONTENT.filter(c=>c.cat===cat).sort(()=>Math.random()-0.5);
+    _pidxs[cat] = 0;
+  }
+  return _pools[cat][_pidxs[cat]++];
+}
+
+// country cycling
+const COUNTRY_KEYS = ['egypt','saudi','uae','morocco','jordan','kuwait'];
+const WEIGHTS       = [3,3,3,2,2,2];
+function pickCountry(){
+  const total = WEIGHTS.reduce((a,b)=>a+b,0);
+  let r = Math.random()*total;
+  for(let i=0;i<WEIGHTS.length;i++){ r-=WEIGHTS[i]; if(r<=0) return COUNTRY_KEYS[i]; }
+  return COUNTRY_KEYS[0];
+}
+
+// ══════════════════════════════════════════════
+// AUDIO
+// ══════════════════════════════════════════════
+const AC = new (window.AudioContext||window.webkitAudioContext)();
+const master = AC.createGain(); master.gain.value=0.75; master.connect(AC.destination);
+let _recDest=null, _audioOn=false, _pads=[];
+function unlockAC(){ if(_audioOn)return; AC.resume().then(()=>{ _audioOn=true; startPad(); }); }
+function startPad(){
+  stopPad();
+  try{
+    [293.66,349.23,392.00,440.00].forEach((f,i)=>{
+      const o=AC.createOscillator(),g=AC.createGain(),lfo=AC.createOscillator(),lg=AC.createGain();
+      o.type='sine';o.frequency.value=f;lfo.type='sine';lfo.frequency.value=0.07+i*0.02;lg.gain.value=1.1;
+      lfo.connect(lg);lg.connect(o.frequency);
+      const tt=AC.currentTime;g.gain.setValueAtTime(0,tt);g.gain.linearRampToValueAtTime(0.022-i*0.003,tt+2.5);
+      o.connect(g);g.connect(master);o.start(tt);lfo.start(tt);_pads.push({o,g,lfo});
+    });
+  }catch(e){}
+}
+function stopPad(){ _pads.forEach(p=>{try{p.g.gain.setTargetAtTime(0,AC.currentTime,0.4);setTimeout(()=>{try{p.o.stop();p.lfo.stop();}catch(e){}},1000);}catch(e){}});_pads=[]; }
+function sfxWhoosh(){ if(!_audioOn)return;try{const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.setValueAtTime(480,AC.currentTime);o.frequency.exponentialRampToValueAtTime(140,AC.currentTime+0.22);g.gain.setValueAtTime(0.045,AC.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,AC.currentTime+0.5);o.connect(g);g.connect(master);o.start();o.stop(AC.currentTime+0.5);}catch(e){} }
+function sfxSoft(){ if(!_audioOn)return;try{const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.setValueAtTime(380,AC.currentTime);o.frequency.exponentialRampToValueAtTime(110,AC.currentTime+0.28);g.gain.setValueAtTime(0.035,AC.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,AC.currentTime+0.65);o.connect(g);g.connect(master);o.start();o.stop(AC.currentTime+0.65);}catch(e){} }
+function sfxScan(){ if(!_audioOn)return;try{const o=AC.createOscillator(),g=AC.createGain();o.type='sawtooth';o.frequency.setValueAtTime(220,AC.currentTime);o.frequency.exponentialRampToValueAtTime(880,AC.currentTime+0.06);g.gain.setValueAtTime(0.03,AC.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,AC.currentTime+0.08);o.connect(g);g.connect(master);o.start();o.stop(AC.currentTime+0.1);}catch(e){} }
+
+// ══════════════════════════════════════════════
+// SHOW SCENE
+// ══════════════════════════════════════════════
+let _timers=[];
+function clearT(){ _timers.forEach(clearTimeout); _timers=[]; }
+let _currentCountry='egypt';
+
+function showScene(){
+  clearT(); unlockAC();
+  _currentCountry = pickCountry();
+  const country = COUNTRIES[_currentCountry];
+  const C = nextC(_currentCountry);
+  const typeInfo = TYPES[C.type] || TYPES.fact;
+
+  // accent colour
+  setAccent(country.accent);
+
+  // paint flag
+  paintFlag(_currentCountry);
+  runScan(); sfxScan();
+
+  // identity bar
+  const identBar = document.getElementById('identityBar');
+  document.getElementById('countryName').textContent = country.nameAr;
+  document.getElementById('countrySubtitle').textContent = country.nameEn.toUpperCase() + ' • دولة عربية';
+  identBar.style.opacity='0'; identBar.style.transform='translateY(-8px)';
+  _timers.push(setTimeout(()=>{ identBar.style.transition='opacity .4s ease,transform .4s ease'; identBar.style.opacity='1'; identBar.style.transform='translateY(0)'; }, 180));
+
+  // content panel — hide first
+  const panel = document.getElementById('contentPanel');
+  const strip = document.getElementById('bottomStrip');
+  panel.classList.remove('visible');
+  strip.classList.remove('visible');
+
+  // type badge
+  document.getElementById('typeLabel').textContent = typeInfo.label;
+
+  // build headlines
+  const headWrap = document.getElementById('headWrap');
+  // remove old hlines/sublines but keep divider
+  headWrap.querySelectorAll('.hline,.subline').forEach(el=>el.remove());
+  const divider = document.getElementById('divider');
+  headWrap.insertBefore(divider, headWrap.firstChild); // ensure divider first
+
+  const hEls = [];
+  C.lines.forEach(l=>{
+    const d=document.createElement('div');d.className='hline';d.textContent=l;
+    headWrap.appendChild(d); hEls.push(d);
+  });
+  if(C.sub){
+    const d=document.createElement('div');d.className='subline';
+    d.textContent=C.sub; headWrap.appendChild(d); hEls.push(d);
+  }
+
+  // engage box
+  const engBox = document.getElementById('engageBox');
+  const engQ = document.getElementById('engageQ');
+  engBox.classList.remove('show','in');
+  if(C.type==='engage' && C.engage){
+    engBox.classList.add('show');
+    engQ.textContent = C.engage;
+  }
+
+  // CTA
+  document.getElementById('ctaText').textContent = 'شارك هذه الحقيقة عن ' + country.nameAr;
+
+  // reveal sequence
+  _timers.push(setTimeout(()=>{
+    panel.classList.add('visible');
+    sfxWhoosh();
+  }, 420));
+
+  let delay = 640;
+  hEls.forEach((el,i)=>{
+    _timers.push(setTimeout(()=>{
+      el.classList.add('in');
+      if(el.classList.contains('subline')) sfxSoft(); else sfxWhoosh();
+    }, delay));
+    delay += el.classList.contains('subline') ? 520 : 380;
+  });
+
+  // divider
+  _timers.push(setTimeout(()=>{
+    divider.style.width = Math.min(W*0.5, 180)+'px';
+  }, delay-80));
+
+  // engage box
+  if(C.type==='engage' && C.engage){
+    _timers.push(setTimeout(()=>{ engBox.classList.add('in'); }, delay+100));
+  }
+
+  // bottom strip
+  _timers.push(setTimeout(()=>{ strip.classList.add('visible'); }, delay+220));
+}
+
+// ══════════════════════════════════════════════
+// RECORDING (identical API to original)
+// ══════════════════════════════════════════════
+let _compC=null,_compCtx=null;
+window._recActive=false; window._recordingDone=false; window._recordingBlob=null;
+let _recChunks=[],_recorder=null;
+
+function drawOutlinedText(ctx,text,x,y,fill,stroke,sw){
+  ctx.lineJoin='round';ctx.miterLimit=2;ctx.lineWidth=sw;
+  ctx.strokeStyle=stroke;ctx.strokeText(text,x,y);
+  ctx.fillStyle=fill;ctx.fillText(text,x,y);
+}
+
+function _drawComposite(){
+  if(!_compCtx)return;
+  const c=_compCtx,cW=_compC.width,cH=_compC.height;
+  const fh=Math.floor(cH*0.42);
+  c.clearRect(0,0,cW,cH);
+  // flag zone
+  c.drawImage(canvas,0,0,cW,fh);
+  // dark lower zone
+  c.fillStyle='#060a12'; c.fillRect(0,fh,cW,cH-fh);
+  // overlay gradients
+  const ov=c.createLinearGradient(0,fh*0.55,0,fh);
+  ov.addColorStop(0,'rgba(6,10,18,0)');ov.addColorStop(1,'rgba(6,10,18,1)');
+  c.fillStyle=ov; c.fillRect(0,0,cW,fh+4);
+  // card bg
+  const cardTop=Math.floor(cH*0.38);
+  c.fillStyle='rgba(8,14,26,0.88)';
+  const r=22;
+  c.beginPath();
+  c.moveTo(4*W/100+r,cardTop);
+  c.lineTo(96*W/100-r,cardTop);
+  c.quadraticCurveTo(96*W/100,cardTop,96*W/100,cardTop+r);
+  c.lineTo(96*W/100,cH);c.lineTo(4*W/100,cH);
+  c.lineTo(4*W/100,cardTop+r);
+  c.quadraticCurveTo(4*W/100,cardTop,4*W/100+r,cardTop);
+  c.closePath();c.fill();
+  // accent line
+  const accent = COUNTRIES[_currentCountry]?.accent || '#4af';
+  c.save();c.strokeStyle=accent;c.lineWidth=2;c.shadowColor=accent;c.shadowBlur=10;
+  c.beginPath();c.moveTo(cW*0.12,cardTop);c.lineTo(cW*0.88,cardTop);c.stroke();
+  c.restore();
+
+  // country name
+  c.save();
+  c.font=`700 ${Math.max(18,cW*0.07)}px 'Noto Sans Arabic',sans-serif`;
+  c.textAlign='center';c.textBaseline='middle';
+  drawOutlinedText(c,COUNTRIES[_currentCountry]?.nameAr||'',cW/2,fh*0.82,'#ffffff','rgba(0,0,0,0.8)',Math.max(2,cW*0.06*0.08));
+  c.restore();
+
+  // type badge text
+  c.save();
+  c.font=`700 ${Math.max(9,cW*0.022)}px 'Noto Sans Arabic',sans-serif`;
+  c.textAlign='center';c.textBaseline='middle';
+  const typeInfo2=TYPES[CONTENT.find(x=>x.cat===_currentCountry)?.type]||TYPES.fact;
+  drawOutlinedText(c,document.getElementById('typeLabel').textContent,cW/2,cardTop+Math.max(16,cW*0.048),accent,'rgba(0,0,0,0.7)',1.5);
+  c.restore();
+
+  // headlines
+  document.querySelectorAll('.hline,.subline').forEach(el=>{
+    const op=parseFloat(window.getComputedStyle(el).opacity)||0;
+    if(op<0.01)return;
+    const rr=el.getBoundingClientRect();
+    if(rr.width<1||rr.height<1)return;
+    const fs=parseFloat(window.getComputedStyle(el).fontSize)||28;
+    c.save();c.globalAlpha=op;c.textAlign='center';c.textBaseline='middle';
+    const cx=rr.left+rr.width/2,cy=rr.top+rr.height/2;
+    if(el.classList.contains('subline')){
+      c.font=`400 ${fs}px 'Noto Sans Arabic',sans-serif`;
+      drawOutlinedText(c,el.textContent,cx,cy,'rgba(210,225,255,0.88)','rgba(0,0,0,0.7)',Math.max(1.2,fs*0.06));
+    } else {
+      c.font=`700 ${fs}px 'Noto Naskh Arabic',serif`;
+      c.shadowColor='rgba(0,0,0,0.6)';c.shadowBlur=14;
+      drawOutlinedText(c,el.textContent,cx,cy,'#ffffff','rgba(0,0,0,0.7)',Math.max(2,fs*0.08));
+    }
+    c.restore();
+  });
+
+  // CTA
+  c.save();c.globalAlpha=0.6;
+  c.font=`600 ${Math.max(9,cW*0.022)}px 'Noto Sans Arabic',sans-serif`;
+  c.textAlign='center';c.textBaseline='middle';
+  drawOutlinedText(c,document.getElementById('ctaText').textContent,cW/2,cH-cH*0.06,'rgba(180,200,255,0.7)','rgba(0,0,0,0.7)',1.5);
+  c.restore();
+}
+
+window.startRecording=function(fps){
+  fps=fps||30;
+  try{
+    AC.resume().catch(()=>{});
+    _compC=document.createElement('canvas');_compC.width=W;_compC.height=H;
+    _compCtx=_compC.getContext('2d');
+    window._recActive=true;window._recordingDone=false;_recChunks=[];
+    _recDest=AC.createMediaStreamDestination();master.connect(_recDest);
+    const vs=_compC.captureStream(fps);
+    const combined=new MediaStream([...vs.getVideoTracks(),..._recDest.stream.getAudioTracks()]);
+    const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(m=>MediaRecorder.isTypeSupported(m))||'video/webm';
+    _recorder=new MediaRecorder(combined,{mimeType:mime,videoBitsPerSecond:8000000,audioBitsPerSecond:192000});
+    _recorder.ondataavailable=e=>{if(e.data&&e.data.size>0)_recChunks.push(e.data);};
+    _recorder.onstop=()=>{
+      window._recActive=false;
+      try{master.disconnect(_recDest);}catch(e){}
+      window._recordingBlob=new Blob(_recChunks,{type:'video/webm'});
+      window._recordingDone=true;
+    };
+    _recorder.start(200);console.log('Recording started');
+  }catch(e){console.error('startRecording error:',e);}
+};
+window.stopRecording=function(){try{if(_recorder&&_recorder.state!=='inactive')_recorder.stop();}catch(e){}};
+window.forceFinalize=function(){
+  window._recActive=false;
+  if(_recChunks.length>0&&!window._recordingDone){
+    window._recordingBlob=new Blob(_recChunks,{type:'video/webm'});window._recordingDone=true;
+  }
+};
+window.getRecordingBase64=function(){
+  return new Promise((resolve,reject)=>{
+    const chk=()=>{
+      if(!window._recordingBlob){setTimeout(chk,100);return;}
+      const r=new FileReader();
+      r.onloadend=()=>resolve(r.result.split(',')[1]);
+      r.onerror=reject;r.readAsDataURL(window._recordingBlob);
+    };chk();
+  });
+};
+
+// ── LOOP (only needed for composite recording) ──
+(function loop(){
+  requestAnimationFrame(loop);
+  if(window._recActive) _drawComposite();
+})();
+
+// ── BOOT ──
+window.addEventListener('resize',()=>{ resizeCanvas(); paintFlag(_currentCountry); });
+document.body.addEventListener('click',showScene);
+document.body.addEventListener('touchend',e=>{e.preventDefault();showScene();},{passive:false});
+setAccent(COUNTRIES.egypt.accent);
+showScene();
+window.AC=AC; window.master=master;
+
+})();
+</script>
+</body>
+</html>
