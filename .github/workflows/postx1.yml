@@ -1,4 +1,4 @@
-name: 🧠 Post Mind & Soul Reel to Facebook
+name: Mind and Soul Reel
 
 on:
   workflow_dispatch:
@@ -17,13 +17,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /var/cache/apt/archives
-          key: apt-ubuntu22-mind-v1
+          key: apt-ubuntu22-mind-v2
 
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y \
-            xvfb chromium-browser libnss3 libgbm1 libasound2 ffmpeg pulseaudio
+          sudo apt-get install -y xvfb chromium-browser libnss3 libgbm1 libasound2 ffmpeg pulseaudio
 
       - name: Cache pip and ChromeDriver
         uses: actions/cache@v4
@@ -31,7 +30,7 @@ jobs:
           path: |
             ~/.cache/pip
             ~/.wdm
-          key: pip-wdm-mind-v1
+          key: pip-wdm-mind-v2
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -51,9 +50,9 @@ jobs:
           echo "DISPLAY=:99" >> $GITHUB_ENV
           sleep 3
 
-      - name: Record and Post to Facebook
+      - name: Record and Post
+        shell: python
         run: |
-          python3 << 'PYEOF'
           import os, time, subprocess, random, requests, base64, glob
           from selenium import webdriver
           from selenium.webdriver.chrome.options import Options
@@ -218,16 +217,16 @@ jobs:
                   print("Music mix failed, continuing without it.")
 
           captions = [
-              "شيء يستحق التوقف عنده 💙",
-              "لأن بعض الأفكار تحتاج أن تُقال",
-              "اقرأها بهدوء",
-              "لمن يحتاجها اليوم",
-              "أحياناً جملة واحدة تكفي",
-              "لمن يحمل أكثر مما يُظهر",
-              "بعض الأيام تحتاج هذا",
-              "توقف لحظة واقرأ",
-              "لأن الداخل يحتاج من يسمعه أحياناً 💙",
-              "أفكار لمن يفكر كثيراً",
+              "شيء يستحق التوقف عنده 💙 #علم_النفس #صحة_نفسية #تطوير_الذات #أفكار",
+              "لمن يحتاجها اليوم 💙 #صحة_نفسية #علم_النفس #تطوير_الذات #راحة_البال",
+              "اقرأها بهدوء ✨ #علم_النفس #أفكار #تطوير_الذات #صحة_نفسية",
+              "لأن بعض الأفكار تحتاج أن تُقال 💙 #صحة_نفسية #علم_النفس #تطوير_الذات",
+              "لمن يحمل أكثر مما يُظهر 🤍 #صحة_نفسية #راحة_البال #علم_النفس #أفكار",
+              "توقف لحظة واقرأ ✨ #تطوير_الذات #علم_النفس #صحة_نفسية #أفكار",
+              "أفكار لمن يفكر كثيراً 💙 #علم_النفس #تطوير_الذات #صحة_نفسية #راحة_البال",
+              "بعض الأيام تحتاج هذا 🤍 #صحة_نفسية #علم_النفس #أفكار #تطوير_الذات",
+              "لأن الداخل يحتاج من يسمعه أحياناً 💙 #صحة_نفسية #راحة_البال #علم_النفس",
+              "أحياناً جملة واحدة تكفي ✨ #علم_النفس #أفكار #صحة_نفسية #تطوير_الذات",
           ]
           description = random.choice(captions)
 
@@ -242,15 +241,14 @@ jobs:
           print(f"Facebook response: {response.status_code}")
           print(response.text)
           if response.status_code == 200:
-              print(f"✅ Posted! Video ID: {response.json().get('id')}")
+              print(f"Posted! Video ID: {response.json().get('id')}")
           else:
               raise RuntimeError(f"Post failed: {response.text}")
 
           os.remove(mp4_file)
           print("Done!")
-          PYEOF
         env:
-          TS:            ${{ env.TS }}
-          DISPLAY:       ":99"
+          TS: ${{ env.TS }}
+          DISPLAY: ":99"
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          FB_PAGE_ID:    ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
