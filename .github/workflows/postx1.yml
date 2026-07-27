@@ -3,7 +3,7 @@ name: Mind and Soul Reel
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 13 * * *"
+    - cron: "0 17 * * *"
 
 jobs:
   post:
@@ -106,15 +106,20 @@ jobs:
           print(f"Loading file://{html_path}")
           driver.get(f"file://{html_path}")
 
-          print("Waiting for scene to load (3s)...")
+          print("Waiting for page to load (3s)...")
           time.sleep(3)
 
-          print("Starting recording...")
+          print("Triggering scene and resuming audio...")
           driver.execute_script("""
               document.body.click();
               if(typeof AC !== 'undefined') AC.resume();
-              window.startRecording(30);
           """)
+
+          print("Waiting for text to fully animate in (4s)...")
+          time.sleep(4)
+
+          print("Starting recording...")
+          driver.execute_script("window.startRecording(30);")
 
           print("Recording 8 seconds...")
           time.sleep(8)
