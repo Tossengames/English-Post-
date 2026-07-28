@@ -5,236 +5,45 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
 <title>لحظة</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700&family=Noto+Sans+Arabic:wght@200;300;400;600;700;800&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
 html,body{width:100%;height:100%;overflow:hidden;background:#000;}
-#bg{position:fixed;inset:0;width:100%;height:100%;z-index:0;}
-
-/* ── per-theme overrides via body class ── */
-#stage{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 7vw;}
-
-/* PILLAR LABEL */
-#pillar{
-  position:fixed;z-index:12;
-  font-family:'Noto Sans Arabic',sans-serif;
-  font-weight:700;
-  letter-spacing:0.22em;
-  text-transform:uppercase;
-  opacity:0;
-  transition:opacity .5s ease,transform .5s ease;
-  pointer-events:none;
-}
-#pillar.in{opacity:1;}
-
-/* HEADLINE */
-#headline{
-  font-family:'Noto Naskh Arabic',serif;
-  font-weight:700;
-  text-align:center;
-  width:100%;
-  white-space:normal;word-break:break-word;overflow-wrap:break-word;
-  opacity:0;
-  pointer-events:none;
-}
-#headline.in{opacity:1;}
-
-/* DIVIDER */
-#divider{width:0;flex-shrink:0;transition:width .9s cubic-bezier(.22,1,.36,1);}
-
-/* BODY */
-#body{
-  font-family:'Noto Sans Arabic',sans-serif;
-  font-weight:300;
-  text-align:center;
-  width:100%;
-  white-space:normal;word-break:break-word;overflow-wrap:break-word;
-  opacity:0;
-  pointer-events:none;
-  line-height:1.9;
-}
-#body.in{opacity:1;}
-
-/* CTA */
-#cta{
-  position:fixed;bottom:0;left:0;right:0;
-  display:flex;align-items:center;justify-content:center;gap:1em;
-  z-index:12;
-  padding-bottom:8vw;
-  opacity:0;transition:opacity .6s ease;
-}
-#cta.in{opacity:1;}
-#ctaTxt{
-  font-family:'Noto Sans Arabic',sans-serif;
-  font-weight:600;
-  font-size:clamp(0.5rem,2.3vw,0.68rem);
-  letter-spacing:0.12em;
-}
-#ctaDot{width:5px;height:5px;border-radius:50%;animation:breathe 2s ease-in-out infinite;}
-@keyframes breathe{0%,100%{opacity:.35;transform:scale(1);}50%{opacity:1;transform:scale(1.6);}}
-
-/* ── THEME: AURORA (dark) ── */
-body.aurora #pillar{top:10vw;left:50%;transform:translateX(-50%) translateY(-8px);font-size:clamp(.44rem,2vw,.6rem);color:rgba(120,255,180,.7);}
-body.aurora #pillar.in{transform:translateX(-50%) translateY(0);}
-body.aurora #headline{font-size:clamp(2rem,9.5vw,3.2rem);color:#e0fff4;text-shadow:0 0 40px rgba(80,255,160,.3),0 2px 20px rgba(0,0,0,.6);line-height:1.4;margin-bottom:4vw;}
-body.aurora #headline.in{animation:auroraHL .8s ease-out;}
-@keyframes auroraHL{0%{opacity:0;transform:translateY(30px);}100%{opacity:1;transform:translateY(0);}}
-body.aurora #divider{height:1px;background:linear-gradient(90deg,transparent,rgba(120,255,180,.6),transparent);margin:0 auto 4vw;}
-body.aurora #body{font-size:clamp(.95rem,4.5vw,1.3rem);color:rgba(200,255,230,.82);}
-body.aurora #body.in{animation:auroraBody .7s ease-out;}
-@keyframes auroraBody{0%{opacity:0;transform:translateY(18px);}100%{opacity:1;transform:translateY(0);}}
-body.aurora #ctaTxt{color:rgba(120,255,180,.7);}
-body.aurora #ctaDot{background:rgba(120,255,180,.8);}
-
-/* ── THEME: EMBER (dark) ── */
-body.ember #pillar{top:10vw;right:7vw;transform:translateY(-8px);font-size:clamp(.44rem,2vw,.6rem);color:rgba(255,160,60,.8);}
-body.ember #pillar.in{transform:translateY(0);}
-body.ember #headline{font-size:clamp(2.2rem,10vw,3.5rem);color:#fff4e0;text-shadow:0 0 50px rgba(255,120,20,.4),0 2px 20px rgba(0,0,0,.7);line-height:1.35;margin-bottom:5vw;}
-body.ember #headline.in{animation:emberHL 1s cubic-bezier(.16,1,.3,1);}
-@keyframes emberHL{0%{opacity:0;transform:scale(.92) translateY(24px);}100%{opacity:1;transform:scale(1) translateY(0);}}
-body.ember #divider{height:2px;background:linear-gradient(90deg,transparent,rgba(255,140,40,.8),transparent);margin:0 auto 5vw;box-shadow:0 0 12px rgba(255,120,20,.5);}
-body.ember #body{font-size:clamp(.9rem,4.3vw,1.25rem);color:rgba(255,220,170,.85);font-weight:400;}
-body.ember #body.in{animation:emberBody .6s ease-out;}
-@keyframes emberBody{0%{opacity:0;transform:translateY(14px);}100%{opacity:1;transform:translateY(0);}}
-body.ember #ctaTxt{color:rgba(255,160,60,.8);}
-body.ember #ctaDot{background:rgba(255,140,40,.9);}
-
-/* ── THEME: COSMOS (dark) ── */
-body.cosmos #pillar{top:10vw;left:50%;transform:translateX(-50%) scale(.8);font-size:clamp(.44rem,2vw,.6rem);color:rgba(180,140,255,.7);letter-spacing:.35em;}
-body.cosmos #pillar.in{transform:translateX(-50%) scale(1);}
-body.cosmos #headline{font-size:clamp(1.8rem,8.5vw,3rem);color:#f0eaff;text-shadow:0 0 60px rgba(140,100,255,.35),0 2px 24px rgba(0,0,0,.7);line-height:1.45;margin-bottom:5vw;font-weight:400;}
-body.cosmos #headline.in{animation:cosmosHL .9s ease-out;}
-@keyframes cosmosHL{0%{opacity:0;filter:blur(8px);}60%{filter:blur(0);}100%{opacity:1;}}
-body.cosmos #divider{height:1px;background:linear-gradient(90deg,transparent,rgba(180,140,255,.5),transparent);margin:0 auto 5vw;}
-body.cosmos #body{font-size:clamp(.88rem,4.2vw,1.2rem);color:rgba(210,200,255,.8);font-weight:200;letter-spacing:.02em;}
-body.cosmos #body.in{animation:cosmosBody .8s ease-out .1s both;}
-@keyframes cosmosBody{0%{opacity:0;filter:blur(4px);}100%{opacity:1;filter:blur(0);}}
-body.cosmos #ctaTxt{color:rgba(180,140,255,.7);}
-body.cosmos #ctaDot{background:rgba(180,140,255,.8);}
-
-/* ── THEME: NEON GRID (dark) ── */
-body.neongrid #pillar{bottom:22vw;left:50%;transform:translateX(-50%) translateY(8px);font-size:clamp(.44rem,2vw,.6rem);color:rgba(0,240,200,.9);text-shadow:0 0 10px rgba(0,240,200,.8);}
-body.neongrid #pillar.in{transform:translateX(-50%) translateY(0);}
-body.neongrid #headline{font-size:clamp(2rem,9vw,3.2rem);color:#e0fff8;text-shadow:0 0 30px rgba(0,240,200,.5),0 0 60px rgba(0,200,160,.2);line-height:1.35;margin-bottom:4vw;font-family:'Noto Sans Arabic',sans-serif;font-weight:800;}
-body.neongrid #headline.in{animation:neonHL .5s steps(1) both;}
-@keyframes neonHL{
-  0%{opacity:0;}10%{opacity:1;text-shadow:0 0 30px rgba(0,240,200,.9),0 0 2px #fff;}
-  15%{opacity:.2;}20%{opacity:1;}25%{opacity:.4;}30%{opacity:1;text-shadow:0 0 30px rgba(0,240,200,.5);}
-  100%{opacity:1;}
-}
-body.neongrid #divider{height:2px;background:rgba(0,240,200,.7);box-shadow:0 0 14px rgba(0,240,200,.8);margin:0 auto 4vw;}
-body.neongrid #body{font-size:clamp(.9rem,4.3vw,1.25rem);color:rgba(160,255,230,.82);font-family:'Noto Sans Arabic',sans-serif;font-weight:400;}
-body.neongrid #body.in{animation:neonBody .4s ease-out;}
-@keyframes neonBody{0%{opacity:0;transform:translateX(-10px);}100%{opacity:1;transform:translateX(0);}}
-body.neongrid #ctaTxt{color:rgba(0,240,200,.8);text-shadow:0 0 8px rgba(0,240,200,.5);}
-body.neongrid #ctaDot{background:rgba(0,240,200,.9);box-shadow:0 0 8px rgba(0,240,200,.8);}
-
-/* ── THEME: PRISM (dark) ── */
-body.prism #pillar{top:10vw;left:7vw;transform:rotate(-90deg) translateX(-50%);transform-origin:left center;font-size:clamp(.4rem,1.8vw,.55rem);color:rgba(255,220,80,.8);}
-body.prism #pillar.in{opacity:1;}
-body.prism #headline{font-size:clamp(2rem,9vw,3.2rem);color:#fff8e8;text-shadow:0 0 40px rgba(255,200,60,.3),0 2px 20px rgba(0,0,0,.7);line-height:1.4;margin-bottom:4vw;}
-body.prism #headline.in{animation:prismHL .7s ease-out;}
-@keyframes prismHL{0%{opacity:0;transform:skewX(4deg) translateY(20px);}100%{opacity:1;transform:skewX(0) translateY(0);}}
-body.prism #divider{height:3px;background:linear-gradient(90deg,#ff4060,#ffb020,#40ff80,#40c0ff,#a040ff);margin:0 auto 4vw;border-radius:2px;}
-body.prism #body{font-size:clamp(.9rem,4.3vw,1.25rem);color:rgba(255,240,200,.84);}
-body.prism #body.in{animation:prismBody .6s ease-out;}
-@keyframes prismBody{0%{opacity:0;transform:skewX(-2deg);}100%{opacity:1;transform:skewX(0);}}
-body.prism #ctaTxt{color:rgba(255,220,80,.8);}
-body.prism #ctaDot{background:rgba(255,200,60,.9);}
-
-/* ── THEME: SAGE (bright) ── */
-body.sage #pillar{top:10vw;left:50%;transform:translateX(-50%) translateY(-6px);font-size:clamp(.44rem,2vw,.6rem);color:rgba(60,110,80,.7);}
-body.sage #pillar.in{transform:translateX(-50%) translateY(0);}
-body.sage #headline{font-size:clamp(2rem,9vw,3.1rem);color:#0e2018;text-shadow:0 1px 10px rgba(60,110,80,.15);line-height:1.45;margin-bottom:4vw;}
-body.sage #headline.in{animation:sageHL .8s cubic-bezier(.16,1,.3,1);}
-@keyframes sageHL{0%{opacity:0;transform:translateY(22px);}100%{opacity:1;transform:translateY(0);}}
-body.sage #divider{height:1px;background:linear-gradient(90deg,transparent,rgba(60,110,80,.5),transparent);margin:0 auto 4vw;}
-body.sage #body{font-size:clamp(.95rem,4.5vw,1.3rem);color:rgba(20,60,35,.72);}
-body.sage #body.in{animation:sageBody .7s ease-out;}
-@keyframes sageBody{0%{opacity:0;transform:translateY(14px);}100%{opacity:1;transform:translateY(0);}}
-body.sage #ctaTxt{color:rgba(60,110,80,.8);}
-body.sage #ctaDot{background:rgba(60,110,80,.7);}
-
-/* ── THEME: BLUSH (bright) ── */
-body.blush #pillar{top:10vw;right:7vw;transform:translateY(-6px);font-size:clamp(.44rem,2vw,.6rem);color:rgba(160,60,60,.6);}
-body.blush #pillar.in{transform:translateY(0);}
-body.blush #headline{font-size:clamp(2rem,9.5vw,3.3rem);color:#1e0808;text-shadow:0 1px 12px rgba(180,60,60,.12);line-height:1.4;margin-bottom:5vw;}
-body.blush #headline.in{animation:blushHL .9s cubic-bezier(.16,1,.3,1);}
-@keyframes blushHL{0%{opacity:0;transform:scale(.95) translateY(18px);}100%{opacity:1;transform:scale(1) translateY(0);}}
-body.blush #divider{height:1.5px;background:linear-gradient(90deg,transparent,rgba(180,80,80,.5),transparent);margin:0 auto 5vw;}
-body.blush #body{font-size:clamp(.95rem,4.5vw,1.3rem);color:rgba(50,15,15,.7);}
-body.blush #body.in{animation:blushBody .7s ease-out;}
-@keyframes blushBody{0%{opacity:0;transform:translateY(12px);}100%{opacity:1;transform:translateY(0);}}
-body.blush #ctaTxt{color:rgba(160,60,60,.7);}
-body.blush #ctaDot{background:rgba(180,60,60,.8);}
-
-/* ── THEME: SLATE (bright) ── */
-body.slate #pillar{top:10vw;left:7vw;transform:translateY(-6px);font-size:clamp(.44rem,2vw,.6rem);color:rgba(50,70,130,.7);}
-body.slate #pillar.in{transform:translateY(0);}
-body.slate #headline{font-size:clamp(1.9rem,9vw,3rem);color:#080e24;text-shadow:none;line-height:1.45;margin-bottom:5vw;font-weight:700;}
-body.slate #headline.in{animation:slateHL .7s cubic-bezier(.22,1,.36,1);}
-@keyframes slateHL{0%{opacity:0;transform:translateX(20px);}100%{opacity:1;transform:translateX(0);}}
-body.slate #divider{height:2px;background:rgba(50,70,130,.3);margin:0 auto 5vw;border-radius:1px;}
-body.slate #body{font-size:clamp(.95rem,4.5vw,1.3rem);color:rgba(20,30,70,.68);font-weight:400;}
-body.slate #body.in{animation:slateBody .65s ease-out;}
-@keyframes slateBody{0%{opacity:0;transform:translateX(14px);}100%{opacity:1;transform:translateX(0);}}
-body.slate #ctaTxt{color:rgba(50,70,130,.7);}
-body.slate #ctaDot{background:rgba(50,70,130,.8);}
-
-/* ── THEME: AMBER (bright-warm) ── */
-body.amber #pillar{top:10vw;left:50%;transform:translateX(-50%) translateY(-6px);font-size:clamp(.44rem,2vw,.6rem);color:rgba(120,70,10,.7);}
-body.amber #pillar.in{transform:translateX(-50%) translateY(0);}
-body.amber #headline{font-size:clamp(2rem,9.5vw,3.3rem);color:#1a0e00;line-height:1.4;margin-bottom:5vw;text-shadow:0 1px 14px rgba(180,100,10,.15);}
-body.amber #headline.in{animation:amberHL .8s ease-out;}
-@keyframes amberHL{0%{opacity:0;transform:translateY(26px) scale(.97);}100%{opacity:1;transform:translateY(0) scale(1);}}
-body.amber #divider{height:2px;background:linear-gradient(90deg,transparent,rgba(200,130,20,.7),transparent);margin:0 auto 5vw;}
-body.amber #body{font-size:clamp(.95rem,4.5vw,1.3rem);color:rgba(60,35,5,.72);}
-body.amber #body.in{animation:amberBody .7s ease-out;}
-@keyframes amberBody{0%{opacity:0;transform:translateY(12px);}100%{opacity:1;transform:translateY(0);}}
-body.amber #ctaTxt{color:rgba(140,80,10,.75);}
-body.amber #ctaDot{background:rgba(200,130,20,.8);}
-
-/* ── THEME: HAZE (dark-warm) ── */
-body.haze #pillar{top:10vw;left:50%;transform:translateX(-50%) translateY(-6px);font-size:clamp(.44rem,2vw,.6rem);color:rgba(220,160,80,.7);}
-body.haze #pillar.in{transform:translateX(-50%) translateY(0);}
-body.haze #headline{font-size:clamp(2rem,9vw,3.1rem);color:#fff0d8;line-height:1.45;margin-bottom:5vw;text-shadow:0 2px 30px rgba(180,80,10,.3),0 2px 20px rgba(0,0,0,.5);}
-body.haze #headline.in{animation:hazeHL .9s ease-out;}
-@keyframes hazeHL{0%{opacity:0;filter:blur(6px);transform:translateY(16px);}70%{filter:blur(0);}100%{opacity:1;transform:translateY(0);}}
-body.haze #divider{height:1px;background:linear-gradient(90deg,transparent,rgba(220,160,80,.55),transparent);margin:0 auto 5vw;}
-body.haze #body{font-size:clamp(.95rem,4.5vw,1.3rem);color:rgba(255,225,170,.8);}
-body.haze #body.in{animation:hazeBody .8s ease-out;}
-@keyframes hazeBody{0%{opacity:0;filter:blur(3px);}100%{opacity:1;filter:blur(0);}}
-body.haze #ctaTxt{color:rgba(220,160,80,.7);}
-body.haze #ctaDot{background:rgba(220,160,80,.8);}
+canvas{position:fixed;inset:0;width:100%;height:100%;}
+#main{position:fixed;inset:0;z-index:1;}
 </style>
 </head>
 <body>
-<canvas id="bg"></canvas>
-<div id="pillar"></div>
-<div id="stage">
-  <div id="headline"></div>
-  <div id="divider"></div>
-  <div id="body"></div>
-</div>
-<div id="cta"><div id="ctaTxt"></div><div id="ctaDot"></div></div>
-
+<canvas id="main"></canvas>
 <script>
 (function(){
 'use strict';
 
-// ══════════════════════════════════════════════
-// THEMES
-// ══════════════════════════════════════════════
-const THEMES=[
+const canvas = document.getElementById('main');
+const ctx = canvas.getContext('2d');
+let W = window.innerWidth, H = window.innerHeight;
+canvas.width = W; canvas.height = H;
+
+// ── font loader ──
+const FONT_URL = 'https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700&family=Noto+Sans+Arabic:wght@300;400;700&display=swap';
+const link = document.createElement('link');
+link.rel = 'stylesheet'; link.href = FONT_URL;
+document.head.appendChild(link);
+
+// ══════════════════════════════════════
+// THEMES — 10 distinct, 5 dark 5 bright
+// ══════════════════════════════════════
+const THEMES = [
+  // 1. AURORA — dark, green/purple waves
   {
-    id:'aurora',dark:true,
+    id:'aurora', dark:true,
+    ac:[120,255,180], headCol:'#e0fff4', bodyCol:'rgba(200,255,230,0.88)',
     init(w,h){},
-    draw(ctx,w,h,t){
-      ctx.fillStyle='#020d0a';ctx.fillRect(0,0,w,h);
+    drawBg(ctx,w,h,t){
+      ctx.fillStyle='#020d0a'; ctx.fillRect(0,0,w,h);
       [[w*.5,h*.22,[80,240,160],.18,.18,0],[w*.4,h*.45,[40,180,220],.1,.13,1.2],[w*.6,h*.6,[160,80,240],.07,.22,2.4]].forEach(([ox,oy,col,amp,spd,ph])=>{
         const cy=oy+Math.sin(t*spd+ph)*h*amp;
         const g=ctx.createRadialGradient(ox,cy,0,ox,cy,w*.72);
         const a=.18+Math.sin(t*.2+ph)*.07;
-        g.addColorStop(0,`rgba(${col},${a})`);g.addColorStop(.5,`rgba(${col},${a*.3})`);g.addColorStop(1,'rgba(0,0,0,0)');
+        g.addColorStop(0,`rgba(${col},${ a})`);g.addColorStop(.5,`rgba(${col},${a*.3})`);g.addColorStop(1,'rgba(0,0,0,0)');
         ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
       });
       for(let i=0;i<9;i++){
@@ -248,14 +57,16 @@ const THEMES=[
       }
     }
   },
+  // 2. EMBER — dark, fire particles
   {
-    id:'ember',dark:true,
+    id:'ember', dark:true,
+    ac:[255,160,60], headCol:'#fff4e0', bodyCol:'rgba(255,220,170,0.88)',
     _p:[],
     init(w,h){
       this._p=[];
-      for(let i=0;i<65;i++)this._p.push({x:Math.random()*w,y:h+Math.random()*h*.3,vx:(Math.random()-.5)*.5,vy:-(0.6+Math.random()*2),life:Math.random(),size:1+Math.random()*3.5,warm:Math.random()<.55});
+      for(let i=0;i<65;i++) this._p.push({x:Math.random()*w,y:h+Math.random()*h*.3,vx:(Math.random()-.5)*.5,vy:-(0.6+Math.random()*2),life:Math.random(),size:1+Math.random()*3.5,warm:Math.random()<.55});
     },
-    draw(ctx,w,h,t){
+    drawBg(ctx,w,h,t){
       ctx.fillStyle='#0e0500';ctx.fillRect(0,0,w,h);
       const bg=ctx.createRadialGradient(w/2,h,0,w/2,h,w*.85);
       bg.addColorStop(0,'rgba(180,55,0,.38)');bg.addColorStop(.4,'rgba(100,25,0,.14)');bg.addColorStop(1,'rgba(0,0,0,0)');
@@ -270,16 +81,18 @@ const THEMES=[
       });
     }
   },
+  // 3. COSMOS — dark, stars + nebula
   {
-    id:'cosmos',dark:true,
+    id:'cosmos', dark:true,
+    ac:[180,140,255], headCol:'#f0eaff', bodyCol:'rgba(210,200,255,0.85)',
     _s:[],
     init(w,h){
       this._s=[];
-      for(let i=0;i<200;i++)this._s.push({x:Math.random()*w,y:Math.random()*h,r:.3+Math.random()*1.5,ph:Math.random()*Math.PI*2,spd:.4+Math.random()*.8,col:i%3===0?'255,240,220':i%3===1?'200,210,255':'255,255,255'});
+      for(let i=0;i<200;i++) this._s.push({x:Math.random()*w,y:Math.random()*h,r:.3+Math.random()*1.5,ph:Math.random()*Math.PI*2,spd:.4+Math.random()*.8,col:i%3===0?'255,240,220':i%3===1?'200,210,255':'255,255,255'});
     },
-    draw(ctx,w,h,t){
+    drawBg(ctx,w,h,t){
       ctx.fillStyle='#020006';ctx.fillRect(0,0,w,h);
-      [[w*.3,h*.3,80,120,60,.09],[w*.7,h*.55,120,60,140,.07],[w*.5,h*.75,40,160,200,.06],[w*.2,h*.6,180,80,60,.05]].forEach(([x,y,r,g2,b,a])=>{
+      [[w*.3,h*.3,80,120,60,.09],[w*.7,h*.55,120,60,140,.07],[w*.5,h*.75,40,160,200,.06]].forEach(([x,y,r,g2,b,a])=>{
         const ng=ctx.createRadialGradient(x,y,0,x,y,w*.5);
         ng.addColorStop(0,`rgba(${r},${g2},${b},${a})`);ng.addColorStop(1,'rgba(0,0,0,0)');
         ctx.fillStyle=ng;ctx.fillRect(0,0,w,h);
@@ -292,10 +105,12 @@ const THEMES=[
       ctx.globalAlpha=1;
     }
   },
+  // 4. NEON GRID — dark, perspective grid
   {
-    id:'neongrid',dark:true,
+    id:'neongrid', dark:true,
+    ac:[0,240,200], headCol:'#e0fff8', bodyCol:'rgba(160,255,230,0.85)',
     init(w,h){},
-    draw(ctx,w,h,t){
+    drawBg(ctx,w,h,t){
       ctx.fillStyle='#020810';ctx.fillRect(0,0,w,h);
       const hz=h*.52;
       for(let i=0;i<20;i++){
@@ -307,8 +122,7 @@ const THEMES=[
         ctx.beginPath();ctx.moveTo(w/2-sp,y);ctx.lineTo(w/2+sp,y);ctx.stroke();
       }
       for(let i=-9;i<=9;i++){
-        const fi=i+(t*.5%1);const ang=fi/10;
-        const ex=w/2+ang*w*.8;const a=.14-Math.abs(ang)*.1;
+        const ang=i/10;const ex=w/2+ang*w*.8;const a=.14-Math.abs(ang)*.1;
         if(a<.01)continue;
         ctx.strokeStyle=`rgba(0,200,160,${a})`;ctx.lineWidth=.9;
         ctx.beginPath();ctx.moveTo(w/2,hz);ctx.lineTo(ex,h+20);ctx.stroke();
@@ -324,10 +138,12 @@ const THEMES=[
       });
     }
   },
+  // 5. PRISM — dark, rotating colour beams
   {
-    id:'prism',dark:true,
+    id:'prism', dark:true,
+    ac:[255,200,80], headCol:'#fff8e8', bodyCol:'rgba(255,240,200,0.86)',
     init(w,h){},
-    draw(ctx,w,h,t){
+    drawBg(ctx,w,h,t){
       ctx.fillStyle='#060408';ctx.fillRect(0,0,w,h);
       const cx=w/2,cy=h*.35;
       [[t*.07+0,[255,50,80]],[t*.07+.42,[255,160,0]],[t*.07+.8,[180,255,60]],[t*.07+1.18,[50,200,255]],[t*.07+1.6,[120,60,255]],[t*.07+2.0,[255,50,200]]].forEach(([ang,[r,g2,b]])=>{
@@ -344,37 +160,36 @@ const THEMES=[
       ctx.fillStyle=src;ctx.fillRect(0,0,w,h);
     }
   },
-  // BRIGHT THEMES
+  // 6. SAGE — bright, soft green
   {
-    id:'sage',dark:false,
+    id:'sage', dark:false,
+    ac:[60,110,80], headCol:'#0e2018', bodyCol:'rgba(20,60,35,0.75)',
     _blobs:[],
     init(w,h){
       this._blobs=[];
-      for(let i=0;i<5;i++)this._blobs.push({x:Math.random()*w,y:Math.random()*h,r:w*(.3+Math.random()*.3),spd:.04+Math.random()*.06,ph:Math.random()*Math.PI*2,col:i%2===0?[80,150,100]:[60,120,80]});
+      for(let i=0;i<5;i++) this._blobs.push({x:Math.random()*w,y:Math.random()*h,r:w*(.3+Math.random()*.3),spd:.04+Math.random()*.06,ph:Math.random()*Math.PI*2,col:i%2===0?[80,150,100]:[60,120,80]});
     },
-    draw(ctx,w,h,t){
+    drawBg(ctx,w,h,t){
       ctx.fillStyle='#eef4ee';ctx.fillRect(0,0,w,h);
       this._blobs.forEach(b=>{
-        const ox=b.x+Math.sin(t*b.spd+b.ph)*w*.06;
-        const oy=b.y+Math.cos(t*b.spd*.8+b.ph)*h*.04;
+        const ox=b.x+Math.sin(t*b.spd+b.ph)*w*.06,oy=b.y+Math.cos(t*b.spd*.8+b.ph)*h*.04;
         const a=.06+Math.sin(t*b.spd+b.ph)*.025;
         const g=ctx.createRadialGradient(ox,oy,0,ox,oy,b.r);
         g.addColorStop(0,`rgba(${b.col},${a})`);g.addColorStop(1,'rgba(220,235,220,0)');
         ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
       });
-      const vg=ctx.createRadialGradient(w/2,h/2,h*.05,w/2,h/2,h*.75);
-      vg.addColorStop(0,'rgba(230,245,230,0)');vg.addColorStop(1,'rgba(180,210,185,.14)');
-      ctx.fillStyle=vg;ctx.fillRect(0,0,w,h);
     }
   },
+  // 7. BLUSH — bright, rose/pink
   {
-    id:'blush',dark:false,
+    id:'blush', dark:false,
+    ac:[180,60,80], headCol:'#1e0808', bodyCol:'rgba(50,15,15,0.72)',
     init(w,h){},
-    draw(ctx,w,h,t){
+    drawBg(ctx,w,h,t){
       const g=ctx.createLinearGradient(0,0,w,h);
       g.addColorStop(0,'#fdf0f0');g.addColorStop(.5,'#f8e8e8');g.addColorStop(1,'#fce8f0');
       ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
-      [[w*.2,h*.2,200,120,130,.08],[w*.8,h*.35,220,100,140,.06],[w*.5,h*.7,180,80,100,.07],[w*.3,h*.6,240,160,160,.05]].forEach(([x,y,r,g2,b,a],i)=>{
+      [[w*.2,h*.2,200,120,130,.08],[w*.8,h*.35,220,100,140,.06],[w*.5,h*.7,180,80,100,.07]].forEach(([x,y,r,g2,b,a],i)=>{
         const ox=x+Math.sin(t*.12+i)*w*.04,oy=y+Math.cos(t*.1+i)*h*.03;
         const rg=ctx.createRadialGradient(ox,oy,0,ox,oy,w*.38);
         rg.addColorStop(0,`rgba(${r},${g2},${b},${a})`);rg.addColorStop(1,'rgba(250,235,235,0)');
@@ -382,10 +197,12 @@ const THEMES=[
       });
     }
   },
+  // 8. SLATE — bright, cool blue-grey
   {
-    id:'slate',dark:false,
+    id:'slate', dark:false,
+    ac:[50,70,140], headCol:'#080e24', bodyCol:'rgba(20,30,80,0.68)',
     init(w,h){},
-    draw(ctx,w,h,t){
+    drawBg(ctx,w,h,t){
       ctx.fillStyle='#eceef4';ctx.fillRect(0,0,w,h);
       [[w*.5,h*.3,80,100,180,.08],[w*.2,h*.6,60,80,160,.06],[w*.8,h*.5,100,120,200,.07]].forEach(([x,y,r,g2,b,a],i)=>{
         const ox=x+Math.sin(t*.1+i*.8)*w*.05,oy=y+Math.cos(t*.08+i)*h*.04;
@@ -393,46 +210,40 @@ const THEMES=[
         rg.addColorStop(0,`rgba(${r},${g2},${b},${a})`);rg.addColorStop(1,'rgba(230,232,242,0)');
         ctx.fillStyle=rg;ctx.fillRect(0,0,w,h);
       });
-      // subtle horizontal lines
-      for(let i=0;i<6;i++){
-        const y=h*(i/6)+((t*8)%( h/6));
-        ctx.strokeStyle=`rgba(100,120,180,.03)`;ctx.lineWidth=1;
-        ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
-      }
     }
   },
+  // 9. AMBER — bright warm, gold dust
   {
-    id:'amber',dark:false,
+    id:'amber', dark:false,
+    ac:[160,100,10], headCol:'#1a0e00', bodyCol:'rgba(60,35,5,0.74)',
     _dust:[],
     init(w,h){
       this._dust=[];
-      for(let i=0;i<30;i++)this._dust.push({x:Math.random()*w,y:Math.random()*h,r:.8+Math.random()*2,spd:.015+Math.random()*.03,ph:Math.random()*Math.PI*2,a:.04+Math.random()*.08});
+      for(let i=0;i<30;i++) this._dust.push({x:Math.random()*w,y:Math.random()*h,r:.8+Math.random()*2,spd:.015+Math.random()*.03,ph:Math.random()*Math.PI*2,a:.04+Math.random()*.08});
     },
-    draw(ctx,w,h,t){
+    drawBg(ctx,w,h,t){
       const g=ctx.createLinearGradient(0,0,0,h);
       g.addColorStop(0,'#fdf4e0');g.addColorStop(.6,'#faecd0');g.addColorStop(1,'#f5e4c0');
       ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
       this._dust.forEach(d=>{
-        const ox=d.x+Math.sin(t*d.spd+d.ph)*w*.08;
-        const oy=d.y+Math.cos(t*d.spd*.7+d.ph)*h*.06;
+        const ox=d.x+Math.sin(t*d.spd+d.ph)*w*.08,oy=d.y+Math.cos(t*d.spd*.7+d.ph)*h*.06;
         const a=d.a*(0.6+Math.sin(t*d.spd*2+d.ph)*.4);
         ctx.globalAlpha=a;ctx.fillStyle='rgba(180,120,30,1)';
         ctx.beginPath();ctx.arc(ox,oy,d.r,0,Math.PI*2);ctx.fill();
       });
       ctx.globalAlpha=1;
-      const cg=ctx.createRadialGradient(w/2,h*.45,0,w/2,h*.45,w*.55);
-      cg.addColorStop(0,'rgba(220,160,40,.07)');cg.addColorStop(1,'rgba(200,140,20,0)');
-      ctx.fillStyle=cg;ctx.fillRect(0,0,w,h);
     }
   },
+  // 10. HAZE — dark warm, fog layers
   {
-    id:'haze',dark:true,
+    id:'haze', dark:true,
+    ac:[220,160,80], headCol:'#fff0d8', bodyCol:'rgba(255,225,170,0.84)',
     _layers:[],
     init(w,h){
       this._layers=[];
-      for(let i=0;i<7;i++)this._layers.push({x:Math.random()*w,y:h*(.1+i*.12),rw:w*(.5+Math.random()*.6),spd:(Math.random()-.5)*.25,ph:Math.random()*Math.PI*2,a:.035+Math.random()*.055,col:i%2===0?[180,90,20]:[220,130,40]});
+      for(let i=0;i<7;i++) this._layers.push({x:Math.random()*w,y:h*(.1+i*.12),rw:w*(.5+Math.random()*.6),spd:(Math.random()-.5)*.25,ph:Math.random()*Math.PI*2,a:.035+Math.random()*.055,col:i%2===0?[180,90,20]:[220,130,40]});
     },
-    draw(ctx,w,h,t){
+    drawBg(ctx,w,h,t){
       const g=ctx.createLinearGradient(0,0,0,h);
       g.addColorStop(0,'#100600');g.addColorStop(.5,'#1a0c00');g.addColorStop(1,'#0e0500');
       ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
@@ -445,49 +256,38 @@ const THEMES=[
         lg.addColorStop(0,`rgba(${l.col},${a})`);lg.addColorStop(1,'rgba(0,0,0,0)');
         ctx.fillStyle=lg;ctx.fillRect(0,0,w,h);
       });
-      const cg=ctx.createRadialGradient(w/2,h*.42,0,w/2,h*.42,w*.55);
-      cg.addColorStop(0,'rgba(200,90,15,.1)');cg.addColorStop(1,'rgba(0,0,0,0)');
-      ctx.fillStyle=cg;ctx.fillRect(0,0,w,h);
     }
   },
 ];
 
-// ══════════════════════════════════════════════
-// CONTENT — 100 cards across 5 pillars
-// ══════════════════════════════════════════════
-const PILLARS={
-  psych:'علم النفس',
-  comfort:'كل شيء بخير',
-  motivation:'تحفيز',
-  bias:'تحيّزات',
-  relations:'علاقات وتعامل',
-};
+THEMES.forEach(th=>{ if(th.init) th.init(W,H); });
+
+// ══════════════════════════════════════
+// CONTENT
+// ══════════════════════════════════════
+const PILLARS={psych:'علم النفس',comfort:'كل شيء بخير',motivation:'تحفيز',bias:'تحيّزات',relations:'علاقات وتعامل'};
 
 const CARDS=[
-  // ══ علم النفس ══
   {p:'psych',h:'عقلك يُفضّل الكذبة المريحة',b:'الدماغ يُعالج المعلومة التي تتوافق مع معتقداتك أسرع بكثير. لهذا الحجة القوية لا تُقنع دائماً — يجب أن تجعل الشخص يشعر أولاً بالأمان قبل أن تُقدّم المعلومة.'},
   {p:'psych',h:'الذاكرة ليست تسجيلاً',b:'في كل مرة تتذكر شيئاً، عقلك يُعيد بناءه من جديد ويُغيّره قليلاً. الذكريات التي تؤلمك قد تكون مختلفة كثيراً عمّا حدث فعلاً.'},
-  {p:'psych',h:'التعب الذهني حقيقي جسدياً',b:'دراسات بالرنين المغناطيسي أثبتت أن الإرهاق العاطفي يُنتج نفس المواد الكيميائية في الدماغ كالجهد البدني. حين تقول "تعبت من التفكير" فأنت لا تبالغ.'},
+  {p:'psych',h:'التعب الذهني حقيقي جسدياً',b:'دراسات بالرنين المغناطيسي أثبتت أن الإرهاق العاطفي يُنتج نفس المواد الكيميائية كالجهد البدني. حين تقول "تعبت من التفكير" فأنت لا تبالغ.'},
   {p:'psych',h:'القرار الأول غالباً هو الأفضل',b:'زيادة الخيارات لا تجعلنا أكثر سعادة بل أكثر شكاً. الشعور بأنك اخترت غلط يكبر مع كثرة الخيارات. الباحثون يُسمّون هذا "مفارقة الاختيار".'},
-  {p:'psych',h:'النوم يحذف المشاعر السلبية',b:'الجزء المرتبط بالخوف في الدماغ يهدأ تحديداً أثناء النوم العميق. ليالٍ قليلة النوم تجعل الدماغ أكثر استجابة للمؤثرات السلبية بنسبة تصل لأربعين بالمئة.'},
-  {p:'psych',h:'التعاطف مع نفسك يُسرّع التعلّم',b:'دراسة من جامعة تكساس وجدت أن الأشخاص الذين يُعاملون أنفسهم برفق بعد الأخطاء يتعلمون أسرع ويُكررون الأخطاء أقل. العقاب الداخلي لا يُحسّن النتائج.'},
-  {p:'psych',h:'سمّ ما تشعر به بكلمة واحدة',b:'حين تقول "أنا أشعر بالخوف" بدل "أنا خائف"، تُنشّط الجزء المنطقي من دماغك وتُهدئ الجزء العاطفي. الفرق كلمتان فقط — لكن الأثر في الدماغ واضح جداً.'},
+  {p:'psych',h:'النوم يحذف المشاعر السلبية',b:'الجزء المرتبط بالخوف في الدماغ يهدأ تحديداً أثناء النوم العميق. ليالٍ قليلة النوم تجعل الدماغ أكثر استجابة للمؤثرات السلبية بنسبة أربعين بالمئة.'},
+  {p:'psych',h:'التعاطف مع نفسك يُسرّع التعلّم',b:'دراسة من جامعة تكساس: الأشخاص الذين يُعاملون أنفسهم برفق بعد الأخطاء يتعلمون أسرع ويُكررون الأخطاء أقل. العقاب الداخلي لا يُحسّن النتائج.'},
+  {p:'psych',h:'سمّ ما تشعر به بكلمة واحدة',b:'حين تقول "أنا أشعر بالخوف" بدل "أنا خائف"، تُنشّط الجزء المنطقي من دماغك وتُهدئ الجزء العاطفي. الفرق كلمتان فقط — لكن الأثر في الدماغ واضح.'},
   {p:'psych',h:'المماطلة ليست كسلاً',b:'المماطلة في الغالب تجنّب مشاعر غير مريحة مرتبطة بالمهمة: خوف الفشل، الملل، الشك. السؤال الصحيح ليس "لماذا أنا كسول؟" بل "ما الشعور الذي أتجنبه؟"'},
-  {p:'psych',h:'الموسيقى الحزينة تُريحك',b:'يبدو متناقضاً لكنه صحيح. الموسيقى الحزينة تُطلق البرولاكتين وهو هرمون يُقلل الألم النفسي. أحياناً الأغنية التي تُبكيك هي ما يُهدّئك.'},
-  {p:'psych',h:'المشي يُغيّر طريقة تفكيرك',b:'دراسة من ستانفورد: المشي يُحسّن الإبداع بنسبة ثمانين بالمئة. ليس كاستعارة — نتيجة مقاسة. الدماغ في وضع المشي يُنتج روابط جديدة لا تظهر وأنت جالس.'},
-  {p:'psych',h:'الغضب يحتاج ثلاثين دقيقة',b:'الأدرينالين والكورتيزول يحتاجان حوالي ثلاثين دقيقة ليغادرا مجرى الدم. أي قرار تتخذه في هذه الفترة سيتأثر بالجسم لا بالعقل. الانتظار ليس ضعفاً.'},
-  {p:'psych',h:'تقنية ٤ ٧ ٨ للقلق الحاد',b:'استنشق أربع ثوانٍ، احتجز سبع ثوانٍ، ازفر ثماني ثوانٍ. ثلاث جولات فقط تُنشّط العصب المبهم وتُوقف استجابة الإجهاد في الجسم خلال أقل من دقيقتين.'},
-  {p:'psych',h:'الصوت الداخلي الناقد',b:'حين يقول لك صوتك الداخلي "أنت فاشل"، جرّب أن تُعيد الجملة: "يقول عقلي أنني فاشل". هذا الفصل الصغير يُقلل تأثير الفكرة بشكل ملحوظ وفق أبحاث العلاج المعرفي.'},
-  {p:'psych',h:'الناس لا يتذكرون ما قلته',b:'يتذكرون كيف جعلتهم يشعرون. المشاعر تُحفر في الذاكرة والكلمات الدقيقة تختفي. هذا ليس قولاً مأثوراً فقط بل نتيجة أبحاث الذاكرة العاطفية.'},
-  {p:'psych',h:'الجسم يحمل ما لا يُقال',b:'أبحاث علم الأعصاب تُثبت أن الضغوط النفسية غير المُعالجة تتجلى جسدياً كتوتر في الرقبة والكتفين وآلام في المعدة. ليست وهماً، هي استجابة فسيولوجية حقيقية.'},
-  {p:'psych',h:'الإنسان يتكيّف مع كل شيء إلا الضوضاء',b:'الجسم يتعوّد على الألم والضغط والتغيير، لكن الدراسات تُثبت أن الضوضاء المستمرة لا نتكيّف معها. الصمت ليس رفاهية بل حاجة فسيولوجية حقيقية.'},
-  {p:'psych',h:'الانتظار يُضخّم التجربة',b:'دراسات وجدت أن الإنسان يستمتع بالإجازة أكثر حين ينتظرها. توقع الشيء الجيد يُنتج دوبامين. لهذا التخطيط لشيء ممتع يُحسّن المزاج قبل حدوثه.'},
+  {p:'psych',h:'الموسيقى الحزينة تُريحك',b:'الموسيقى الحزينة تُطلق البرولاكتين وهو هرمون يُقلل الألم النفسي. أحياناً الأغنية التي تُبكيك هي ما يُهدّئك. ليس تناقضاً، هو كيمياء الدماغ.'},
+  {p:'psych',h:'المشي يُغيّر طريقة تفكيرك',b:'دراسة من ستانفورد: المشي يُحسّن الإبداع بنسبة ثمانين بالمئة. الدماغ في وضع المشي يُنتج روابط جديدة لا تظهر وأنت جالس. ليست استعارة، نتيجة مقاسة.'},
+  {p:'psych',h:'الغضب يحتاج ثلاثين دقيقة',b:'الأدرينالين والكورتيزول يحتاجان ثلاثين دقيقة ليغادرا مجرى الدم. أي قرار تتخذه في هذه الفترة سيتأثر بالجسم لا بالعقل. الانتظار ليس ضعفاً.'},
+  {p:'psych',h:'تقنية ٤ ٧ ٨ للقلق',b:'استنشق أربع ثوانٍ، احتجز سبع ثوانٍ، ازفر ثماني ثوانٍ. ثلاث جولات فقط تُنشّط العصب المبهم وتُوقف استجابة الإجهاد خلال أقل من دقيقتين.'},
+  {p:'psych',h:'الصوت الداخلي الناقد',b:'حين يقول لك صوتك الداخلي "أنت فاشل"، جرّب: "يقول عقلي أنني فاشل". هذا الفصل الصغير بينك وبين الفكرة يُقلل تأثيرها بشكل ملحوظ.'},
+  {p:'psych',h:'الناس لا يتذكرون ما قلته',b:'يتذكرون كيف جعلتهم يشعرون. المشاعر تُحفر في الذاكرة والكلمات الدقيقة تختفي. هذا ليس قولاً مأثوراً بل نتيجة أبحاث الذاكرة العاطفية.'},
+  {p:'psych',h:'الجسم يحمل ما لا يُقال',b:'أبحاث علم الأعصاب تُثبت أن الضغوط النفسية غير المُعالجة تتجلى جسدياً: توتر في الرقبة والكتفين وآلام في المعدة. ليست وهماً، هي استجابة فسيولوجية.'},
+  {p:'psych',h:'الانتظار يُضخّم المتعة',b:'توقع الشيء الجيد يُنتج دوبامين. التخطيط لشيء ممتع يُحسّن المزاج قبل حدوثه بكثير. لهذا الإجازة تبدأ لحظة تحجزها لا لحظة تُسافر.'},
+  {p:'psych',h:'الإنسان يتكيّف مع كل شيء إلا الضوضاء',b:'الجسم يتعوّد على الألم والضغط والتغيير، لكن الدراسات تُثبت أن الضوضاء المستمرة لا نتكيّف معها. الصمت ليس رفاهية بل حاجة فسيولوجية.'},
   {p:'psych',h:'الـ ٥ ٤ ٣ ٢ ١ لوقف الذعر',b:'خمسة أشياء تراها، أربعة تلمسها، ثلاثة أصوات تسمعها، شيئان تشمّهما، شيء واحد تتذوقه. يُعيد الدماغ للحاضر ويُوقف دوامة القلق في دقيقتين.'},
   {p:'psych',h:'اللمس يُوقف الكورتيزول',b:'عناق لعشرين ثانية يُطلق الأوكسيتوسين ويُخفض هرمون التوتر. حتى وضع يدك على قلبك وأنت وحدك يُنشّط جزءاً من نفس الاستجابة.'},
   {p:'psych',h:'الكتابة تُفرغ العقل',b:'اكتب ما في رأسك على ورقة دون توقف لثلاث دقائق. لا ترتيب ولا تفكير. هذا يُفرغ الذاكرة العاملة في الدماغ ويمنحه مساحة للتفكير بوضوح.'},
-  {p:'psych',h:'النوم قبل القرار الكبير',b:'الدماغ أثناء النوم يُعالج المعلومات ويُرتّبها. الأشخاص الذين ينامون قبل القرار المهم يتخذون قرارات أفضل بشكل موثّق مقارنةً بمن يُقرّر في نفس اليوم.'},
-
-  // ══ كل شيء بخير ══
   {p:'comfort',h:'الفترة الصعبة لها تاريخ انتهاء',b:'لا تعرفه الآن، لكنه موجود. كل فترة صعبة مررت بها في حياتك انتهت. هذه لن تكون استثناء.'},
   {p:'comfort',h:'أنت لم تصمد كل هذا لتستسلم الآن',b:'كل ما عشته حتى هذه اللحظة كلّفك شيئاً. لا تترك ما دفعته ثمنه يضيع في آخر لحظة.'},
   {p:'comfort',h:'لا بأس أن لا تكون بخير اليوم',b:'لا أحد بخير طوال الوقت. المطالبة بذلك غير واقعية وغير عادلة. حتى مع نفسك.'},
@@ -497,53 +297,41 @@ const CARDS=[
   {p:'comfort',h:'من حقك أن تكون حزيناً',b:'دون أن تُفسّر حزنك لأحد. دون أن تُثبت أنه منطقي. الحزن لا يحتاج تصريحاً من أحد.'},
   {p:'comfort',h:'بعض الأيام فقط صعبة',b:'لا تبحث عن سبب أو حل. بعض الأيام تعيشها فقط وتنتهي. وهذا كافٍ.'},
   {p:'comfort',h:'أنت أكثر مما تصف به نفسك',b:'في لحظات الضعف نختصر أنفسنا في أسوأ ما مررنا به. لكن هذا ليس كل القصة.'},
-  {p:'comfort',h:'الإرهاق بلا سبب واضح',b:'أحياناً الجسم يحمل ما رفض العقل أن يعترف به. ليس كسلاً، هو استجابة. والاستجابة لها سبب حتى لو لم تره.'},
   {p:'comfort',h:'أنت لا تتراجع',b:'أنت تأخذ نفساً. الخطوة إلى الوراء أحياناً هي ما تجعل القفزة التالية ممكنة.'},
   {p:'comfort',h:'الصمود لا يعني عدم الألم',b:'يعني أنك تستمر رغمه. والفرق بين الاثنين كبير جداً.'},
   {p:'comfort',h:'أنت أقرب مما تظن',b:'أصعب لحظة في أي شيء هي اللحظة التي تبدو فيها الأمور بلا معنى. عادةً هذا يحدث قُبيل التحوّل.'},
-  {p:'comfort',h:'لا تُقارن داخلك بظاهر الآخرين',b:'كل شخص يُعلن انتصاراته ويُخفي حروبه. ما تراه من حياة الآخرين هو نسخة مُختارة بعناية.'},
   {p:'comfort',h:'الحزن علامة أنك تهتم',b:'لو لم يكن الأمر يعني لك شيئاً ما أحزنك. الحزن يعني أن شيئاً كان حقيقياً وثميناً.'},
-  {p:'comfort',h:'كل شيء مؤقت بما فيه الألم',b:'ليس تبسيطاً للمشكلة. هو حقيقة موثّقة في كل تجربة إنسانية مكتوبة عبر التاريخ. هذا أيضاً سيمر.'},
-  {p:'comfort',h:'أنت لم تفشل',b:'أنت تعلّمت بطريقة أصعب. والأشياء التي تُتعلَّم بصعوبة لا تُنسى بسهولة.'},
-  {p:'comfort',h:'اليوم الصعب ليس دليلاً على المستقبل',b:'الدماغ في لحظات الضيق يُعمّم كل شيء. "كل شيء سيء" ليست حقيقة، هي حالة مؤقتة تبدو حقيقة.'},
-  {p:'comfort',h:'من حقك أن تطلب المساعدة',b:'الاستغاثة بمن تثق بهم ليست ضعفاً. هي كسر لحلقة الانعزال التي تجعل الأمور أثقل مما هي.'},
+  {p:'comfort',h:'كل شيء مؤقت بما فيه الألم',b:'ليس تبسيطاً للمشكلة. هو حقيقة في كل تجربة إنسانية مكتوبة عبر التاريخ. هذا أيضاً سيمر.'},
   {p:'comfort',h:'أنت تحاول',b:'وهذا يكفي الآن. ليس عليك أن تنجح اليوم. عليك فقط أن تستمر في المحاولة.'},
-
-  // ══ تحفيز ══
   {p:'motivation',h:'التغيير لا يبدأ بخطوة كبيرة',b:'يبدأ بقرار صغير تتخذه مرة واحدة. ثم مرة أخرى. ثم يصبح عادة قبل أن تلاحظ.'},
   {p:'motivation',h:'الاستمرارية أقوى من الموهبة',b:'الشخص الذي يعمل بانتظام يفوق الشخص الموهوب الذي يعمل بتقطّع. الوقت يُكبّر الجهد الصغير إلى ما لا يُصدَّق.'},
   {p:'motivation',h:'لا يوجد وقت مثالي',b:'الذي تنتظره لن يأتي. ابدأ بما لديك، من حيث أنت، بما تستطيع. الكمال عدو البدء.'},
   {p:'motivation',h:'أنت لا تحتاج أن تكون جاهزاً',b:'الجاهزية تأتي بعد البدء لا قبله. معظم من تحسدهم بدأوا وهم خائفون تماماً مثلك.'},
-  {p:'motivation',h:'أصعب جزء هو الخمس دقائق الأولى',b:'ليس لأن الباقي سهل، بل لأن البدء هو ما يقاومه العقل أكثر من أي شيء. بعد الخمس دقائق الأولى تتغير المعادلة.'},
+  {p:'motivation',h:'أصعب جزء هو الخمس دقائق الأولى',b:'ليس لأن الباقي سهل، بل لأن البدء هو ما يقاومه العقل أكثر من أي شيء. بعد الخمس دقائق تتغير المعادلة.'},
   {p:'motivation',h:'ما تتحاشاه يكبر',b:'الشيء الذي تؤجل التعامل معه لا يختفي، هو يجلس ويتراكم. المواجهة مؤلمة لكنها تُحرّر.'},
-  {p:'motivation',h:'لا تُقارن بدايتك بمنتصف قصة أحد آخر',b:'ولا بنهايتها. قصتك تبدأ من حيث أنت الآن، لا من حيث كان هو. المقارنة الوحيدة المفيدة هي مع نفسك قبل عام.'},
-  {p:'motivation',h:'اليوم الذي تشعر بالتراجع',b:'هو الذي يحتاج منك أن تستمر أكثر من أي يوم آخر. ليس بجهد أكبر، فقط بالاستمرار دون توقف.'},
+  {p:'motivation',h:'لا تُقارن بدايتك بمنتصف قصة أحد',b:'ولا بنهايتها. قصتك تبدأ من حيث أنت الآن. المقارنة الوحيدة المفيدة هي مع نفسك قبل عام.'},
   {p:'motivation',h:'النجاح ليس خطاً مستقيماً',b:'هو خطوة للأمام وخطوتان جانباً وخطوة للخلف وثلاث للأمام. ما يبدو تراجعاً في المنتصف هو جزء طبيعي من أي مسار.'},
-  {p:'motivation',h:'ما تراه مستحيلاً الآن',b:'ربما هو غير مألوف فقط. الأشياء الجديدة تبدو مخيفة قبل أن تصبح عادية. والعادي كان مستحيلاً يوماً.'},
-  {p:'motivation',h:'لست بحاجة لأن يصدّقك أحد',b:'إذا كنت تعرف ما تريده وتعرف أنه صحيح، هذا يكفي. إذن الآخرين ليس شرطاً للبداية.'},
-  {p:'motivation',h:'الجهد الصغير المتراكم',b:'دقيقة يومياً لعام كاملة تساوي ست ساعات. خمس دقائق تساوي ثلاثين ساعة. الانتظار حتى يتوفر الوقت الكبير يُضيّع الوقت الصغير.'},
   {p:'motivation',h:'الفشل يُعلّمك ما النجاح لا يستطيع',b:'النجاح يُخبرك أن ما فعلته نجح. الفشل يُخبرك بالضبط ما لا يعمل. كلا المعلومتين ضروريتان.'},
-  {p:'motivation',h:'نفسك في السنة القادمة',b:'ستشكرك على كل قرار صعب تتخذه اليوم، أو ستتمنى أنك اتخذته. القرار لك.'},
+  {p:'motivation',h:'نفسك في السنة القادمة',b:'ستشكرك على كل قرار صعب تتخذه اليوم، أو ستتمنى أنك اتخذته. القرار لك وحدك.'},
   {p:'motivation',h:'الانضباط يصنع الحرية',b:'الشخص المنضبط لا يُفكّر في ما يجب أن يفعله، هو يفعله. وهذا يحرّر طاقة هائلة للتفكير فيما يريد حقاً.'},
-
-  // ══ تحيّزات ══
+  {p:'motivation',h:'الجهد الصغير المتراكم',b:'خمس دقائق يومياً لعام كاملة تساوي ثلاثين ساعة. الانتظار حتى يتوفر الوقت الكبير يُضيّع الوقت الصغير.'},
+  {p:'motivation',h:'اليوم الذي تشعر بالتراجع',b:'هو الذي يحتاج منك أن تستمر أكثر من أي يوم آخر. ليس بجهد أكبر، فقط بالاستمرار.'},
+  {p:'motivation',h:'لست بحاجة لأن يصدّقك أحد',b:'إذا كنت تعرف ما تريده وتعرف أنه صحيح، هذا يكفي. إذن الآخرين ليس شرطاً للبداية.'},
   {p:'bias',h:'تأثير الإرساء',b:'أول رقم تسمعه يتحكم في كل تفاوض بعده. لهذا المفاوض الجيد دائماً يبدأ هو بالرقم أولاً. من يتكلم أول يُحدد إطار الحوار كله.'},
-  {p:'bias',h:'وهم التخطيط',b:'الإنسان يُقدّر دائماً أن المشروع سيأخذ نصف الوقت الذي يأخذه فعلاً. حتى بعد أن يعرف هذا المعلومة يستمر في التقدير الخاطئ.'},
+  {p:'bias',h:'وهم التخطيط',b:'الإنسان يُقدّر دائماً أن المشروع سيأخذ نصف الوقت الذي يأخذه فعلاً. حتى بعد أن يعرف هذه المعلومة يستمر في التقدير الخاطئ.'},
   {p:'bias',h:'تأثير التأكيد',b:'نبحث عن المعلومات التي تُؤكد ما نعتقده ونتجاهل ما يناقضه. الحل: عندما تُريد معرفة الحقيقة، ابحث تحديداً عمّا يُثبت أنك مخطئ.'},
-  {p:'bias',h:'تأثير الهالة',b:'إذا أعجبك شخص في صفة واحدة، ستميل لافتراض أنه متميز في كل شيء. لهذا الوسيم يبدو أكثر ذكاءً والثقة تُوحي بالكفاءة.'},
-  {p:'bias',h:'تأثير التعرّض المجرد',b:'كلما رأيت شيئاً أكثر، تحببّه أكثر. بدون أي سبب حقيقي. لهذا الإعلانات تتكرر، ولهذا الناس يتحببون لمن يرونهم باستمرار.'},
+  {p:'bias',h:'تأثير الهالة',b:'إذا أعجبك شخص في صفة واحدة، ستميل لافتراض أنه متميز في كل شيء. لهذا الوسيم يبدو أكثر ذكاءً والثقة تُوحي بالكفاءة دائماً.'},
+  {p:'bias',h:'تأثير التعرّض المجرد',b:'كلما رأيت شيئاً أكثر، تحببّه أكثر. بدون أي سبب حقيقي. لهذا الإعلانات تتكرر ولهذا الناس يتحببون لمن يرونهم باستمرار.'},
   {p:'bias',h:'خطأ المقامر',b:'رمي عملة وطلعت صورة عشر مرات متتالية لا يعني أن الدور التالي ستطلع كتابة. الاحتمال نفسه دائماً. الماضي لا يُغيّر المستقبل في الأحداث المستقلة.'},
-  {p:'bias',h:'تأثير الإطار',b:'نفس المعلومة تُؤثر بشكل مختلف تماماً حسب كيف تُقدَّم. "نجاح بنسبة ٩٠٪" يبدو أفضل من "فشل بنسبة ١٠٪" رغم أنهما نفس الشيء تماماً.'},
+  {p:'bias',h:'تأثير الإطار',b:'نفس المعلومة تُؤثر بشكل مختلف حسب كيف تُقدَّم. "نجاح بنسبة ٩٠٪" يبدو أفضل من "فشل بنسبة ١٠٪" رغم أنهما نفس الشيء تماماً.'},
   {p:'bias',h:'تحيّز التكلفة الغارقة',b:'نستمر في شيء لأننا استثمرنا فيه وقتاً أو مالاً حتى لو كان الاستمرار خطأ واضحاً. ما أنفقته ذهب. القرار الصحيح لا يأخذ الماضي في الحسبان.'},
   {p:'bias',h:'وهم الجسم الشفاف',b:'نعتقد أن مشاعرنا ظاهرة للآخرين أكثر بكثير مما هي عليه. في الواقع الآخرون مشغولون بأنفسهم أكثر مما تتخيل.'},
-  {p:'bias',h:'تأثير الأثر',b:'ما نسمعه أو نجربه في آخر تجربة يُؤثر في حكمنا أكثر بكثير من الأوسط. لهذا النهاية السيئة تُخرّب ذكرى تجربة جيدة.'},
-  {p:'bias',h:'تحيّز التفاؤل',b:'نعتقد أن الأشياء السيئة أقل احتمالاً أن تحدث لنا مقارنةً بالآخرين. ونعتقد أن الأشياء الجيدة أكثر احتمالاً. هذا يجعلنا نُقلّل المخاطر.'},
+  {p:'bias',h:'تأثير الأثر',b:'ما نجربه في آخر تجربة يُؤثر في حكمنا أكثر بكثير من الأوسط. لهذا النهاية السيئة تُخرّب ذكرى تجربة كانت جيدة في معظمها.'},
+  {p:'bias',h:'تحيّز التفاؤل',b:'نعتقد أن الأشياء السيئة أقل احتمالاً أن تحدث لنا مقارنةً بالآخرين. هذا يجعلنا نُقلّل المخاطر بشكل منهجي.'},
   {p:'bias',h:'أثر الزخم الاجتماعي',b:'نُغيّر آراءنا لتتوافق مع المجموعة أكثر مما ندري. في تجارب علم النفس أشخاص ينكرون ما يرونه بأعينهم لأن الغالبية قالت خلافه.'},
   {p:'bias',h:'تحيّز الحاضر',b:'نُبالغ في تقدير ما هو أمامنا الآن ونُهمّش المكافأة المستقبلية. لهذا نختار المتعة الفورية رغم معرفتنا بأن الانتظار أفضل.'},
-  {p:'bias',h:'وهم المعرفة',b:'نعتقد أننا نفهم أشياء كثيرة بعمق وهي في الحقيقة سطحية. اختبر نفسك: اشرح كيف تعمل الطرادة أو كيف ينشأ الفصول. ستجد فجوات لم تتوقعها.'},
+  {p:'bias',h:'وهم المعرفة',b:'نعتقد أننا نفهم أشياء كثيرة بعمق وهي في الحقيقة سطحية. اختبر نفسك: اشرح كيف تعمل الطرادة. ستجد فجوات لم تتوقعها.'},
   {p:'bias',h:'تأثير الشاهد',b:'كلما زاد عدد الناس الذين يشهدون حادثة، قلّ احتمال أن يتدخل أحدهم. كل شخص يفترض أن غيره سيتصرف. الحل: اطلب من شخص واحد بعينه.'},
-
-  // ══ علاقات وتعامل ══
   {p:'relations',h:'حين يُهينك أحد أمام ناس',b:'الرد الأقوى ليس الصراخ. قل بهدوء تام: "هل تقصد ما قلته؟" السؤال يُجبره على المواجهة ويضعه في الزاوية دون أن ترفع صوتك.'},
   {p:'relations',h:'إذا أردت أحداً يتحدث أكثر',b:'لا تسأل "هل هناك شيء آخر؟" قل فقط: "أخبرني أكثر." جملة واحدة تفتح الناس وتُشعرهم أنك مهتم حقاً.'},
   {p:'relations',h:'طلب المعروف بطريقة صحيحة',b:'قدّم سبباً حتى لو بسيطاً. الناس يستجيبون للـ"لأن". "هل تستطيع مساعدتي لأنني مشغول جداً اليوم؟" أفعل بكثير من "هل تساعدني؟"'},
@@ -557,45 +345,220 @@ const CARDS=[
   {p:'relations',h:'كيف تضع حداً بلا خسارة العلاقة',b:'لا تقل "لا أستطيع" إذا كان الحقيقة أنك "لا تريد". الصدق أكثر احتراماً. "لا أستطيع" تبدو كعذر، "لا أريد" تبدو كقرار واضح.'},
   {p:'relations',h:'إذا شعرت أن أحداً يتلاعب بك',b:'توقف واسأل نفسك: هل أفعل هذا لأنني أريد أم لأنني أخشى ردة فعله؟ الإجابة تُخبرك بكل شيء.'},
   {p:'relations',h:'الصمت في الخلاف',b:'في وسط نقاش حاد، التوقف لخمس ثوانٍ قبل الرد يُغيّر نبرة الحوار كله. الطرف الآخر يُفسّر هدوءك كقوة لا كضعف.'},
-  {p:'relations',h:'حين تنتقد أحداً',b:'ابدأ بما يفعله جيداً، ثم ما يمكن تحسينه، ثم أنهِ بشيء إيجابي. هذا ليس مجاملة، هو أسلوب يجعل الانتقاد يُسمع بدل أن يُرفض.'},
+  {p:'relations',h:'حين تنتقد أحداً',b:'ابدأ بما يفعله جيداً، ثم ما يمكن تحسينه، ثم أنهِ بشيء إيجابي. هذا يجعل الانتقاد يُسمع بدل أن يُرفض.'},
   {p:'relations',h:'الناس الذين يُستنزفونك',b:'ليسوا بالضرورة أشراراً. لكنهم ليسوا مناسبين لك الآن. تقليل الوقت معهم ليس قسوة، هو حماية لطاقتك.'},
 ];
 
 // ══════════════════════════════════════
-// CANVAS
+// STATE
 // ══════════════════════════════════════
-const canvas=document.getElementById('bg');
-const ctx=canvas.getContext('2d');
-let W=window.innerWidth,H=window.innerHeight;
-canvas.width=W;canvas.height=H;
-THEMES.forEach(th=>{if(th.init)th.init(W,H);});
+let _t = 0;
+let _themeIdx = -1;
+let _theme = THEMES[0];
+let _deck = [...CARDS].sort(()=>Math.random()-.5);
+let _deckIdx = 0;
+let _card = null;
 
-let _t=0,_themeIdx=-1,_theme=THEMES[0];
+// animation state
+let _pillarAlpha = 0;
+let _headAlpha = 0;
+let _dividerW = 0;
+let _bodyAlpha = 0;
+let _ctaAlpha = 0;
+let _phase = 'idle'; // idle | animating
+let _phaseT = 0;
 
-// ══════════════════════════════════════
-// POOL
-// ══════════════════════════════════════
-let _deck=[...CARDS].sort(()=>Math.random()-.5),_deckIdx=0;
 function nextCard(){
-  if(_deckIdx>=_deck.length){_deck=[...CARDS].sort(()=>Math.random()-.5);_deckIdx=0;}
+  if(_deckIdx >= _deck.length){ _deck = [...CARDS].sort(()=>Math.random()-.5); _deckIdx = 0; }
   return _deck[_deckIdx++];
 }
 function nextTheme(){
-  _themeIdx=(_themeIdx+1)%THEMES.length;
-  _theme=THEMES[_themeIdx];
-  if(_theme.init)_theme.init(W,H);
+  _themeIdx = (_themeIdx+1) % THEMES.length;
+  _theme = THEMES[_themeIdx];
+  if(_theme.init) _theme.init(W,H);
 }
 
-const CTAS_DARK=['أعجبك؟ اضغط ❤️','شاركها مع من يحتاجها','تابعنا لتصلك كل يوم'];
-const CTAS_BRIGHT=['شاركها مع شخص تحبه 🤍','أعجبك؟ اضغط ❤️','تابعنا لتصلك كل يوم'];
+const CTAS = ['أعجبك؟ اضغط ❤️','شاركها مع من يحتاجها','تابعنا لتصلك كل يوم','شاركها مع شخص تحبه 🤍'];
+let _cta = CTAS[0];
+
+// ── text wrap ──
+function wrapText(ctx, text, maxW){
+  const words = text.split(' ');
+  const lines = []; let line = '';
+  for(const w of words){
+    const test = line ? line+' '+w : w;
+    if(ctx.measureText(test).width > maxW && line){ lines.push(line); line = w; }
+    else line = test;
+  }
+  if(line) lines.push(line);
+  return lines;
+}
+
+// ── draw outlined text ──
+function drawOT(ctx, txt, x, y, fill, strokeCol, sw){
+  ctx.lineJoin='round'; ctx.miterLimit=2; ctx.lineWidth=sw;
+  ctx.strokeStyle=strokeCol; ctx.strokeText(txt,x,y);
+  ctx.fillStyle=fill; ctx.fillText(txt,x,y);
+}
+
+// ══════════════════════════════════════
+// MAIN DRAW — everything on canvas
+// ══════════════════════════════════════
+function draw(){
+  if(!_card) return;
+  const th = _theme;
+  const cx = W/2;
+  const maxW = W * 0.84;
+
+  // background
+  th.drawBg(ctx, W, H, _t);
+
+  // vignette
+  const vg = ctx.createRadialGradient(cx,H/2,H*.06,cx,H/2,H*.72);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1, th.dark ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.12)');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+
+  ctx.save();
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'center';
+
+  // PILLAR LABEL
+  if(_pillarAlpha > 0){
+    ctx.globalAlpha = _pillarAlpha;
+    const pSize = Math.max(11, W*0.028);
+    ctx.font = `700 ${pSize}px 'Noto Sans Arabic',sans-serif`;
+    ctx.textBaseline = 'middle';
+    const [r2,g2,b2] = th.ac;
+    ctx.fillStyle = `rgba(${r2},${g2},${b2},0.9)`;
+    ctx.letterSpacing = '0.2em';
+    ctx.fillText(PILLARS[_card.p], cx, H*0.1);
+    // small line under pillar
+    ctx.strokeStyle = `rgba(${r2},${g2},${b2},0.4)`;
+    ctx.lineWidth = 1;
+    const pw = ctx.measureText(PILLARS[_card.p]).width;
+    ctx.beginPath(); ctx.moveTo(cx-pw/2, H*0.115); ctx.lineTo(cx+pw/2, H*0.115); ctx.stroke();
+  }
+
+  // HEADLINE
+  if(_headAlpha > 0){
+    ctx.globalAlpha = _headAlpha;
+    const hSize = Math.max(24, Math.min(W*0.092, 52));
+    ctx.font = `700 ${hSize}px 'Noto Naskh Arabic',serif`;
+    ctx.textBaseline = 'middle';
+    const lines = wrapText(ctx, _card.h, maxW);
+    const lh = hSize * 1.5;
+    const totalH = lines.length * lh;
+    const startY = H*0.35 - totalH/2 + lh/2;
+    lines.forEach((ln,i)=>{
+      ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=18;
+      drawOT(ctx, ln, cx, startY+i*lh, th.headCol, 'rgba(0,0,0,0.5)', Math.max(1.5, hSize*0.07));
+    });
+    ctx.shadowBlur=0;
+  }
+
+  // DIVIDER
+  if(_dividerW > 2){
+    ctx.globalAlpha = _headAlpha * 0.7;
+    const [r2,g2,b2] = th.ac;
+    const lg = ctx.createLinearGradient(cx-_dividerW/2,0,cx+_dividerW/2,0);
+    lg.addColorStop(0,'rgba(255,255,255,0)');
+    lg.addColorStop(0.5,`rgba(${r2},${g2},${b2},0.85)`);
+    lg.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=lg;
+    ctx.fillRect(cx-_dividerW/2, H*0.54, _dividerW, 1.5);
+  }
+
+  // BODY TEXT
+  if(_bodyAlpha > 0){
+    ctx.globalAlpha = _bodyAlpha;
+    const bSize = Math.max(15, Math.min(W*0.048, 28));
+    ctx.font = `300 ${bSize}px 'Noto Sans Arabic',sans-serif`;
+    ctx.textBaseline = 'middle';
+    const lines = wrapText(ctx, _card.b, maxW);
+    const lh = bSize * 1.9;
+    const totalH = lines.length * lh;
+    const startY = H*0.63 - totalH/2 + lh/2;
+    lines.forEach((ln,i)=>{
+      ctx.shadowColor='rgba(0,0,0,0.4)'; ctx.shadowBlur=10;
+      drawOT(ctx, ln, cx, startY+i*lh, th.bodyCol, 'rgba(0,0,0,0.35)', Math.max(1, bSize*0.055));
+    });
+    ctx.shadowBlur=0;
+  }
+
+  // CTA
+  if(_ctaAlpha > 0){
+    ctx.globalAlpha = _ctaAlpha * 0.7;
+    const cSize = Math.max(10, W*0.028);
+    ctx.font = `600 ${cSize}px 'Noto Sans Arabic',sans-serif`;
+    ctx.textBaseline = 'middle';
+    const [r2,g2,b2] = th.ac;
+    ctx.fillStyle = `rgba(${r2},${g2},${b2},0.85)`;
+    ctx.shadowBlur=0;
+    ctx.fillText(_cta, cx, H*0.91);
+    // pulsing dot
+    const pulse = 0.5+Math.sin(_t*3)*0.4;
+    ctx.globalAlpha = _ctaAlpha * pulse * 0.8;
+    ctx.beginPath();
+    ctx.arc(cx - ctx.measureText(_cta).width/2 - 10, H*0.91, 3, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${r2},${g2},${b2},1)`;
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+// ══════════════════════════════════════
+// SCENE TRIGGER
+// ══════════════════════════════════════
+function showScene(){
+  nextTheme();
+  _card = nextCard();
+  _cta = CTAS[Math.floor(Math.random()*CTAS.length)];
+  _pillarAlpha = 0; _headAlpha = 0; _dividerW = 0; _bodyAlpha = 0; _ctaAlpha = 0;
+  _phase = 'animating';
+  _phaseT = 0;
+}
+
+// ══════════════════════════════════════
+// ANIMATION LOOP
+// ══════════════════════════════════════
+const TARGET_DIV_W = Math.min(W*0.3, 100);
+
+function ease(x){ return 1 - Math.pow(1-Math.min(1,x), 3); }
+
+let _lastFrame = 0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt = Math.min((ts - _lastFrame)/1000, 0.05);
+  _lastFrame = ts;
+  _t += dt;
+
+  if(_phase === 'animating'){
+    _phaseT += dt;
+    // 0.0 - 0.5: pillar fades in
+    _pillarAlpha = ease(Math.min(1, _phaseT / 0.5));
+    // 0.3 - 1.0: headline fades in
+    _headAlpha = ease(Math.max(0, Math.min(1, (_phaseT-0.3)/0.7)));
+    // 1.0 - 1.8: divider grows
+    _dividerW = ease(Math.max(0, Math.min(1, (_phaseT-1.0)/0.8))) * TARGET_DIV_W;
+    // 1.6 - 2.6: body fades in
+    _bodyAlpha = ease(Math.max(0, Math.min(1, (_phaseT-1.6)/1.0)));
+    // 2.6 - 3.2: cta fades in
+    _ctaAlpha = ease(Math.max(0, Math.min(1, (_phaseT-2.6)/0.6)));
+    if(_phaseT > 3.2) _phase = 'idle';
+  }
+
+  if(_card) draw();
+}
 
 // ══════════════════════════════════════
 // AUDIO
 // ══════════════════════════════════════
-const AC=new (window.AudioContext||window.webkitAudioContext)();
-const master=AC.createGain();master.gain.value=.65;master.connect(AC.destination);
-let _recDest=null,_audioOn=false,_pads=[];
-function unlockAC(){if(_audioOn)return;AC.resume().then(()=>{_audioOn=true;startPad();});}
+const AC = new (window.AudioContext||window.webkitAudioContext)();
+const master = AC.createGain(); master.gain.value=0.65; master.connect(AC.destination);
+let _recDest=null, _audioOn=false, _pads=[];
+function unlockAC(){ if(_audioOn)return; AC.resume().then(()=>{ _audioOn=true; startPad(); }); }
 function startPad(){
   stopPad();
   try{[220,277.18,329.63,369.99].forEach((f,i)=>{
@@ -606,163 +569,23 @@ function startPad(){
     o.connect(g);g.connect(master);o.start(tt);lfo.start(tt);_pads.push({o,g,lfo});
   });}catch(e){}
 }
-function stopPad(){_pads.forEach(p=>{try{p.g.gain.setTargetAtTime(0,AC.currentTime,.5);setTimeout(()=>{try{p.o.stop();p.lfo.stop();}catch(e){}},1200);}catch(e){}});_pads=[];}
-function sfxIn(){if(!_audioOn)return;try{const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.setValueAtTime(300,AC.currentTime);o.frequency.exponentialRampToValueAtTime(180,AC.currentTime+.35);g.gain.setValueAtTime(.025,AC.currentTime);g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+.6);o.connect(g);g.connect(master);o.start();o.stop(AC.currentTime+.6);}catch(e){}}
-function sfxBody(){if(!_audioOn)return;try{const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.setValueAtTime(240,AC.currentTime);o.frequency.exponentialRampToValueAtTime(160,AC.currentTime+.4);g.gain.setValueAtTime(.018,AC.currentTime);g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+.65);o.connect(g);g.connect(master);o.start();o.stop(AC.currentTime+.65);}catch(e){}}
-
-// ══════════════════════════════════════
-// SCENE
-// ══════════════════════════════════════
-let _timers=[];
-function clearT(){_timers.forEach(clearTimeout);_timers=[];}
-
-function showScene(){
-  clearT();unlockAC();
-  nextTheme();
-  const th=_theme;
-  // set body class
-  document.body.className=th.id;
-
-  const C=nextCard();
-
-  const pillarEl=document.getElementById('pillar');
-  const hlEl=document.getElementById('headline');
-  const dvEl=document.getElementById('divider');
-  const bdEl=document.getElementById('body');
-  const ctaEl=document.getElementById('cta');
-  const ctaTxtEl=document.getElementById('ctaTxt');
-
-  // reset
-  pillarEl.classList.remove('in');hlEl.classList.remove('in');
-  bdEl.classList.remove('in');ctaEl.classList.remove('in');
-  dvEl.style.width='0';
-
-  pillarEl.textContent=PILLARS[C.p];
-  hlEl.textContent=C.h;
-  bdEl.textContent=C.b;
-  const ctas=th.dark?CTAS_DARK:CTAS_BRIGHT;
-  ctaTxtEl.textContent=ctas[Math.floor(Math.random()*ctas.length)];
-
-  sfxIn();
-  _timers.push(setTimeout(()=>{pillarEl.classList.add('in');},180));
-  _timers.push(setTimeout(()=>{hlEl.classList.add('in');sfxIn();},340));
-  _timers.push(setTimeout(()=>{dvEl.style.width=Math.min(W*.3,105)+'px';},1100));
-  _timers.push(setTimeout(()=>{bdEl.classList.add('in');sfxBody();},1850));
-  _timers.push(setTimeout(()=>{ctaEl.classList.add('in');},2900));
-}
+function stopPad(){ _pads.forEach(p=>{try{p.g.gain.setTargetAtTime(0,AC.currentTime,.5);setTimeout(()=>{try{p.o.stop();p.lfo.stop();}catch(e){}},1200);}catch(e){}});_pads=[]; }
 
 // ══════════════════════════════════════
 // RECORDING
 // ══════════════════════════════════════
 let _compC=null,_compCtx=null;
-window._recActive=false;window._recordingDone=false;window._recordingBlob=null;
+window._recActive=false; window._recordingDone=false; window._recordingBlob=null;
 let _recChunks=[],_recorder=null;
-
-function drawOT(c,txt,x,y,fill,stroke,sw){
-  c.lineJoin='round';c.miterLimit=2;c.lineWidth=sw;
-  c.strokeStyle=stroke;c.strokeText(txt,x,y);
-  c.fillStyle=fill;c.fillText(txt,x,y);
-}
-function wrapText(c,text,maxW){
-  const words=text.split(' ');const lines=[];let line='';
-  for(const w of words){
-    const test=line?line+' '+w:w;
-    if(c.measureText(test).width>maxW&&line){lines.push(line);line=w;}
-    else line=test;
-  }
-  if(line)lines.push(line);return lines;
-}
-
-function _drawComposite(){
-  if(!_compCtx)return;
-  const c=_compCtx,cW=_compC.width,cH=_compC.height;
-  c.clearRect(0,0,cW,cH);
-  c.drawImage(canvas,0,0,cW,cH);
-  const vg=c.createRadialGradient(cW/2,cH/2,cH*.08,cW/2,cH/2,cH*.72);
-  vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.5)');
-  c.fillStyle=vg;c.fillRect(0,0,cW,cH);
-  c.direction='rtl';
-  const th=_theme;
-  const maxW=cW*.84;const cx=cW/2;
-
-  // pillar
-  const plEl=document.getElementById('pillar');
-  const plOp=parseFloat(window.getComputedStyle(plEl).opacity)||0;
-  if(plOp>.01){
-    const fs=parseFloat(window.getComputedStyle(plEl).fontSize)||11;
-    c.save();c.globalAlpha=plOp;
-    c.font=`700 ${fs}px 'Noto Sans Arabic',sans-serif`;
-    c.textAlign='center';c.textBaseline='middle';
-    c.fillStyle=th.dark?'rgba(200,220,200,.6)':'rgba(60,80,60,.6)';
-    c.fillText(plEl.textContent,cx,cH*.1);
-    c.restore();
-  }
-
-  // headline
-  const hlOp=parseFloat(window.getComputedStyle(hlEl).opacity)||0;
-  if(hlOp>.01){
-    const fs=parseFloat(window.getComputedStyle(hlEl).fontSize)||32;
-    c.save();c.globalAlpha=hlOp;
-    c.font=`700 ${fs}px 'Noto Naskh Arabic',serif`;
-    c.textAlign='center';c.textBaseline='middle';
-    const lines=wrapText(c,hlEl.textContent,maxW);
-    const lh=fs*1.5;
-    lines.forEach((ln,i)=>{
-      const y=cH*.38+(i-(lines.length-1)/2)*lh;
-      c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=18;
-      drawOT(c,ln,cx,y,th.headCol||'#fff','rgba(0,0,0,.5)',Math.max(1.5,fs*.07));
-    });
-    c.restore();
-  }
-
-  // divider
-  const dvW=parseFloat(dvEl.style.width)||0;
-  if(dvW>2){
-    c.save();
-    const lg=c.createLinearGradient(cx-dvW/2,0,cx+dvW/2,0);
-    lg.addColorStop(0,'rgba(255,255,255,0)');lg.addColorStop(.5,th.ac||'rgba(255,255,255,.4)');lg.addColorStop(1,'rgba(255,255,255,0)');
-    c.fillStyle=lg;c.fillRect(cx-dvW/2,cH*.53,dvW,1.5);
-    c.restore();
-  }
-
-  // body
-  const bdOp=parseFloat(window.getComputedStyle(bdEl).opacity)||0;
-  if(bdOp>.01){
-    const fs=parseFloat(window.getComputedStyle(bdEl).fontSize)||18;
-    c.save();c.globalAlpha=bdOp;
-    c.font=`300 ${fs}px 'Noto Sans Arabic',sans-serif`;
-    c.textAlign='center';c.textBaseline='middle';
-    const lines=wrapText(c,bdEl.textContent,maxW);
-    const lh=fs*1.95;const totalH=lines.length*lh;
-    const startY=cH*.62-totalH/2+lh/2;
-    lines.forEach((ln,i)=>{
-      c.shadowColor='rgba(0,0,0,.4)';c.shadowBlur=10;
-      drawOT(c,ln,cx,startY+i*lh,th.bodyCol||'rgba(255,255,255,.8)','rgba(0,0,0,.35)',Math.max(1,fs*.05));
-    });
-    c.restore();
-  }
-
-  // cta
-  const ctaOp=parseFloat(window.getComputedStyle(ctaEl).opacity)||0;
-  if(ctaOp>.01){
-    c.save();c.globalAlpha=ctaOp*.6;
-    c.font=`600 ${Math.max(9,cW*.022)}px 'Noto Sans Arabic',sans-serif`;
-    c.textAlign='center';c.textBaseline='middle';
-    c.fillStyle=th.dark?'rgba(200,220,200,.6)':'rgba(40,60,40,.6)';
-    c.fillText(document.getElementById('ctaTxt').textContent,cx,cH*.91);
-    c.restore();
-  }
-}
 
 window.startRecording=function(fps){
   fps=fps||30;
   try{
     AC.resume().catch(()=>{});
-    _compC=document.createElement('canvas');_compC.width=W;_compC.height=H;
-    _compCtx=_compC.getContext('2d');
-    window._recActive=true;window._recordingDone=false;_recChunks=[];
-    _recDest=AC.createMediaStreamDestination();master.connect(_recDest);
-    const vs=_compC.captureStream(fps);
+    // record directly from main canvas — no composite needed since everything is on canvas
+    window._recActive=true; window._recordingDone=false; _recChunks=[];
+    _recDest=AC.createMediaStreamDestination(); master.connect(_recDest);
+    const vs=canvas.captureStream(fps);
     const combined=new MediaStream([...vs.getVideoTracks(),..._recDest.stream.getAudioTracks()]);
     const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(m=>MediaRecorder.isTypeSupported(m))||'video/webm';
     _recorder=new MediaRecorder(combined,{mimeType:mime,videoBitsPerSecond:8000000,audioBitsPerSecond:192000});
@@ -770,15 +593,19 @@ window.startRecording=function(fps){
     _recorder.onstop=()=>{
       window._recActive=false;
       try{master.disconnect(_recDest);}catch(e){}
-      window._recordingBlob=new Blob(_recChunks,{type:'video/webm'});window._recordingDone=true;
+      window._recordingBlob=new Blob(_recChunks,{type:'video/webm'});
+      window._recordingDone=true;
     };
     _recorder.start(200);
+    console.log('Recording started');
   }catch(e){console.error(e);}
 };
 window.stopRecording=function(){try{if(_recorder&&_recorder.state!=='inactive')_recorder.stop();}catch(e){}};
 window.forceFinalize=function(){
   window._recActive=false;
-  if(_recChunks.length>0&&!window._recordingDone){window._recordingBlob=new Blob(_recChunks,{type:'video/webm'});window._recordingDone=true;}
+  if(_recChunks.length>0&&!window._recordingDone){
+    window._recordingBlob=new Blob(_recChunks,{type:'video/webm'});window._recordingDone=true;
+  }
 };
 window.getRecordingBase64=function(){
   return new Promise((resolve,reject)=>{
@@ -786,27 +613,23 @@ window.getRecordingBase64=function(){
       if(!window._recordingBlob){setTimeout(chk,100);return;}
       const r=new FileReader();
       r.onloadend=()=>resolve(r.result.split(',')[1]);
-      r.onerror=reject;r.readAsDataURL(window._recordingBlob);
+      r.onerror=reject; r.readAsDataURL(window._recordingBlob);
     };chk();
   });
 };
 
-(function loop(){
-  requestAnimationFrame(loop);
-  _t+=.016;
-  if(_theme&&_theme.draw)_theme.draw(ctx,W,H,_t);
-  if(window._recActive)_drawComposite();
-})();
-
+// ── BOOT ──
 window.addEventListener('resize',()=>{
-  W=window.innerWidth;H=window.innerHeight;
-  canvas.width=W;canvas.height=H;
+  W=window.innerWidth; H=window.innerHeight;
+  canvas.width=W; canvas.height=H;
   THEMES.forEach(th=>{if(th.init)th.init(W,H);});
 });
-document.body.addEventListener('click',showScene);
-document.body.addEventListener('touchend',e=>{e.preventDefault();showScene();},{passive:false});
+document.body.addEventListener('click',()=>{ unlockAC(); showScene(); });
+document.body.addEventListener('touchend',e=>{ e.preventDefault(); unlockAC(); showScene(); },{passive:false});
+
 showScene();
-window.AC=AC;window.master=master;
+requestAnimationFrame(loop);
+window.AC=AC; window.master=master;
 })();
 </script>
 </body>
