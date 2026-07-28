@@ -109,14 +109,14 @@ jobs:
           print("Waiting for page to load (3s)...")
           time.sleep(3)
 
-          print("Triggering scene and resuming audio...")
+          print("Triggering scene...")
           driver.execute_script("""
               document.body.click();
               if(typeof AC !== 'undefined') AC.resume();
           """)
 
-          print("Waiting for text to fully animate in (4s)...")
-          time.sleep(4)
+          print("Waiting for full animation to complete (5s)...")
+          time.sleep(5)
 
           print("Starting recording...")
           driver.execute_script("window.startRecording(30);")
