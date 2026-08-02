@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>WordQuiz</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Baloo+2:wght@600;700;800&family=Cairo:wght@700;800;900&family=Tajawal:wght@700;800;900&family=Nunito:wght@800;900&family=Righteous&family=Orbitron:wght@700;900&family=Amiri:wght@700&family=Rubik+Mono+One&family=Changa:wght@700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+html,body{width:100%;height:100%;overflow:hidden;background:#000}
+body{font-family:'Baloo 2','Tajawal',sans-serif;user-select:none}
+canvas{position:fixed;inset:0;pointer-events:none}
+#bgC{z-index:0}
+#vfC{z-index:50}
+#screenFlash{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:0;background:white;transition:opacity .06s}
+#tapCatcher{position:fixed;inset:0;z-index:95}
+
+#stage{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:0 16px;overflow:hidden}
+
+/* ---- Brand header ---- */
+#brand{margin-top:16px;letter-spacing:1px;text-align:center;line-height:1;animation:logoPulse 2.6s ease-in-out infinite;direction:ltr;font-size:22px;flex-shrink:0}
+@keyframes logoPulse{0%,100%{filter:drop-shadow(0 0 14px currentColor)}50%{filter:drop-shadow(0 0 34px currentColor) brightness(1.25)}}
+
+/* ---- Timer ring (docked under brand — always in view, never at bottom) ---- */
+#timerWrap{margin-top:10px;width:58px;height:58px;position:relative;opacity:0;flex-shrink:0}
+#timerWrap.show{animation:popIn .4s cubic-bezier(.34,1.56,.64,1) forwards}
+#timerWrap svg{width:100%;height:100%;transform:rotate(-90deg)}
+#timerWrap circle{fill:none;stroke-width:7}
+#timerBg{stroke:rgba(255,255,255,.15)}
+#timerFg{stroke-linecap:round;transition:stroke-dashoffset 1s linear}
+#timerNum{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Fredoka One',sans-serif;font-size:22px}
+
+/* ---- Prompt (Arabic instruction) ---- */
+#promptWrap{margin-top:14px;width:100%;max-width:420px;text-align:center;opacity:0;transform:translateY(-18px) scale(.9);flex-shrink:0}
+#promptWrap.show{animation:popIn .55s cubic-bezier(.34,1.56,.64,1) forwards}
+#promptWrap.fade-out{animation:fadeOutUp .3s ease forwards}
+@keyframes fadeOutUp{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-14px) scale(.94)}}
+#promptLbl{font-family:'Tajawal',sans-serif;font-weight:700;font-size:12px;letter-spacing:2px;opacity:.6;margin-bottom:6px}
+#promptWord{font-family:'Nunito',sans-serif;font-weight:900;font-size:36px;line-height:1.15;direction:ltr;letter-spacing:.5px;padding:10px 22px;display:inline-block;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+
+/* ---- Options ---- */
+#optsWrap{margin-top:18px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:12px;align-items:center;flex-shrink:1;min-height:0}
+.optCard{width:100%;max-width:360px;padding:15px 18px;font-family:'Tajawal',sans-serif;font-weight:800;font-size:19px;text-align:center;direction:rtl;border:3px solid rgba(255,255,255,.28);box-shadow:0 8px 20px rgba(0,0,0,.35),inset 0 2px 0 rgba(255,255,255,.25);opacity:0;transform:translateX(80px) scale(.7) rotate(6deg);position:relative;overflow:hidden;transition:box-shadow .3s,border-color .3s}
+.optCard.flyL{transform:translateX(-80px) scale(.7) rotate(-6deg)}
+.optCard.flyUp{transform:translateY(60px) scale(.7)}
+.optCard.show{animation:optIn .5s cubic-bezier(.34,1.56,.64,1) forwards}
+@keyframes optIn{0%{opacity:0}60%{opacity:1}100%{opacity:1;transform:translate(0,0) scale(1) rotate(0)}}
+.optCard.correct{animation:correctPulse .6s ease .05s 2;border-color:#fff;box-shadow:0 0 0 3px #fff,0 0 30px 8px var(--glowc,#0f8),0 8px 24px rgba(0,0,0,.5)}
+.optCard.wrong{opacity:.32!important;filter:grayscale(.7)}
+@keyframes correctPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.optCard .badge{position:absolute;top:8px;left:10px;font-size:14px;opacity:0;font-family:'Nunito',sans-serif;background:#fff;color:#0a0;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.optCard.correct .badge{opacity:1;animation:badgeIn .4s ease forwards}
+@keyframes badgeIn{0%{transform:scale(0) rotate(-30deg)}100%{transform:scale(1) rotate(0)}}
+
+@keyframes popIn{0%{opacity:0;transform:translateY(-18px) scale(.9)}100%{opacity:1;transform:translateY(0) scale(1)}}
+
+/* ---- CTA (boxed, then exits) ---- */
+#ctaBox{position:fixed;top:50%;left:50%;z-index:56;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;opacity:0;pointer-events:none;text-align:center;padding:26px 30px;max-width:320px;border-radius:26px;border:3px solid rgba(255,255,255,.35);box-shadow:0 20px 50px rgba(0,0,0,.5),inset 0 2px 0 rgba(255,255,255,.2);transform:translate(-50%,-50%) scale(.5) rotate(-3deg)}
+#ctaBox.show{animation:ctaIn .55s cubic-bezier(.34,1.56,.64,1) forwards}
+#ctaBox.hide{animation:ctaOut .4s cubic-bezier(.5,0,.75,0) forwards}
+@keyframes ctaIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.5) rotate(-3deg)}60%{opacity:1;transform:translate(-50%,-50%) scale(1.08) rotate(1deg)}100%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0)}}
+@keyframes ctaOut{0%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0)}100%{opacity:0;transform:translate(-50%,-50%) scale(.6) translateY(-40px) rotate(4deg)}}
+#ctaText{font-family:'Tajawal',sans-serif;font-weight:900;font-size:26px;direction:rtl;text-shadow:0 4px 14px rgba(0,0,0,.5)}
+#ctaSub{font-family:'Tajawal',sans-serif;font-weight:700;font-size:14px;opacity:.85;direction:rtl}
+
+/* ---- Reveal panel (solid box, clearly readable) ---- */
+#reveal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);z-index:65;text-align:center;pointer-events:none;padding:26px 34px;border-radius:24px;border:3px solid rgba(255,255,255,.4);box-shadow:0 24px 60px rgba(0,0,0,.55),inset 0 2px 0 rgba(255,255,255,.15);max-width:320px}
+#reveal.show{transform:translate(-50%,-50%) scale(1);transition:transform .45s cubic-bezier(.34,1.56,.64,1)}
+#revealWord{font-family:'Nunito',sans-serif;font-weight:900;font-size:32px;direction:ltr;text-shadow:0 0 24px currentColor}
+#revealAr{font-family:'Tajawal',sans-serif;font-weight:800;font-size:21px;margin-top:8px;direction:rtl}
+#revealTag{font-family:'Tajawal',sans-serif;font-weight:700;font-size:12px;margin-top:10px;opacity:.7;letter-spacing:2px}
+</style>
+</head>
+<body>
+<canvas id="bgC"></canvas>
+<canvas id="vfC"></canvas>
+<div id="screenFlash"></div>
+<div id="tapCatcher"></div>
+
+<div id="stage">
+  <div id="brand">WordQuiz</div>
+
+  <div id="timerWrap">
+    <svg viewBox="0 0 76 76">
+      <circle id="timerBg" cx="38" cy="38" r="33"></circle>
+      <circle id="timerFg" cx="38" cy="38" r="33"></circle>
+    </svg>
+    <div id="timerNum">5</div>
+  </div>
+
+  <div id="promptWrap">
+    <div id="promptLbl">ما معنى الكلمة التالية؟</div>
+    <div id="promptWord"></div>
+  </div>
+
+  <div id="optsWrap"></div>
+</div>
+
+<div id="ctaBox">
+  <div id="ctaText">خمّن الإجابة في التعليقات</div>
+  <div id="ctaSub">تابعنا لتتعلم كلمة جديدة كل يوم</div>
+</div>
+
+<div id="reveal">
+  <div id="revealWord"></div>
+  <div id="revealAr"></div>
+  <div id="revealTag">الإجابة الصحيحة</div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// AUDIO
+// ══════════════════════════════════════════════════════════════════
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+AC.resume().catch(()=>{});
+['touchstart','click'].forEach(e=>document.addEventListener(e,()=>{if(AC.state==='suspended')AC.resume();},{once:true}));
+const MG = AC.createGain(); MG.gain.value = 0.4; MG.connect(AC.destination);
+const RD = AC.createMediaStreamDestination(); MG.connect(RD);
+
+// ══════════════════════════════════════════════════════════════════
+// RECORDING API — contract preserved for the GitHub Actions workflow
+// ══════════════════════════════════════════════════════════════════
+let _mr=null,_rc=[],_rb=null,_recRaf=null;
+window._recordingDone=false;
+
+function _drawRecFrame(cx,W2,H2){
+  cx.clearRect(0,0,W2,H2);
+  try{cx.drawImage(document.getElementById('bgC'),0,0,W2,H2);}catch(e){}
+
+  const nodes=[
+    ...document.querySelectorAll('#brand,#promptWrap,#optsWrap .optCard,#timerWrap'),
+  ];
+  nodes.forEach(el=>{
+    const st=getComputedStyle(el);
+    if(st.opacity==='0'||st.display==='none')return;
+    const r=el.getBoundingClientRect();
+    if(r.width<1||r.height<1)return;
+    cx.save();
+    cx.globalAlpha=parseFloat(st.opacity);
+
+    if(el.id==='brand'){
+      cx.font=`900 26px '${S.font}',sans-serif`;
+      cx.fillStyle=S.acc;cx.textAlign='center';cx.textBaseline='top';
+      cx.shadowColor=S.acc;cx.shadowBlur=S.glow?18:0;
+      cx.fillText(el.textContent,r.left+r.width/2,r.top);
+    } else if(el.id==='promptWrap'){
+      const lbl=document.getElementById('promptLbl'),wd=document.getElementById('promptWord');
+      const lr=lbl.getBoundingClientRect(),wr=wd.getBoundingClientRect();
+      cx.font=`700 13px Tajawal,sans-serif`;cx.fillStyle='rgba(255,255,255,.6)';
+      cx.textAlign='center';cx.textBaseline='top';
+      cx.fillText(lbl.textContent,lr.left+lr.width/2,lr.top);
+      const wst=getComputedStyle(wd);
+      cx.fillStyle=wst.backgroundColor!=='rgba(0, 0, 0, 0)'?wst.backgroundColor:S.acc;
+      cx.beginPath();_roundShape(cx,wr.left,wr.top,wr.width,wr.height,S.shape);cx.fill();
+      cx.font=`900 42px Nunito,sans-serif`;cx.fillStyle=wd.style.color||'#fff';
+      cx.textAlign='center';cx.textBaseline='middle';
+      cx.fillText(wd.textContent,wr.left+wr.width/2,wr.top+wr.height/2+2);
+    } else if(el.classList.contains('optCard')){
+      const bg=el.style.background||'#444';
+      const isCorrect=el.classList.contains('correct');
+      const isWrong=el.classList.contains('wrong');
+      if(isWrong)cx.globalAlpha=parseFloat(st.opacity)*0.32;
+      cx.fillStyle=bg;
+      if(S.glow||isCorrect){cx.shadowColor=isCorrect?S.acc:bg;cx.shadowBlur=isCorrect?28:16;}
+      cx.beginPath();_roundShape(cx,r.left,r.top,r.width,r.height,S.shape);cx.fill();
+      cx.shadowBlur=0;
+      cx.strokeStyle=isCorrect?'#ffffff':'rgba(255,255,255,.3)';cx.lineWidth=isCorrect?4:3;
+      cx.beginPath();_roundShape(cx,r.left,r.top,r.width,r.height,S.shape);cx.stroke();
+      cx.font=`800 19px Tajawal,sans-serif`;cx.fillStyle=el.style.color||'#fff';
+      cx.textAlign='center';cx.textBaseline='middle';
+      cx.shadowColor='rgba(0,0,0,.5)';cx.shadowBlur=3;
+      cx.fillText(el.dataset.text||el.textContent.trim(),r.left+r.width/2,r.top+r.height/2);
+      if(isCorrect){
+        cx.shadowBlur=0;
+        cx.fillStyle='#fff';
+        cx.beginPath();cx.arc(r.left+22,r.top+20,11,0,Math.PI*2);cx.fill();
+        cx.fillStyle='#0a0';cx.font=`900 13px Nunito,sans-serif`;
+        cx.fillText('✓',r.left+22,r.top+21);
+      }
+    } else if(el.id==='timerWrap'){
+      const cxr=r.left+r.width/2,cyr=r.top+r.height/2,rad=33*(r.width/76);
+      cx.beginPath();cx.arc(cxr,cyr,rad,0,Math.PI*2);cx.lineWidth=8*(r.width/76);cx.strokeStyle='rgba(255,255,255,.15)';cx.stroke();
+      const frac=timerFrac;
+      cx.beginPath();cx.arc(cxr,cyr,rad,-Math.PI/2,-Math.PI/2+frac*Math.PI*2);
+      cx.strokeStyle=S.acc;cx.lineCap='round';cx.stroke();
+      cx.font=`900 28px 'Fredoka One',sans-serif`;cx.fillStyle='#fff';
+      cx.textAlign='center';cx.textBaseline='middle';
+      cx.fillText(document.getElementById('timerNum').textContent,cxr,cyr+2);
+    }
+    cx.restore();
+  });
+
+  // CTA box overlay
+  const ctaBox=document.getElementById('ctaBox');
+  const ctaOp=parseFloat(getComputedStyle(ctaBox).opacity);
+  if(ctaOp>0.01){
+    const cr=ctaBox.getBoundingClientRect();
+    cx.save();cx.globalAlpha=ctaOp;
+    cx.fillStyle=S.bg2||'#1a1a2e';
+    cx.strokeStyle='rgba(255,255,255,.35)';cx.lineWidth=3;
+    cx.beginPath();_roundShape(cx,cr.left,cr.top,cr.width,cr.height,'round',26);cx.fill();cx.stroke();
+    cx.font=`900 26px Tajawal,sans-serif`;cx.fillStyle=S.txt;
+    cx.textAlign='center';cx.textBaseline='middle';
+    cx.shadowColor='rgba(0,0,0,.5)';cx.shadowBlur=8;
+    cx.fillText(document.getElementById('ctaText').textContent,cr.left+cr.width/2,cr.top+cr.height*0.4);
+    cx.font=`700 14px Tajawal,sans-serif`;cx.globalAlpha=ctaOp*.85;cx.shadowBlur=0;
+    cx.fillText(document.getElementById('ctaSub').textContent,cr.left+cr.width/2,cr.top+cr.height*0.68);
+    cx.restore();
+  }
+
+  // Reveal overlay — solid panel, matches CSS
+  const rv=document.getElementById('reveal');
+  if(rv.classList.contains('show')){
+    const rr=rv.getBoundingClientRect();
+    cx.save();
+    cx.fillStyle=S.bg2||'#1a1a2e';
+    cx.strokeStyle='rgba(255,255,255,.4)';cx.lineWidth=3;
+    cx.beginPath();_roundShape(cx,rr.left,rr.top,rr.width,rr.height,'round',24);cx.fill();cx.stroke();
+    cx.font=`900 32px Nunito,sans-serif`;cx.fillStyle=S.acc;
+    cx.textAlign='center';cx.textBaseline='middle';
+    cx.shadowColor=S.acc;cx.shadowBlur=S.glow?18:0;
+    cx.fillText(document.getElementById('revealWord').textContent,rr.left+rr.width/2,rr.top+rr.height*0.32);
+    cx.font=`800 21px Tajawal,sans-serif`;cx.fillStyle=S.txt;cx.shadowBlur=0;
+    cx.fillText(document.getElementById('revealAr').textContent,rr.left+rr.width/2,rr.top+rr.height*0.58);
+    cx.font=`700 12px Tajawal,sans-serif`;cx.globalAlpha=.7;
+    cx.fillText(document.getElementById('revealTag').textContent,rr.left+rr.width/2,rr.top+rr.height*0.82);
+    cx.restore();
+  }
+
+  try{cx.drawImage(document.getElementById('vfC'),0,0,W2,H2);}catch(e){}
+}
+
+function _roundShape(cx,x,y,w,h,shape,forceR){
+  const r=forceR||S.radius||20;
+  if(shape==='angular'){
+    // beveled-corner polygon
+    const b=Math.min(r,w/3,h/3);
+    cx.moveTo(x+b,y);cx.lineTo(x+w-b,y);cx.lineTo(x+w,y+b);cx.lineTo(x+w,y+h-b);
+    cx.lineTo(x+w-b,y+h);cx.lineTo(x+b,y+h);cx.lineTo(x,y+h-b);cx.lineTo(x,y+b);cx.closePath();
+  } else if(shape==='blob'){
+    cx.roundRect(x,y,w,h,[r*1.4,r*.5,r*1.4,r*.5]);
+  } else {
+    cx.roundRect(x,y,w,h,r);
+  }
+}
+
+window.startRecording=function(fps){
+  try{
+    _rc=[];_rb=null;window._recordingDone=false;AC.resume().catch(()=>{});
+    const W2=window.innerWidth,H2=window.innerHeight;
+    const comp=document.createElement('canvas');
+    comp.width=W2;comp.height=H2;
+    comp.style.cssText='position:fixed;left:-99999px;top:0;pointer-events:none;';
+    document.body.appendChild(comp);
+    const cx=comp.getContext('2d');
+    function frame(){_drawRecFrame(cx,W2,H2);_recRaf=requestAnimationFrame(frame);}
+    frame();
+    const vs=comp.captureStream(fps||30);
+    const at=RD.stream.getAudioTracks();
+    const ms=new MediaStream([...vs.getVideoTracks(),...at]);
+    const mt=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(m=>MediaRecorder.isTypeSupported(m))||'video/webm';
+    _mr=new MediaRecorder(ms,{mimeType:mt,videoBitsPerSecond:8_000_000});
+    _mr.ondataavailable=e=>{if(e.data&&e.data.size>0)_rc.push(e.data);};
+    _mr.onstop=()=>{if(_recRaf)cancelAnimationFrame(_recRaf);comp.remove();_rb=new Blob(_rc,{type:'video/webm'});window._recordingDone=true;};
+    _mr.onerror=e=>console.error(e);_mr.start(200);
+  }catch(e){console.error(e);}
+};
+window.stopRecording=function(){try{if(_mr&&_mr.state!=='inactive')_mr.stop();}catch(e){}};
+window.forceFinalize=function(){try{if(_recRaf)cancelAnimationFrame(_recRaf);if(_rc.length>0&&!window._recordingDone){_rb=new Blob(_rc,{type:'video/webm'});window._recordingDone=true;}}catch(e){}};
+window.getRecordingBase64=function(){return new Promise((res,rej)=>{const chk=()=>{if(!_rb){setTimeout(chk,100);return;}const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(_rb);};chk();});};
+
+// ══════════════════════════════════════════════════════════════════
+// QUIZ QUESTION BANK — intermediate + advanced English vocabulary
+// (text-only, no emoji standing in for meaning)
+// ══════════════════════════════════════════════════════════════════
+const QUIZ_MID=[
+  {word:'Reluctant',correct:'متردد',opts:['متردد','متحمس','واثق']},
+  {word:'Persuade',correct:'يقنع',opts:['يقنع','يرفض','يتجاهل']},
+  {word:'Ambiguous',correct:'غامض',opts:['غامض','واضح','دقيق']},
+  {word:'Generous',correct:'كريم',opts:['كريم','بخيل','أناني']},
+  {word:'Fragile',correct:'هش',opts:['هش','متين','صلب']},
+  {word:'Postpone',correct:'يؤجل',opts:['يؤجل','يسرع','ينهي']},
+  {word:'Envious',correct:'حسود',opts:['حسود','قانع','سخي']},
+  {word:'Cautious',correct:'حذر',opts:['حذر','متهور','لامبالٍ']},
+  {word:'Genuine',correct:'أصيل',opts:['أصيل','مزيف','مؤقت']},
+  {word:'Exhausted',correct:'منهك',opts:['منهك','نشيط','هادئ']},
+  {word:'Reveal',correct:'يكشف',opts:['يكشف','يخفي','ينسى']},
+  {word:'Stubborn',correct:'عنيد',opts:['عنيد','مرن','متعاون']},
+  {word:'Sufficient',correct:'كافٍ',opts:['كافٍ','ناقص','زائد']},
+  {word:'Hostile',correct:'عدائي',opts:['عدائي','ودود','محايد']},
+  {word:'Vague',correct:'مبهم',opts:['مبهم','دقيق','واضح']},
+];
+const QUIZ_ADV=[
+  {word:'Ephemeral',correct:'زائل',opts:['زائل','دائم','ثابت']},
+  {word:'Meticulous',correct:'دقيق جداً',opts:['دقيق جداً','مهمل','عشوائي']},
+  {word:'Ubiquitous',correct:'منتشر بكل مكان',opts:['منتشر بكل مكان','نادر','مخفي']},
+  {word:'Resilient',correct:'قادر على التعافي',opts:['قادر على التعافي','هش','ضعيف']},
+  {word:'Ambivalent',correct:'متضارب المشاعر',opts:['متضارب المشاعر','حاسم','متأكد']},
+  {word:'Candid',correct:'صريح',opts:['صريح','مخادع','غامض']},
+  {word:'Deference',correct:'احترام وتقدير',opts:['احترام وتقدير','استهزاء','تجاهل']},
+  {word:'Pragmatic',correct:'عملي وواقعي',opts:['عملي وواقعي','خيالي','مثالي متطرف']},
+  {word:'Vindicate',correct:'يبرّئ',opts:['يبرّئ','يتهم','يعاقب']},
+  {word:'Austere',correct:'بسيط وصارم',opts:['بسيط وصارم','فاخر','مبذّر']},
+  {word:'Conundrum',correct:'لغز محيّر',opts:['لغز محيّر','حل بسيط','إجابة واضحة']},
+  {word:'Placate',correct:'يهدّئ',opts:['يهدّئ','يستفز','يغضب']},
+];
+const QUIZ=[...QUIZ_MID,...QUIZ_ADV];
+
+// ══════════════════════════════════════════════════════════════════
+// THEMES — palette + background pattern + font + card shape
+// ══════════════════════════════════════════════════════════════════
+const STYLES=[
+  {name:'NEON',    font:'Orbitron',    bg:'#020014',bg2:'#0c0630',pat:'grid', shape:'angular',radius:6,
+   pal:['#ff006e','#fb5607','#ffbe0b','#8338ec','#3a86ff','#06d6a9'],
+   txt:'#ffffff',acc:'#ffbe0b',glow:true},
+  {name:'CANDY',   font:'Fredoka One', bg:'#1a0a2e',bg2:'#2b0f45',pat:'dots', shape:'blob',radius:26,
+   pal:['#ff6eb4','#c77dff','#48cae4','#ffd166','#06d6a9','#f72585'],
+   txt:'#ffffff',acc:'#ffd166',glow:true},
+  {name:'BUBBLE',  font:'Righteous',   bg:'#001d3d',bg2:'#012a52',pat:'stars',shape:'round',radius:24,
+   pal:['#ffd60a','#00f5d4','#ff477e','#7bf1a8','#ff9e00','#c77dff'],
+   txt:'#ffffff',acc:'#00f5d4',glow:true},
+  {name:'SUNNY',   font:'Changa',      bg:'#2d1b00',bg2:'#3d2601',pat:'rays', shape:'round',radius:18,
+   pal:['#ffb703','#fb8500','#8ecae6','#ff595e','#ffca3a','#8ac926'],
+   txt:'#fff3e0',acc:'#ffca3a',glow:false},
+  {name:'ROYAL',   font:'Amiri',       bg:'#0d0a1f',bg2:'#171235',pat:'scan', shape:'angular',radius:8,
+   pal:['#c9a227','#e0c068','#7b2fff','#4b2e83','#f5e6b8','#9c6b1f'],
+   txt:'#f5e6c8',acc:'#e0c068',glow:false},
+  {name:'GLITCH',  font:'Rubik Mono One',bg:'#0a0014',bg2:'#160026',pat:'grid', shape:'angular',radius:2,
+   pal:['#00ff9f','#ff00c8','#00c8ff','#ffee00','#ff4d00','#9d00ff'],
+   txt:'#ffffff',acc:'#00ff9f',glow:true},
+];
+let S=STYLES[0];
+
+function applyStyle(s){
+  S=s;
+  const fn=`'${s.font}',sans-serif`;
+  document.getElementById('brand').style.color=s.acc;
+  document.getElementById('brand').style.fontFamily=fn;
+  document.getElementById('promptLbl').style.color=s.txt;
+  document.getElementById('timerFg').style.stroke=s.acc;
+  document.getElementById('reveal').style.color=s.txt;
+  document.getElementById('ctaBox').style.background=s.bg2;
+  document.getElementById('ctaBox').style.color=s.txt;
+  document.querySelectorAll('.optCard').forEach(applyShapeToCard);
+  document.getElementById('promptWord').style.borderRadius=(s.shape==='blob'?'34px 14px 34px 14px':s.shape==='angular'?'4px':s.radius+'px');
+  initBgPts();initStars();
+}
+function applyShapeToCard(el){
+  el.style.borderRadius=S.shape==='blob'?'30px 12px 30px 12px':S.shape==='angular'?'4px':S.radius+'px';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// AUDIO SFX — each call randomizes pitch/detune slightly so nothing repeats identically
+// ══════════════════════════════════════════════════════════════════
+function beep(freq,t0,dur,vol=.1,type='sine'){
+  const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime+t0;
+  o.type=type;o.frequency.setValueAtTime(freq,t);
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.01);
+  g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  o.connect(g);g.connect(MG);o.start(t);o.stop(t+dur+.05);
+}
+function pianoNote(freq,t0,dur,vol){
+  const t=AC.currentTime+t0;
+  const o1=AC.createOscillator(),o2=AC.createOscillator(),g=AC.createGain();
+  o1.type='sine';o1.frequency.setValueAtTime(freq,t);
+  o2.type='triangle';o2.frequency.setValueAtTime(freq*1.003,t);
+  g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(vol,t+.008);
+  g.gain.exponentialRampToValueAtTime(vol*.5,t+.07);
+  g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  o1.connect(g);o2.connect(g);g.connect(MG);
+  o1.start(t);o2.start(t);o1.stop(t+dur+.05);o2.stop(t+dur+.05);
+}
+const rnd=(a,b)=>a+Math.random()*(b-a);
+
+function sfxPromptIn(){
+  const base=440*rnd(.92,1.1);
+  beep(base,0,.09,.09,'triangle');
+  beep(base*1.98,.015,.06,.05,'sine');
+}
+function sfxOptIn(i){
+  const base=(500+i*70)*rnd(.94,1.08);
+  beep(base,0,.08,.1,'triangle');
+  beep(base*1.9+rnd(-30,30),.012,.05,.06,'sine');
+}
+function sfxTick(secs){
+  const base=(secs<=2?980:820)*rnd(.96,1.05);
+  beep(base,0,.05,.06+ (secs<=2?.02:0),'square');
+}
+function sfxCtaIn(){
+  const base=620*rnd(.9,1.1);
+  beep(base,0,.11,.09,'triangle');
+  beep(base*1.5,.07,.13,.07,'sine');
+}
+function sfxCtaOut(){
+  const base=380*rnd(.9,1.1);
+  const t=AC.currentTime;const o=AC.createOscillator(),g=AC.createGain();
+  o.type='sine';o.frequency.setValueAtTime(base,t);o.frequency.exponentialRampToValueAtTime(base*1.8,t+.14);
+  g.gain.setValueAtTime(.07,t);g.gain.exponentialRampToValueAtTime(.001,t+.14);
+  o.connect(g);g.connect(MG);o.start(t);o.stop(t+.16);
+}
+function sfxReveal(){
+  const shift=rnd(.94,1.08);
+  [523,659,784,1047,1319].forEach((f,i)=>pianoNote(f*shift,i*.08,.22,.17));
+}
+function sfxTap(){
+  const base=700*rnd(.9,1.12);
+  beep(base,0,.06,.08,'sine');
+}
+
+let _bgAudio=null;
+const BG_MUSIC_FILES=[
+  'bgmusic/1.mp3','bgmusic/2.mp3','bgmusic/3.mp3','bgmusic/4.mp3','bgmusic/5.mp3',
+  'bgmusic/6.mp3','bgmusic/7.mp3','bgmusic/8.mp3','bgmusic/9.mp3','bgmusic/10.mp3',
+  'bgmusic/11.mp3','bgmusic/12.mp3','bgmusic/13.mp3','bgmusic/14.mp3','bgmusic/15.mp3',
+  'bgmusic/1.wav','bgmusic/2.wav','bgmusic/3.wav',
+  'bgmusic/1.m4a','bgmusic/2.m4a','bgmusic/3.m4a',
+  'bgmusic/1.ogg','bgmusic/2.ogg','bgmusic/3.ogg',
+];
+(()=>{try{const p=new URLSearchParams(location.search).get('music');if(p)BG_MUSIC_FILES.unshift(p);}catch(e){}})();
+function startMusic(){
+  if(_bgAudio)return;
+  function tryLoad(files){
+    if(!files.length)return;
+    const idx=Math.floor(Math.random()*files.length);
+    const file=files[idx];
+    const a=new Audio(file);
+    a.volume=0.18;a.loop=true;
+    a.onerror=()=>{tryLoad(files.filter((_,i)=>i!==idx));};
+    a.oncanplaythrough=()=>{_bgAudio=a;a.play().catch(()=>{});};
+    a.load();
+  }
+  tryLoad([...BG_MUSIC_FILES]);
+}
+function stopMusic(){if(_bgAudio){try{_bgAudio.pause();}catch(e){}_bgAudio=null;}}
+
+// ══════════════════════════════════════════════════════════════════
+// CANVAS BG / VFX
+// ══════════════════════════════════════════════════════════════════
+const bgC=document.getElementById('bgC'),bgX=bgC.getContext('2d');
+const vfC=document.getElementById('vfC'),vfX=vfC.getContext('2d');
+let bgPts=[],vfPts=[],stars=[];
+
+function resizeCvs(){bgC.width=vfC.width=innerWidth;bgC.height=vfC.height=innerHeight}
+function initStars(){stars=[];for(let i=0;i<150;i++)stars.push({x:Math.random()*bgC.width,y:Math.random()*bgC.height,r:Math.random()<.12?1.5:.7,a:Math.random()*.8+.2})}
+function initBgPts(){bgPts=[];for(let i=0;i<28;i++)bgPts.push({x:Math.random()*bgC.width,y:Math.random()*bgC.height,r:Math.random()*4+1,vy:Math.random()*.35+.08,vx:(Math.random()-.5)*.25,a:Math.random()*.25+.05,c:S.pal[Math.floor(Math.random()*S.pal.length)]})}
+
+function drawBg(){
+  const w=bgC.width,h=bgC.height;
+  bgX.clearRect(0,0,w,h);bgX.fillStyle=S.bg;bgX.fillRect(0,0,w,h);
+  const p=S.pat;
+  if(p==='grid'){bgX.strokeStyle='rgba(255,255,255,.04)';bgX.lineWidth=1;for(let x=0;x<w;x+=40){bgX.beginPath();bgX.moveTo(x,0);bgX.lineTo(x,h);bgX.stroke()}for(let y=0;y<h;y+=40){bgX.beginPath();bgX.moveTo(0,y);bgX.lineTo(w,y);bgX.stroke()}}
+  else if(p==='dots'){bgX.fillStyle='rgba(255,255,255,.06)';for(let x=0;x<w;x+=28)for(let y=0;y<h;y+=28){bgX.beginPath();bgX.arc(x,y,2.5,0,Math.PI*2);bgX.fill()}}
+  else if(p==='scan'){bgX.fillStyle='rgba(0,0,0,.18)';for(let y=0;y<h;y+=4)bgX.fillRect(0,y,w,2)}
+  else if(p==='stars'){stars.forEach(s=>{bgX.globalAlpha=s.a;bgX.fillStyle='#fff';bgX.fillRect(s.x,s.y,s.r,s.r)});bgX.globalAlpha=1}
+  else if(p==='rays'){const cxr=w/2,cyr=h;for(let a=0;a<Math.PI;a+=Math.PI/10){bgX.beginPath();bgX.moveTo(cxr,cyr);bgX.lineTo(cxr+Math.cos(a)*w*1.6,cyr-Math.sin(a)*h*1.6);bgX.lineWidth=28;bgX.strokeStyle='rgba(255,180,0,.03)';bgX.stroke()}}
+  bgPts.forEach(p=>{bgX.globalAlpha=p.a;bgX.fillStyle=p.c;bgX.beginPath();bgX.arc(p.x,p.y,p.r,0,Math.PI*2);bgX.fill();p.y-=p.vy;p.x+=p.vx;if(p.y<-10){p.y=bgC.height+10;p.x=Math.random()*bgC.width;p.a=Math.random()*.25+.05}});
+  bgX.globalAlpha=1;
+}
+function spawnParts(x,y,color,n=14,big=false){
+  for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,sp=(big?3:2)+Math.random()*(big?7:4);vfPts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,c:color,r:big?Math.random()*7+3:Math.random()*4+2,a:1,decay:.022+Math.random()*.015})}
+}
+function drawVfx(){
+  vfX.clearRect(0,0,vfC.width,vfC.height);
+  vfPts=vfPts.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.2;p.a-=p.decay;if(p.a<=0)return false;vfX.globalAlpha=Math.max(0,p.a);vfX.fillStyle=p.c;vfX.beginPath();vfX.arc(p.x,p.y,p.r,0,Math.PI*2);vfX.fill();return true});
+  vfX.globalAlpha=1;
+}
+
+let shaking=false;
+const STG=document.getElementById('stage');
+function shake(mag=8,cycles=8){
+  if(shaking)return;shaking=true;let n=0;
+  const iv=setInterval(()=>{const m=mag*Math.pow(.78,n);STG.style.transform=`translate(${(Math.random()-.5)*m*2}px,${(Math.random()-.5)*m*2}px)`;if(++n>=cycles){clearInterval(iv);STG.style.transform='none';shaking=false}},28);
+}
+function flashScreen(color='#fff',a=.3){const el=document.getElementById('screenFlash');el.style.background=color;el.style.opacity=a;setTimeout(()=>el.style.opacity=0,130)}
+
+let animId=null;
+function loop(){drawBg();drawVfx();animId=requestAnimationFrame(loop)}
+
+// ══════════════════════════════════════════════════════════════════
+// QUIZ SEQUENCE — step-based state machine so tapping can skip ahead
+// ══════════════════════════════════════════════════════════════════
+let timerFrac=1;
+let seqTimers=[];
+let tickInterval=null;
+let currentStep=0;
+let stepFns=[];
+let sequenceDone=false;
+
+function pick(arr){return arr[Math.floor(Math.random()*arr.length)]}
+function shuffled(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a;}
+
+function clearSeqTimers(){seqTimers.forEach(t=>clearTimeout(t));seqTimers=[];if(tickInterval){clearInterval(tickInterval);tickInterval=null}}
+function schedule(fn,ms){const id=setTimeout(fn,ms);seqTimers.push(id);return id;}
+
+function advance(){
+  if(sequenceDone)return;
+  if(currentStep>=stepFns.length){clearSeqTimers();finishOrRestart();return;}
+  clearSeqTimers();
+  sfxTap();
+  const fn=stepFns[currentStep];
+  currentStep++;
+  fn();
+}
+
+function finishSequence(){
+  sequenceDone=true;
+  window.stopRecording();
+  setTimeout(()=>window.forceFinalize(),600);
+}
+
+function runQuiz(){
+  const q=pick(QUIZ);
+  S=pick(STYLES);applyStyle(S);
+  currentStep=0;sequenceDone=false;
+
+  document.getElementById('promptWord').textContent=q.word;
+  document.getElementById('promptWord').style.background=`linear-gradient(135deg,${S.pal[0]},${S.pal[2]})`;
+  document.getElementById('promptWord').style.color='#fff';
+  document.getElementById('promptWord').style.fontFamily=`'Nunito',sans-serif`;
+
+  const optsWrap=document.getElementById('optsWrap');
+  optsWrap.innerHTML='';
+  document.getElementById('promptWrap').classList.remove('show','fade-out');
+  document.getElementById('timerWrap').classList.remove('show');
+  document.getElementById('ctaBox').classList.remove('show','hide');
+  document.getElementById('reveal').classList.remove('show');
+
+  const order=shuffled(q.opts);
+  const cards=order.map((opt,i)=>{
+    const el=document.createElement('div');
+    el.className='optCard '+(i%2===0?'flyL':'flyUp');
+    el.dataset.text=opt;
+    el.style.background=S.pal[(i+1)%S.pal.length];
+    el.style.color='#fff';
+    el.style.fontFamily=`'Tajawal',sans-serif`;
+    applyShapeToCard(el);
+    el.innerHTML=`<span class="badge">✓</span>${opt}`;
+    optsWrap.appendChild(el);
+    return {el,opt,correct:opt===q.correct};
+  });
+
+  const fg=document.getElementById('timerFg');
+  const R=33,C=2*Math.PI*R;
+  fg.style.strokeDasharray=C;
+  fg.style.strokeDashoffset=0;
+  timerFrac=1;
+  document.getElementById('timerNum').textContent='5';
+
+  // ---- Build step functions (each is one "scene"; tap jumps to next) ----
+  stepFns=[];
+
+  // Step 0: prompt appears
+  stepFns.push(()=>{
+    document.getElementById('promptWrap').classList.add('show');
+    sfxPromptIn();
+    const r=document.getElementById('promptWord').getBoundingClientRect();
+    spawnParts(r.left+r.width/2,r.top+r.height/2,S.acc,16,true);
+    shake(4,6);
+    schedule(advance,900);
+  });
+
+  // Steps 1..3: each option flies in
+  cards.forEach((c,idx)=>{
+    stepFns.push(()=>{
+      c.el.classList.add('show');
+      sfxOptIn(idx);
+      const r=c.el.getBoundingClientRect();
+      spawnParts(r.left+r.width/2,r.top+r.height/2,c.el.style.background,10);
+      shake(2,4);
+      schedule(advance,650);
+    });
+  });
+
+  // Step 4: timer starts, runs 5s, then auto-advance
+  stepFns.push(()=>{
+    document.getElementById('timerWrap').classList.add('show');
+    let secs=5;
+    document.getElementById('timerNum').textContent=secs;
+    sfxTick(secs);
+    tickInterval=setInterval(()=>{
+      secs--;
+      timerFrac=Math.max(secs,0)/5;
+      fg.style.strokeDashoffset=C*(1-timerFrac);
+      document.getElementById('timerNum').textContent=Math.max(secs,0);
+      if(secs>0)sfxTick(secs);
+      if(secs<=0){clearInterval(tickInterval);tickInterval=null;}
+    },1000);
+    schedule(advance,5300);
+  });
+
+  // Step 5: CTA box pops in, breathes, waits
+  stepFns.push(()=>{
+    document.getElementById('timerWrap').classList.remove('show');
+    document.getElementById('ctaBox').classList.remove('hide');
+    document.getElementById('ctaBox').classList.add('show');
+    sfxCtaIn();
+    flashScreen(S.acc,.15);
+    const r=document.getElementById('ctaBox').getBoundingClientRect();
+    spawnParts(r.left+r.width/2,r.top+r.height/2,S.acc,14);
+    schedule(advance,1900);
+  });
+
+  // Step 6: CTA box exits
+  stepFns.push(()=>{
+    document.getElementById('ctaBox').classList.remove('show');
+    document.getElementById('ctaBox').classList.add('hide');
+    sfxCtaOut();
+    schedule(advance,550);
+  });
+
+  // Step 7: reveal correct answer — highlight the right card AND show a readable panel
+  stepFns.push(()=>{
+    document.getElementById('promptWrap').classList.add('fade-out');
+    const correctCard=cards.find(c=>c.correct);
+    cards.forEach(c=>{
+      if(c.correct){
+        c.el.classList.add('correct');
+        c.el.style.setProperty('--glowc',S.acc);
+      } else {
+        c.el.classList.add('wrong');
+      }
+    });
+    sfxReveal();
+    flashScreen('#fff',.35);
+    shake(10,10);
+    document.getElementById('revealWord').textContent=q.word;
+    document.getElementById('revealAr').textContent=q.correct;
+    document.getElementById('reveal').style.background=S.bg2||'#1a1a2e';
+    document.getElementById('reveal').style.color=S.txt;
+    document.getElementById('reveal').classList.add('show');
+    const r=correctCard.el.getBoundingClientRect();
+    spawnParts(r.left+r.width/2,r.top+r.height/2,S.acc,28,true);
+    schedule(advance,3600);
+  });
+
+  // Step 8: end card — invites another tap, and auto-restarts for the recording bot
+  stepFns.push(()=>{
+    schedule(()=>{finishOrRestart();},1400);
+  });
+
+  // Kick off step 0
+  currentStep=1;
+  stepFns[0]();
+}
+
+// After a question finishes: if we're mid-recording, stop & finalize (yml handles one video).
+// If a human is just tapping through in a browser (no recording in progress), loop into a new question.
+function finishOrRestart(){
+  if(_mr && _mr.state!=='inactive'){
+    finishSequence();
+  } else {
+    runQuiz();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TAP TO ADVANCE
+// ══════════════════════════════════════════════════════════════════
+document.getElementById('tapCatcher').addEventListener('pointerdown',()=>{
+  AC.resume().catch(()=>{});
+  advance();
+});
+
+// ══════════════════════════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════════════════════════
+resizeCvs();
+S=STYLES[Math.floor(Math.random()*STYLES.length)];applyStyle(S);initStars();
+animId=requestAnimationFrame(loop);
+window.addEventListener('resize',()=>{resizeCvs();initStars();initBgPts();});
+
+document.fonts.ready.then(()=>{
+  AC.resume().catch(()=>{});
+  setTimeout(()=>{
+    startMusic();
+    runQuiz();
+    setTimeout(()=>{
+      window.startRecording(30);
+    },300);
+  },500);
+});
+</script>
+</body>
+</html>
