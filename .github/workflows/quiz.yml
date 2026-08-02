@@ -1,4 +1,4 @@
-name: Quiz Show Reel
+name: Quiz
 
 on:
   workflow_dispatch:
