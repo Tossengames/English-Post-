@@ -1,9 +1,9 @@
-name: 🎯 Quiz Show Reel
+name: Quiz Show Reel
 
 on:
   workflow_dispatch:
   schedule:
-    # - cron: "0 18 * * *"
+    - cron: "0 18 * * *"
 
 jobs:
   post:
@@ -17,7 +17,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /var/cache/apt/archives
-          key: apt-ubuntu22-quiz-v2
+          key: apt-ubuntu22-quiz-v3
 
       - name: Install dependencies
         run: |
@@ -31,7 +31,7 @@ jobs:
           path: |
             ~/.cache/pip
             ~/.wdm
-          key: pip-wdm-quiz-v2
+          key: pip-wdm-quiz-v3
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -63,17 +63,17 @@ jobs:
           MUSIC_FOLDERS = ["bgmusic3", "Bgmusic3"]
           MUSIC_EXTENSIONS = ["mp3", "wav", "m4a", "mp4", "aac", "ogg", "flac"]
 
-          ts         = os.environ.get("TS", "test")
-          webm_file  = f"/tmp/quiz_{ts}.webm"
-          mp4_file   = f"/tmp/quiz_{ts}.mp4"
-          html_path  = os.path.abspath("quiz_show.html")
-          fb_token   = os.environ.get("FB_PAGE_TOKEN")
+          ts = os.environ.get("TS", "test")
+          webm_file = f"/tmp/quiz_{ts}.webm"
+          mp4_file = f"/tmp/quiz_{ts}.mp4"
+
+          html_path = os.path.abspath("quiz_show.html")
+
+          fb_token = os.environ.get("FB_PAGE_TOKEN")
           fb_page_id = os.environ.get("FB_PAGE_ID")
 
           if not fb_token or not fb_page_id:
-              raise RuntimeError("FB_PAGE_TOKEN or FB_PAGE_ID secret is missing/empty")
-
-          opts = Options()
+              raise RuntimeError("Missing Facebook secrets")opts = Options()
           opts.add_argument("--no-sandbox")
           opts.add_argument("--disable-dev-shm-usage")
           opts.add_argument("--disable-gpu")
@@ -87,167 +87,203 @@ jobs:
           opts.add_argument("--no-first-run")
           opts.add_argument("--disable-infobars")
           opts.add_argument("--disable-notifications")
-          opts.add_argument("--use-fake-ui-for-media-stream")
-          opts.add_argument("--use-fake-device-for-media-stream")
           opts.add_argument("--allow-file-access-from-files")
+
+          # added from working Arab Facts script
           opts.add_argument("--disable-web-security")
           opts.add_argument("--allow-running-insecure-content")
-          opts.add_experimental_option("excludeSwitches", ["enable-automation"])
-          opts.add_experimental_option("useAutomationExtension", False)
-          opts.add_experimental_option("mobileEmulation", {
-              "deviceMetrics": {"width": 540, "height": 960, "pixelRatio": 1.0},
-              "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"
-          })
+
+          opts.add_experimental_option(
+              "excludeSwitches",
+              ["enable-automation"]
+          )
+
+          opts.add_experimental_option(
+              "useAutomationExtension",
+              False
+          )
+
+          opts.add_experimental_option(
+              "mobileEmulation",
+              {
+                  "deviceMetrics": {
+                      "width": 540,
+                      "height": 960,
+                      "pixelRatio": 1.0
+                  },
+                  "userAgent":
+                  "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"
+              }
+          )
 
           print("Starting Chrome...")
+
           driver = webdriver.Chrome(
-              service=Service(ChromeDriverManager().install()), options=opts
+              service=Service(ChromeDriverManager().install()),
+              options=opts
           )
+
           driver.set_window_size(540, 960)
           driver.set_script_timeout(120)
 
-          print(f"Loading file://{html_path}")
+          print(f"Loading {html_path}")
           driver.get(f"file://{html_path}")
 
-          print("Waiting for first question to fully animate in (8s)...")
-          time.sleep(8)
+          print("Waiting for quiz scene...")
+          time.sleep(5)
 
           print("Starting recording...")
+
           driver.execute_script("""
-              if(typeof AC !== 'undefined') AC.resume();
+              document.body.click();
+
+              if(typeof AC !== 'undefined') {
+                  AC.resume();
+              }
+
               window.startRecording(30);
           """)
 
-          print("Recording 20 seconds...")
-          time.sleep(20)
+          print("Recording 30 seconds...")
+          time.sleep(30)
 
           print("Stopping recording...")
-          driver.execute_script("window.stopRecording();")
+
+          driver.execute_script("""
+              window.stopRecording();
+          """)
+
           time.sleep(1)
-          driver.execute_script("window.forceFinalize();")
+
+          driver.execute_script("""
+              window.forceFinalize();
+          """)
+
           time.sleep(1)
+
 
           for _ in range(30):
-              done = driver.execute_script("return window._recordingDone;")
+              done = driver.execute_script(
+                  "return window._recordingDone;"
+              )
+
               if done:
-                  print("Recording finalised.")
+                  print("Recording finalised")
                   break
+
               time.sleep(0.4)
+
           else:
               driver.quit()
-              raise RuntimeError("Recording failed to finalise")
+              raise RuntimeError(
+                  "Recording failed to finalise"
+              )
+
 
           print("Extracting base64...")
+
           b64 = driver.execute_async_script("""
               var done = arguments[0];
-              window.getRecordingBase64().then(done).catch(function(e){ done(null); });
+
+              window.getRecordingBase64()
+              .then(done)
+              .catch(function(e){
+                  done(null);
+              });
           """)
+
           driver.quit()
-          print("Browser closed.")
 
           if not b64:
-              raise RuntimeError("Failed to get base64 data")
+              raise RuntimeError(
+                  "Failed to get recording data"
+              )
 
-          with open(webm_file, 'wb') as f:
+
+          with open(webm_file, "wb") as f:
               f.write(base64.b64decode(b64))
-          print(f"WebM: {os.path.getsize(webm_file)/1024/1024:.1f} MB")
 
-          print("Converting to MP4...")
+
+          print("Converting video...")
+
           result = subprocess.run([
-              "ffmpeg", "-y", "-i", webm_file,
-              "-c:v", "libx264", "-preset", "fast", "-crf", "18",
-              "-b:v", "10M", "-maxrate", "15M", "-bufsize", "20M",
-              "-pix_fmt", "yuv420p", "-vf", "scale=1080:1920:flags=lanczos",
-              "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
-              "-movflags", "+faststart", mp4_file
+              "ffmpeg",
+              "-y",
+              "-i",
+              webm_file,
+              "-c:v",
+              "libx264",
+              "-preset",
+              "fast",
+              "-crf",
+              "18",
+              "-pix_fmt",
+              "yuv420p",
+              "-vf",
+              "scale=1080:1920",
+              "-c:a",
+              "aac",
+              "-b:a",
+              "192k",
+              "-movflags",
+              "+faststart",
+              mp4_file
           ], capture_output=True, text=True)
 
-          if not os.path.exists(mp4_file) or os.path.getsize(mp4_file) < 10000:
-              print("ffmpeg stderr:", result.stderr[-2000:])
-              raise RuntimeError("mp4 conversion failed")
 
-          os.remove(webm_file)
-          print(f"mp4: {os.path.getsize(mp4_file)/1024/1024:.1f} MB")
-
-          def pick_music_file(folders):
-              for folder in folders:
-                  if not os.path.isdir(folder):
-                      continue
-                  candidates = []
-                  for ext in MUSIC_EXTENSIONS:
-                      candidates.extend(glob.glob(os.path.join(folder, f"*.{ext}")))
-                  if candidates:
-                      print(f"Using music folder '{folder}'.")
-                      return random.choice(candidates)
-              print("No music folder found — skipping.")
-              return None
-
-          music_file = pick_music_file(MUSIC_FOLDERS)
-
-          if music_file:
-              print(f"Selected music: {music_file}")
-              mixed_file = f"/tmp/quiz_{ts}_mixed.mp4"
-              probe = subprocess.run(
-                  ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                   "-of", "csv=p=0", music_file],
-                  capture_output=True, text=True
-              )
-              try:
-                  mdur = float(probe.stdout.strip())
-              except Exception:
-                  mdur = 0
-              mstart = 0
-              if mdur > 25:
-                  mstart = random.uniform(0, max(0, mdur - 24))
-              mix = subprocess.run([
-                  "ffmpeg", "-y",
-                  "-i", mp4_file,
-                  "-ss", str(mstart), "-t", "20", "-i", music_file,
-                  "-filter_complex",
-                  "[1:a]volume=0.18,afade=t=in:st=0:d=0.5,afade=t=out:st=18:d=2[music];"
-                  "[0:a][music]amix=inputs=2:duration=first:dropout_transition=2[aout]",
-                  "-map", "0:v", "-map", "[aout]",
-                  "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
-                  "-movflags", "+faststart",
-                  mixed_file
-              ], capture_output=True, text=True)
-              if os.path.exists(mixed_file) and os.path.getsize(mixed_file) > 10000:
-                  os.remove(mp4_file)
-                  mp4_file = mixed_file
-                  print("Music mixed in.")
-              else:
-                  print("Music mix failed, continuing without it.")
-
-          captions = [
-              "كم واحد عرف الجواب؟ 👇 #كويز #معلومات #ثقافة_عامة #تعلم",
-              "هل عرفت؟ علّق بجوابك 🎯 #كويز #ثقافة_عامة #معلومات",
-              "شاركها مع شخص تتحداه 🔥 #كويز #معلومات #ثقافة_عامة #تحدي",
-              "ما توقعت الجواب؟ 😱 #كويز #معلومات #ثقافة_عامة #تعلم",
-              "اختبر معلوماتك 🎯 #كويز #ثقافة_عامة #معلومات #تعلم",
-              "تابعنا لتتعلم كل يوم شيء جديد ✨ #كويز #معلومات #ثقافة_عامة",
-              "من يجاوب أول؟ 👇 #كويز #تحدي #معلومات #ثقافة_عامة",
-              "بكم ثانية جاوبت؟ 👇 #كويز #معلومات #ثقافة_عامة #تعلم",
+          if not os.path.exists(mp4_file):
+              print(result.stderr)
+              raise RuntimeError(
+                  "MP4 conversion failed"
+              )captions = [
+              "كم واحد عرف الجواب؟ 👇 #كويز #معلومات #ثقافة_عامة",
+              "هل عرفت الإجابة؟ 🤔 شاركنا رأيك #كويز #تعلم",
+              "اختبر معلوماتك اليوم 🎯 #تحدي #معلومات",
+              "شاركها مع شخص يتحداك 🔥 #كويز"
           ]
+
           description = random.choice(captions)
 
+
           print("Posting to Facebook...")
-          with open(mp4_file, 'rb') as f:
+
+          with open(mp4_file, "rb") as f:
               response = requests.post(
                   f"https://graph-video.facebook.com/v18.0/{fb_page_id}/videos",
-                  data={"description": description, "access_token": fb_token},
-                  files={"source": (os.path.basename(mp4_file), f, "video/mp4")}
+                  data={
+                      "description": description,
+                      "access_token": fb_token
+                  },
+                  files={
+                      "source": (
+                          os.path.basename(mp4_file),
+                          f,
+                          "video/mp4"
+                      )
+                  }
               )
 
-          print(f"Facebook response: {response.status_code}")
+
+          print(response.status_code)
           print(response.text)
-          if response.status_code == 200:
-              print(f"Posted! Video ID: {response.json().get('id')}")
-          else:
-              raise RuntimeError(f"Post failed: {response.text}")
+
+
+          if response.status_code != 200:
+              raise RuntimeError(
+                  f"Facebook post failed: {response.text}"
+              )
+
 
           os.remove(mp4_file)
+
+          if os.path.exists(webm_file):
+              os.remove(webm_file)
+
+
           print("Done!")
+
           PYEOF
+
         env:
           TS: ${{ env.TS }}
           DISPLAY: ":99"
