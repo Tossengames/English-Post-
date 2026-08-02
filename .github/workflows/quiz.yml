@@ -1,13 +1,14 @@
-name: Quiz Show Reel
+name: 🎯 Quiz Show Reel to Facebook
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 18 * * *"
+    # - cron: "0 18 * * *"
 
 jobs:
   post:
     runs-on: ubuntu-22.04
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,7 +22,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y xvfb chromium-browser libnss3 libgbm1 libasound2 ffmpeg pulseaudio
+          sudo apt-get install -y \
+            xvfb chromium-browser libnss3 libgbm1 libasound2 ffmpeg pulseaudio
 
       - name: Cache pip and ChromeDriver
         uses: actions/cache@v4
@@ -49,9 +51,9 @@ jobs:
           echo "DISPLAY=:99" >> $GITHUB_ENV
           sleep 3
 
-      - name: Record and Post
-        shell: python
+      - name: Record and Post to Facebook
         run: |
+          python3 << 'PYEOF'
           import os, time, subprocess, random, requests, base64, glob
           from selenium import webdriver
           from selenium.webdriver.chrome.options import Options
@@ -88,6 +90,8 @@ jobs:
           opts.add_argument("--use-fake-ui-for-media-stream")
           opts.add_argument("--use-fake-device-for-media-stream")
           opts.add_argument("--allow-file-access-from-files")
+          opts.add_argument("--disable-web-security")
+          opts.add_argument("--allow-running-insecure-content")
           opts.add_experimental_option("excludeSwitches", ["enable-automation"])
           opts.add_experimental_option("useAutomationExtension", False)
           opts.add_experimental_option("mobileEmulation", {
@@ -243,6 +247,7 @@ jobs:
 
           os.remove(mp4_file)
           print("Done!")
+          PYEOF
         env:
           TS: ${{ env.TS }}
           DISPLAY: ":99"
