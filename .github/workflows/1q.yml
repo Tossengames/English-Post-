@@ -1,7 +1,9 @@
-name: Quiz Show Reel
+name: 🎯 Quiz Show Reel
 
 on:
   workflow_dispatch:
+  schedule:
+  #  - cron: "0 18 * * *"
 
 jobs:
   post:
@@ -11,11 +13,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache apt
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-ubuntu22-arab-v2
+
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y \
             xvfb chromium-browser libnss3 libgbm1 libasound2 ffmpeg pulseaudio
+
+      - name: Cache pip and ChromeDriver
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.wdm
+          key: pip-wdm-arab-v2
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -43,6 +59,9 @@ jobs:
           from selenium.webdriver.chrome.options import Options
           from selenium.webdriver.chrome.service import Service
           from webdriver_manager.chrome import ChromeDriverManager
+
+          MUSIC_FOLDERS = ["bgmusic3", "Bgmusic3"]
+          MUSIC_EXTENSIONS = ["mp3", "wav", "m4a", "mp4", "aac", "ogg", "flac"]
 
           ts         = os.environ.get("TS", "test")
           webm_file  = f"/tmp/quiz_{ts}.webm"
@@ -88,10 +107,10 @@ jobs:
           print(f"Loading file://{html_path}")
           driver.get(f"file://{html_path}")
 
-          print("Waiting 8s for animation...")
-          time.sleep(8)
+          print("Waiting for scene + flag images to load (5s)...")
+          time.sleep(5)
 
-          print("Starting recording...")
+          print("Switching to a fresh scene, then starting recording...")
           driver.execute_script("""
               if(typeof AC !== 'undefined') AC.resume();
               window.startRecording(30);
@@ -132,7 +151,7 @@ jobs:
           print(f"WebM: {os.path.getsize(webm_file)/1024/1024:.1f} MB")
 
           print("Converting to MP4...")
-          subprocess.run([
+          result = subprocess.run([
               "ffmpeg", "-y", "-i", webm_file,
               "-c:v", "libx264", "-preset", "fast", "-crf", "18",
               "-b:v", "10M", "-maxrate", "15M", "-bufsize", "20M",
@@ -141,14 +160,71 @@ jobs:
               "-movflags", "+faststart", mp4_file
           ], capture_output=True, text=True)
 
+          if not os.path.exists(mp4_file) or os.path.getsize(mp4_file) < 10000:
+              print("ffmpeg stderr:", result.stderr[-2000:])
+              raise RuntimeError("mp4 conversion failed")
+
           os.remove(webm_file)
           print(f"mp4: {os.path.getsize(mp4_file)/1024/1024:.1f} MB")
+
+          def pick_music_file(folders):
+              for folder in folders:
+                  if not os.path.isdir(folder):
+                      continue
+                  candidates = []
+                  for ext in MUSIC_EXTENSIONS:
+                      candidates.extend(glob.glob(os.path.join(folder, f"*.{ext}")))
+                  if candidates:
+                      print(f"Using music folder '{folder}'.")
+                      return random.choice(candidates)
+              print(f"No music folder found — skipping background music.")
+              return None
+
+          music_file = pick_music_file(MUSIC_FOLDERS)
+
+          if music_file:
+              print(f"Selected music: {music_file}")
+              mixed_file = f"/tmp/quiz_{ts}_mixed.mp4"
+              probe = subprocess.run(
+                  ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                   "-of", "csv=p=0", music_file],
+                  capture_output=True, text=True
+              )
+              try:
+                  mdur = float(probe.stdout.strip())
+              except Exception:
+                  mdur = 0
+              mstart = 0
+              if mdur > 25:
+                  mstart = random.uniform(0, max(0, mdur - 24))
+              mix = subprocess.run([
+                  "ffmpeg", "-y",
+                  "-i", mp4_file,
+                  "-ss", str(mstart), "-t", "20", "-i", music_file,
+                  "-filter_complex",
+                  "[1:a]volume=0.18,afade=t=in:st=0:d=0.5,afade=t=out:st=18:d=2[music];"
+                  "[0:a][music]amix=inputs=2:duration=first:dropout_transition=2[aout]",
+                  "-map", "0:v", "-map", "[aout]",
+                  "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                  "-movflags", "+faststart",
+                  mixed_file
+              ], capture_output=True, text=True)
+              if os.path.exists(mixed_file) and os.path.getsize(mixed_file) > 10000:
+                  os.remove(mp4_file)
+                  mp4_file = mixed_file
+                  print("Background music mixed in.")
+              else:
+                  print("Music mix failed, posting without it:", mix.stderr[-1500:])
 
           captions = [
               "كم واحد عرف الجواب؟ 👇 #كويز #معلومات #ثقافة_عامة #تعلم",
               "هل عرفت؟ علّق بجوابك 🎯 #كويز #ثقافة_عامة #معلومات",
               "شاركها مع شخص تتحداه 🔥 #كويز #معلومات #ثقافة_عامة #تحدي",
               "ما توقعت الجواب؟ 😱 #كويز #معلومات #ثقافة_عامة #تعلم",
+              "اختبر معلوماتك 🎯 #كويز #ثقافة_عامة #معلومات #تعلم",
+              "تابعنا لتتعلم كل يوم شيء جديد ✨ #كويز #معلومات #ثقافة_عامة",
+              "من يجاوب أول؟ 👇 #كويز #تحدي #معلومات #ثقافة_عامة",
+              "بكم ثانية جاوبت؟ 👇 #كويز #معلومات #ثقافة_عامة #تعلم",
           ]
           description = random.choice(captions)
 
