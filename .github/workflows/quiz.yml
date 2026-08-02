@@ -51,8 +51,8 @@ jobs:
           sleep 3
 
       - name: Record and Post
-        shell: python
         run: |
+          python3 << 'PYEOF'
           import os, time, subprocess, random, requests, base64, glob
           from selenium import webdriver
           from selenium.webdriver.chrome.options import Options
@@ -244,6 +244,7 @@ jobs:
 
           os.remove(mp4_file)
           print("Done!")
+          PYEOF
         env:
           TS: ${{ env.TS }}
           DISPLAY: ":99"
