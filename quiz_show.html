@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<title>كويز</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;700;800;900&family=Noto+Naskh+Arabic:wght@400;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+(function(){
+'use strict';
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W = window.innerWidth, H = window.innerHeight;
+canvas.width = W; canvas.height = H;
+
+const link = document.createElement('link');
+link.rel='stylesheet';
+link.href='https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;700;800;900&family=Noto+Naskh+Arabic:wght@400;700&display=swap';
+document.head.appendChild(link);
+
+// ══════════════════════════════════════
+// ⚙️  TIMING CONFIG — adjust freely
+// ══════════════════════════════════════
+const CFG = {
+  questionHoldSec:   2.2,   // how long question shows before first option
+  optionDelaySec:    1.4,   // delay between each option appearing
+  optionAnimSec:     0.5,   // how long each option bounce-in takes
+  timerSec:          6.0,   // countdown duration
+  ctaHoldSec:        2.0,   // how long CTA screen stays
+  revealHoldSec:     3.0,   // how long answer+explanation stays
+};
+
+// ══════════════════════════════════════
+// THEMES — 6 original + 3 cartoon
+// ══════════════════════════════════════
+const THEMES = [
+  // 1. NEON
+  {
+    id:'neon', cartoon:false,
+    bgDraw(ctx,w,h,t){
+      ctx.fillStyle='#0a0015';ctx.fillRect(0,0,w,h);
+      [[w*.3,h*.2,'#ff00ff'],[w*.7,h*.5,'#00ffff'],[w*.5,h*.8,'#ff0099']].forEach(([x,y,c],i)=>{
+        const r=w*.6+Math.sin(t*.5+i)*w*.1;
+        const g=ctx.createRadialGradient(x,y,0,x,y,r);
+        g.addColorStop(0,c+'33');g.addColorStop(1,'transparent');
+        ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+      });
+      ctx.save();ctx.globalAlpha=0.06;ctx.strokeStyle='#ff00ff';ctx.lineWidth=1;
+      for(let i=0;i<w;i+=40){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,h);ctx.stroke();}
+      for(let i=0;i<h;i+=40){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(w,i);ctx.stroke();}
+      ctx.restore();
+    },
+    qBg:'rgba(180,0,255,0.25)',qBorder:'#ff00ff',qText:'#ffffff',
+    optColors:['#ff00ff','#00ffff','#ffff00'],
+    optBg:'rgba(255,255,255,0.08)',
+    timerCol:'#ff00ff',timerTrack:'rgba(255,0,255,0.15)',
+    correctCol:'#00ff88',wrongCol:'#ff2244',
+    labelCol:'#ff00ff',
+    overlayCol:'rgba(5,0,20,0.88)',
+    expBorder:'rgba(255,0,255,0.5)',
+    particles:'#ff00ff',
+    cardRadius:0.04, outlineW:2, shadow:false,
+  },
+  // 2. CANDY
+  {
+    id:'candy', cartoon:false,
+    bgDraw(ctx,w,h,t){
+      const g=ctx.createLinearGradient(0,0,w,h);
+      g.addColorStop(0,'#fff0f8');g.addColorStop(0.5,'#f0f8ff');g.addColorStop(1,'#fff8e0');
+      ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+      [[w*.2,h*.15,80,'#ff99cc'],[w*.8,h*.3,60,'#99ccff'],[w*.5,h*.6,90,'#ffcc99'],[w*.1,h*.7,50,'#cc99ff'],[w*.9,h*.8,70,'#99ffcc']].forEach(([x,y,r,c],i)=>{
+        const rr=r+Math.sin(t*.8+i)*r*.2;
+        const gr=ctx.createRadialGradient(x,y,0,x,y,rr);
+        gr.addColorStop(0,c+'88');gr.addColorStop(1,'transparent');
+        ctx.fillStyle=gr;ctx.fillRect(0,0,w,h);
+      });
+    },
+    qBg:'rgba(255,100,180,0.12)',qBorder:'#ff66bb',qText:'#220022',
+    optColors:['#ff66bb','#6699ff','#ffaa33'],
+    optBg:'rgba(255,255,255,0.6)',
+    timerCol:'#ff66bb',timerTrack:'rgba(255,100,180,0.15)',
+    correctCol:'#22bb44',wrongCol:'#ee2244',
+    labelCol:'#ff66bb',
+    overlayCol:'rgba(255,240,255,0.94)',
+    expBorder:'rgba(255,100,180,0.4)',
+    particles:'#ff99cc',
+    cardRadius:0.04, outlineW:2, shadow:false,
+  },
+  // 3. LAVA
+  {
+    id:'lava', cartoon:false,
+    bgDraw(ctx,w,h,t){
+      const g=ctx.createLinearGradient(0,0,0,h);
+      g.addColorStop(0,'#1a0000');g.addColorStop(0.5,'#2d0800');g.addColorStop(1,'#0d0000');
+      ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+      [[w*.5,h*.3,'#ff4400'],[w*.2,h*.6,'#ff8800'],[w*.8,h*.5,'#ff2200']].forEach(([x,y,c],i)=>{
+        const r=w*.55+Math.sin(t*.4+i*1.3)*w*.08;
+        const gr=ctx.createRadialGradient(x,y,0,x,y,r);
+        gr.addColorStop(0,c+'44');gr.addColorStop(0.5,c+'11');gr.addColorStop(1,'transparent');
+        ctx.fillStyle=gr;ctx.fillRect(0,0,w,h);
+      });
+    },
+    qBg:'rgba(255,80,0,0.2)',qBorder:'#ff6600',qText:'#fff4e0',
+    optColors:['#ff6600','#ffaa00','#ff3300'],
+    optBg:'rgba(255,80,0,0.12)',
+    timerCol:'#ff6600',timerTrack:'rgba(255,80,0,0.18)',
+    correctCol:'#88ff00',wrongCol:'#ff0000',
+    labelCol:'#ffaa00',
+    overlayCol:'rgba(15,3,0,0.92)',
+    expBorder:'rgba(255,100,0,0.5)',
+    particles:'#ff6600',
+    cardRadius:0.035, outlineW:2, shadow:false,
+  },
+  // 4. OCEAN
+  {
+    id:'ocean', cartoon:false,
+    bgDraw(ctx,w,h,t){
+      const g=ctx.createLinearGradient(0,0,0,h);
+      g.addColorStop(0,'#001428');g.addColorStop(0.5,'#002844');g.addColorStop(1,'#001428');
+      ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+      [[w*.3,h*.25,'#00aaff'],[w*.7,h*.5,'#0066ff'],[w*.5,h*.75,'#00ddff']].forEach(([x,y,c],i)=>{
+        const r=w*.5+Math.sin(t*.3+i)*w*.1;
+        const gr=ctx.createRadialGradient(x,y,0,x,y,r);
+        gr.addColorStop(0,c+'22');gr.addColorStop(1,'transparent');
+        ctx.fillStyle=gr;ctx.fillRect(0,0,w,h);
+      });
+    },
+    qBg:'rgba(0,150,255,0.2)',qBorder:'#00aaff',qText:'#e0f4ff',
+    optColors:['#00aaff','#00ddff','#0066ff'],
+    optBg:'rgba(0,100,200,0.18)',
+    timerCol:'#00aaff',timerTrack:'rgba(0,150,255,0.15)',
+    correctCol:'#00ff88',wrongCol:'#ff3366',
+    labelCol:'#00ddff',
+    overlayCol:'rgba(0,8,25,0.92)',
+    expBorder:'rgba(0,180,255,0.5)',
+    particles:'#00ccff',
+    cardRadius:0.035, outlineW:2, shadow:false,
+  },
+  // 5. GALAXY
+  {
+    id:'galaxy', cartoon:false,
+    _s:[],
+    init(w,h){ this._s=[]; for(let i=0;i<150;i++) this._s.push({x:Math.random()*w,y:Math.random()*h,r:.4+Math.random()*1.4,ph:Math.random()*Math.PI*2,spd:.4+Math.random()*.8}); },
+    bgDraw(ctx,w,h,t){
+      ctx.fillStyle='#05000f';ctx.fillRect(0,0,w,h);
+      this._s.forEach(s=>{
+        const br=.3+Math.sin(t*s.spd+s.ph)*.3;
+        ctx.globalAlpha=br;ctx.fillStyle='#ffffff';
+        ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill();
+      });
+      ctx.globalAlpha=1;
+      [[w*.4,h*.3,'#aa44ff'],[w*.6,h*.6,'#ff44aa'],[w*.5,h*.5,'#4444ff']].forEach(([x,y,c],i)=>{
+        const r=w*.55+Math.sin(t*.25+i)*w*.1;
+        const gr=ctx.createRadialGradient(x,y,0,x,y,r);
+        gr.addColorStop(0,c+'33');gr.addColorStop(1,'transparent');
+        ctx.fillStyle=gr;ctx.fillRect(0,0,w,h);
+      });
+    },
+    qBg:'rgba(120,0,255,0.22)',qBorder:'#aa44ff',qText:'#f0e8ff',
+    optColors:['#aa44ff','#ff44aa','#44aaff'],
+    optBg:'rgba(80,0,180,0.2)',
+    timerCol:'#aa44ff',timerTrack:'rgba(120,0,255,0.18)',
+    correctCol:'#44ffaa',wrongCol:'#ff3344',
+    labelCol:'#ff44aa',
+    overlayCol:'rgba(3,0,12,0.92)',
+    expBorder:'rgba(160,60,255,0.5)',
+    particles:'#aa44ff',
+    cardRadius:0.035, outlineW:2, shadow:false,
+  },
+  // 6. JUNGLE
+  {
+    id:'jungle', cartoon:false,
+    bgDraw(ctx,w,h,t){
+      const g=ctx.createLinearGradient(0,0,0,h);
+      g.addColorStop(0,'#001a00');g.addColorStop(0.5,'#002d00');g.addColorStop(1,'#001200');
+      ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+      [[w*.2,h*.2,'#44ff00'],[w*.8,h*.4,'#00ff88'],[w*.5,h*.7,'#88ff00'],[w*.1,h*.8,'#00ffaa']].forEach(([x,y,c],i)=>{
+        const r=w*.45+Math.sin(t*.35+i*1.1)*w*.08;
+        const gr=ctx.createRadialGradient(x,y,0,x,y,r);
+        gr.addColorStop(0,c+'2a');gr.addColorStop(1,'transparent');
+        ctx.fillStyle=gr;ctx.fillRect(0,0,w,h);
+      });
+    },
+    qBg:'rgba(0,200,50,0.15)',qBorder:'#44ff00',qText:'#e8ffe0',
+    optColors:['#44ff00','#00ffaa','#aaff00'],
+    optBg:'rgba(0,100,0,0.2)',
+    timerCol:'#44ff00',timerTrack:'rgba(0,200,50,0.15)',
+    correctCol:'#ffff00',wrongCol:'#ff3300',
+    labelCol:'#00ffaa',
+    overlayCol:'rgba(0,8,0,0.92)',
+    expBorder:'rgba(60,255,60,0.5)',
+    particles:'#44ff00',
+    cardRadius:0.035, outlineW:2, shadow:false,
+  },
+  // 7. CARTOON SUNSHINE
+  {
+    id:'cartoon_sun', cartoon:true,
+    bgDraw(ctx,w,h,t){
+      const g=ctx.createLinearGradient(0,0,0,h);
+      g.addColorStop(0,'#fff176');g.addColorStop(0.5,'#ffe066');g.addColorStop(1,'#ffc947');
+      ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+      // polka dots
+      ctx.save();ctx.globalAlpha=0.12;
+      for(let i=0;i<8;i++) for(let j=0;j<14;j++){
+        ctx.fillStyle='#ff8800';
+        ctx.beginPath();ctx.arc(i*(w/7)+w/14,j*(h/13)+h/26,w*.025,0,Math.PI*2);ctx.fill();
+      }
+      ctx.restore();
+      // sun
+      const sx=w*.82,sy=h*.1,sr=w*.14;
+      ctx.save();
+      for(let i=0;i<8;i++){
+        const ang=(Math.PI*2/8)*i+t*.5;
+        ctx.fillStyle='#ffdd00';
+        ctx.beginPath();ctx.ellipse(sx+Math.cos(ang)*(sr*1.5),sy+Math.sin(ang)*(sr*1.5),sr*.35,sr*.18,ang,0,Math.PI*2);ctx.fill();
+      }
+      ctx.fillStyle='#ffee00';ctx.strokeStyle='#ff8800';ctx.lineWidth=3;
+      ctx.beginPath();ctx.arc(sx,sy,sr,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.restore();
+    },
+    qBg:'rgba(255,200,0,0.25)',qBorder:'#ff6600',qText:'#3d1a00',
+    optColors:['#ff4444','#4444ff','#44aa00'],
+    optBg:'rgba(255,255,255,0.65)',
+    timerCol:'#ff6600',timerTrack:'rgba(255,120,0,0.2)',
+    correctCol:'#22aa00',wrongCol:'#ff0000',
+    labelCol:'#ff6600',
+    overlayCol:'rgba(255,250,200,0.96)',
+    expBorder:'rgba(255,100,0,0.5)',
+    particles:'#ffdd00',
+    cardRadius:0.06, outlineW:4, shadow:true,
+    shadowCol:'rgba(0,0,0,0.25)',
+  },
+  // 8. CARTOON BUBBLEGUM
+  {
+    id:'cartoon_bubble', cartoon:true,
+    bgDraw(ctx,w,h,t){
+      const g=ctx.createLinearGradient(0,0,0,h);
+      g.addColorStop(0,'#ff88cc');g.addColorStop(0.5,'#ff66bb');g.addColorStop(1,'#ee44aa');
+      ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+      // bubbles
+      ctx.save();
+      [[w*.1,h*.08,w*.06],[w*.9,h*.15,w*.04],[w*.2,h*.88,w*.08],[w*.85,h*.8,w*.05],[w*.5,h*.05,w*.05],[w*.05,h*.5,w*.03],[w*.95,h*.55,w*.04]].forEach(([x,y,r],i)=>{
+        const rr=r+Math.sin(t*.6+i)*.005*w;
+        ctx.strokeStyle='rgba(255,255,255,0.45)';ctx.lineWidth=2.5;
+        ctx.fillStyle='rgba(255,255,255,0.12)';
+        ctx.beginPath();ctx.arc(x,y,rr,0,Math.PI*2);ctx.fill();ctx.stroke();
+      });
+      ctx.restore();
+    },
+    qBg:'rgba(255,255,255,0.3)',qBorder:'#ffffff',qText:'#3a0030',
+    optColors:['#ff2299','#aa00ff','#ff8800'],
+    optBg:'rgba(255,255,255,0.55)',
+    timerCol:'#ffffff',timerTrack:'rgba(255,255,255,0.2)',
+    correctCol:'#00dd44',wrongCol:'#ff2222',
+    labelCol:'#ffffff',
+    overlayCol:'rgba(240,0,140,0.92)',
+    expBorder:'rgba(255,255,255,0.5)',
+    particles:'#ffffff',
+    cardRadius:0.07, outlineW:4, shadow:true,
+    shadowCol:'rgba(100,0,60,0.3)',
+  },
+  // 9. CARTOON ARCADE
+  {
+    id:'cartoon_arcade', cartoon:true,
+    bgDraw(ctx,w,h,t){
+      ctx.fillStyle='#1a0033';ctx.fillRect(0,0,w,h);
+      // scanlines
+      ctx.save();ctx.globalAlpha=0.08;
+      for(let i=0;i<h;i+=4){ctx.fillStyle='#000';ctx.fillRect(0,i,w,2);}
+      ctx.restore();
+      // pixel grid glow
+      ctx.save();ctx.globalAlpha=0.1;
+      ctx.strokeStyle='#ff00ff';ctx.lineWidth=0.5;
+      for(let i=0;i<w;i+=20){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,h);ctx.stroke();}
+      for(let i=0;i<h;i+=20){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(w,i);ctx.stroke();}
+      ctx.restore();
+      // pixel stars
+      const cols=['#ff00ff','#00ffff','#ffff00','#ff8800'];
+      for(let i=0;i<30;i++){
+        const blink=Math.sin(t*3+i*2.1)>.5;
+        if(blink){
+          ctx.fillStyle=cols[i%4];
+          ctx.fillRect(Math.sin(i*137)*w*.45+w*.5,Math.sin(i*241)*h*.45+h*.5,4,4);
+        }
+      }
+      // score text
+      ctx.save();ctx.font=`900 ${w*.055}px monospace`;ctx.fillStyle='#ffff00';ctx.globalAlpha=.7;
+      ctx.textAlign='center';ctx.fillText('★ QUIZ SHOW ★',w/2,h*.06);ctx.restore();
+    },
+    qBg:'rgba(0,0,80,0.7)',qBorder:'#00ffff',qText:'#ffffff',
+    optColors:['#ff00ff','#ffff00','#00ff88'],
+    optBg:'rgba(0,0,60,0.6)',
+    timerCol:'#ffff00',timerTrack:'rgba(255,255,0,0.15)',
+    correctCol:'#00ff88',wrongCol:'#ff0055',
+    labelCol:'#ffff00',
+    overlayCol:'rgba(0,0,40,0.96)',
+    expBorder:'rgba(0,255,255,0.5)',
+    particles:'#ffff00',
+    cardRadius:0.02, outlineW:3, shadow:true,
+    shadowCol:'rgba(0,255,255,0.25)',
+  },
+];
+THEMES.forEach(th=>{ if(th.init) th.init(W,H); });
+
+// ══════════════════════════════════════
+// QUIZ CONTENT — 60 questions
+// ══════════════════════════════════════
+const QUIZZES=[
+  {cat:'لغات',q:'ما معنى كلمة Serendipity بالعربية؟',opts:['الغضب المكتوم','اكتشاف شيء جميل بالصدفة','الحنين للماضي'],ans:1,exp:'صِيغت عام ١٧٥٤ من قصة فارسية عن جزيرة سرنديب — الاسم القديم لسريلانكا.'},
+  {cat:'لغات',q:'ما اللغة الأكثر انتشاراً من حيث عدد المتحدثين الأصليين؟',opts:['الإنجليزية','الإسبانية','الصينية الماندارينية'],ans:2,exp:'يتحدث الماندارينية أكثر من مليار شخص كلغة أم، متقدمةً على الإسبانية والإنجليزية.'},
+  {cat:'لغات',q:'من أي لغة اشتُقت كلمة "قهوة" في معظم لغات العالم؟',opts:['العربية','الفارسية','التركية'],ans:0,exp:'كلمة coffee وكافيه — كلها مشتقة من كلمة "قهوة" العربية عبر التركية العثمانية.'},
+  {cat:'لغات',q:'ما معنى كلمة Schadenfreude الألمانية؟',opts:['الحزن العميق','الفرح لمصيبة الآخرين','الحنين الشديد'],ans:1,exp:'مركبة من Schaden (ضرر) و Freude (فرح). لم تجد اللغات الأخرى ما يعادلها فاستعارتها.'},
+  {cat:'لغات',q:'كم عدد الكلمات التي أضافتها العربية للغة الإسبانية؟',opts:['أكثر من ٤٠٠٠ كلمة','أكثر من ١٠٠ كلمة','أكثر من ٢٠٠ كلمة'],ans:0,exp:'ثمانية قرون من الحضارة العربية في الأندلس تركت أكثر من أربعة آلاف كلمة في الإسبانية.'},
+  {cat:'لغات',q:'ما معنى كلمة Nostalgia في أصلها اليوناني؟',opts:['الحب القديم','ألم العودة للوطن','الذاكرة الجميلة'],ans:1,exp:'مركبة من nostos (العودة للوطن) و algos (الألم). صِيغت في القرن السابع عشر.'},
+  {cat:'لغات',q:'ما معنى كلمة Ubiquitous بالعربية؟',opts:['نادر ونفيس','موجود في كل مكان','غامض ومبهم'],ans:1,exp:'من اللاتينية ubique التي تعني "في كل مكان". تصف الشيء المنتشر في كل مكان.'},
+  {cat:'لغات',q:'ما معنى كلمة Sonder الإنجليزية الحديثة؟',opts:['إدراك أن لكل غريب حياة كاملة مثلك','الشعور بالوحدة في الجمهور','الخوف من الأماكن المغلقة'],ans:0,exp:'ابتُكرت حديثاً لتعبّر عن إدراك أن كل شخص تمر بجانبه يعيش قصة بنفس تعقيد قصتك.'},
+  {cat:'لغات',q:'كم عدد الأبجديات المستخدمة في العالم اليوم؟',opts:['أكثر من ٢٠٠','حوالي ٢٠','أكثر من ١٠٠٠'],ans:0,exp:'يستخدم البشر اليوم أكثر من مئتي نظام كتابة مختلف، رغم أن معظمها مهدد بالانقراض.'},
+  {cat:'لغات',q:'أي لغة تُكتب من الأسفل للأعلى عمودياً؟',opts:['اليابانية','المنغولية التقليدية','الكورية'],ans:1,exp:'الكتابة المنغولية التقليدية من أندر طرق الكتابة — عمودية من أعلى لأسفل ومن اليسار لليمين.'},
+  {cat:'جغرافيا',q:'لماذا صُمِّمت كانبيرا لتكون عاصمة أستراليا؟',opts:['لأنها الأقدم','لأن سيدني وملبورن تنافستا فاختاروا مدينة بينهما','لأن موقعها ساحلي مثالي'],ans:1,exp:'بُنيت كانبيرا من الصفر عام ١٩١٣ على مسافة متساوية بين سيدني وملبورن لحل النزاع.'},
+  {cat:'جغرافيا',q:'أي دولة تمتلك أطول خط ساحلي في العالم؟',opts:['روسيا','أستراليا','كندا'],ans:2,exp:'كندا تمتلك أطول خط ساحلي بطول مئتين وواحد وخمسين ألف كيلومتر تقريباً.'},
+  {cat:'جغرافيا',q:'أي بلد يمتلك بحيرات أكثر من بقية دول العالم مجتمعة؟',opts:['روسيا','فنلندا','كندا'],ans:2,exp:'كندا تحتضن ستين بالمئة من بحيرات العالم — أكثر من مليوني بحيرة على أراضيها.'},
+  {cat:'جغرافيا',q:'أي مدينة تقع على قارتين في نفس الوقت؟',opts:['القاهرة','إسطنبول','موسكو'],ans:1,exp:'إسطنبول تمتد على أوروبا وآسيا يفصل بينهما مضيق البوسفور.'},
+  {cat:'جغرافيا',q:'أي نهر يجري من الجنوب للشمال؟',opts:['نهر النيل','نهر الأمازون','نهر المسيسيبي'],ans:0,exp:'النيل يجري من بحيرات أفريقيا جنوباً نحو البحر المتوسط شمالاً.'},
+  {cat:'جغرافيا',q:'كم عدد دول العالم التي لا تملك منفذاً على البحر؟',opts:['اثنتا عشرة','أربع وأربعون','ست وعشرون'],ans:1,exp:'أربع وأربعون دولة في العالم محاطة بالكامل بالأرض.'},
+  {cat:'جغرافيا',q:'ما الدولة المحاطة بالكامل بإيطاليا غير الفاتيكان؟',opts:['موناكو','سان مارينو','ليختنشتاين'],ans:1,exp:'سان مارينو محاطة بالكامل بإيطاليا وتدّعي أنها أقدم جمهورية في العالم منذ ٣٠١ م.'},
+  {cat:'جغرافيا',q:'أي قارة تقع بالكامل في نصف الكرة الجنوبي؟',opts:['أفريقيا','أنتاركتيكا','أستراليا'],ans:1,exp:'أنتاركتيكا الوحيدة التي تقع بالكامل في نصف الكرة الجنوبي.'},
+  {cat:'جغرافيا',q:'ما الدولة التي تمتلك ربع ثروات صناديق الاستثمار السيادية عالمياً؟',opts:['الإمارات','السعودية','النرويج'],ans:2,exp:'صندوق النرويج السيادي المبني على عائدات النفط يبلغ أكثر من تريليون وأربعمئة مليار دولار.'},
+  {cat:'جغرافيا',q:'كم عدد الدول الأفريقية التي لا تملك منفذاً بحرياً؟',opts:['ست عشرة دولة','خمس دول','عشر دول'],ans:0,exp:'ست عشرة دولة أفريقية لا تملك منفذاً على البحر، أعلى نسبة في أي قارة.'},
+  {cat:'علوم',q:'كم يستغرق ضوء الشمس للوصول إلى الأرض؟',opts:['ثانية واحدة','ثماني دقائق وعشرون ثانية','ساعة كاملة'],ans:1,exp:'الشمس تبعد مئة وخمسين مليون كيلومتر والضوء يحتاج نحو ثماني دقائق.'},
+  {cat:'علوم',q:'أي عضو في الجسم يمكنه التجدد الكامل؟',opts:['القلب','الكبد','الكلية'],ans:1,exp:'الكبد يمكنه التجدد الكامل حتى لو بقي منه خمسة وعشرون بالمئة فقط.'},
+  {cat:'علوم',q:'لماذا السماء زرقاء؟',opts:['الأكسجين وحده','الأزوت وحده','تشتت ضوء الشمس في الغلاف الجوي'],ans:2,exp:'جزيئات الغلاف الجوي تُشتّت الضوء الأزرق أكثر من غيره في ظاهرة تُسمى تشتت رايلي.'},
+  {cat:'علوم',q:'كم عدد خلايا جسم الإنسان البالغ؟',opts:['سبعة مليارات','سبعة وثلاثون تريليوناً','مليون مليون'],ans:1,exp:'جسم الإنسان يحتوي على ما يقارب سبعة وثلاثين تريليون خلية.'},
+  {cat:'علوم',q:'ما أعمق نقطة في المحيطات؟',opts:['خندق ماريانا','خندق تونغا','خندق بورتو ريكو'],ans:0,exp:'خندق ماريانا يصل عمقه إلى أحد عشر كيلومتراً — لو وضعت جبل إيفرست فيه لغطاه الماء.'},
+  {cat:'علوم',q:'ما الذي يجعل بصمات الأصابع فريدة؟',opts:['الجينات وحدها','الجينات والظروف العشوائية داخل الرحم','التغذية بعد الولادة'],ans:1,exp:'حتى التوائم المتطابقة لها بصمات مختلفة بسبب حركة الجنين العشوائية في السائل الأمنيوسي.'},
+  {cat:'علوم',q:'كم يبلغ عمر الكون تقريباً؟',opts:['أربعة مليارات سنة','ثلاثة وثمانون مليار سنة','ثلاثة عشر مليار وثمانمئة مليون سنة'],ans:2,exp:'قدّر علماء الفلك عمر الكون بثلاثة عشر مليار وثمانمئة مليون سنة.'},
+  {cat:'علوم',q:'ما نسبة المحيطات التي تغطي الأرض؟',opts:['خمسون بالمئة','اثنان وسبعون بالمئة','تسعون بالمئة'],ans:1,exp:'اثنان وسبعون بالمئة من سطح الأرض ماء، لكن أقل من خمسة بالمئة منه تم استكشافه.'},
+  {cat:'علوم',q:'كم يستغرق الضوء من أقرب نجم لنا بعد الشمس؟',opts:['ساعة واحدة','أربع سنوات وأربعة أشهر','مئة سنة'],ans:1,exp:'نجم بروكسيما سنتوري يبعد ٤.٢٤ سنة ضوئية، وهو أقرب نجم للشمس.'},
+  {cat:'علوم',q:'ما نسبة جسم الإنسان التي تتكون من فراغ بين الذرات؟',opts:['عشرة بالمئة','تسعة وتسعون بالمئة','خمسون بالمئة'],ans:1,exp:'لو أزلنا الفراغ بين ذرات كل البشر لأمكن وضع الجنس البشري كله في حجم حبة سكر.'},
+  {cat:'تاريخ',q:'أي حضارة اخترعت الكتابة أولاً؟',opts:['المصريون','السومريون في بلاد الرافدين','الصينيون'],ans:1,exp:'السومريون ابتكروا الكتابة المسمارية حوالي ٣٥٠٠ قبل الميلاد لتسجيل المعاملات التجارية.'},
+  {cat:'تاريخ',q:'ما أقدم نص قانوني مكتوب في التاريخ؟',opts:['قانون روما','شريعة حمورابي','قوانين صولون'],ans:1,exp:'شريعة حمورابي البابلية تعود إلى ١٧٥٤ قبل الميلاد وتتضمن ٢٨٢ مادة قانونية.'},
+  {cat:'تاريخ',q:'من اخترع الطباعة بالحروف المتحركة قبل غوتنبرغ بأربعة قرون؟',opts:['عالم صيني اسمه بي شينغ','عالم عربي في بغداد','عالم كوري في سيول'],ans:0,exp:'الصيني بي شينغ اخترع الطباعة بالحروف المتحركة عام ١٠٤٠ م.'},
+  {cat:'تاريخ',q:'ما الإمبراطورية التي حكمت أكبر مساحة في التاريخ؟',opts:['الإمبراطورية الرومانية','الإمبراطورية البريطانية','الإمبراطورية المغولية'],ans:1,exp:'الإمبراطورية البريطانية غطت ٢٤ بالمئة من مساحة الأرض في ذروتها عام ١٩٢٠.'},
+  {cat:'تاريخ',q:'ما المدينة التي كانت أكبر مدن العالم في القرن العاشر الميلادي؟',opts:['بغداد','القسطنطينية','قرطبة'],ans:0,exp:'بغداد في عهد الخلافة العباسية وصل تعدادها لمليون شخص وكانت أكبر مدن العالم.'},
+  {cat:'تاريخ',q:'من حدد محيط الأرض بدقة مذهلة قبل ألفي سنة؟',opts:['أرسطو','إراتوستينس','بطليموس'],ans:1,exp:'إراتوستينس قاس محيط الأرض عام ٢٤٠ قبل الميلاد بخطأ لا يتجاوز ٢ بالمئة باستخدام ظل العصا.'},
+  {cat:'تاريخ',q:'ما أقدم جامعة لا تزال تعمل حتى اليوم؟',opts:['جامعة بولونيا','جامعة القرويين المغربية','جامعة أكسفورد'],ans:1,exp:'جامعة القرويين في فاس تأسست عام ٨٥٩ م على يد فاطمة الفهرية.'},
+  {cat:'تاريخ',q:'ما الدولة التي لم تُستعمر قط في تاريخها الحديث؟',opts:['إيران','إثيوبيا','اليابان'],ans:1,exp:'إثيوبيا هزمت إيطاليا في معركة عدوة ١٨٩٦ وبقيت مستقلة.'},
+  {cat:'تاريخ',q:'في أي عام طور الخوارزمي نظام الأرقام الذي يستخدمه العالم؟',opts:['القرن الثالث الميلادي','القرن التاسع الميلادي','القرن الخامس عشر'],ans:1,exp:'الخوارزمي طور النظام العشري والصفر في القرن التاسع في بغداد.'},
+  {cat:'تاريخ',q:'من كانت فاطمة الفهرية؟',opts:['ملكة مغربية','أول امرأة تؤسس جامعة في التاريخ','شاعرة أندلسية'],ans:1,exp:'المرأة التونسية الأصل التي أسست جامعة القرويين في فاس عام ٨٥٩ م، أقدم جامعة في العالم.'},
+  {cat:'ثقافة',q:'أي دولة اخترعت الشطرنج؟',opts:['الصين','الهند','فارس'],ans:1,exp:'الشطرنج بدأ في الهند في القرن السادس الميلادي باسم "شاتورانغا"، ثم انتقل لفارس.'},
+  {cat:'ثقافة',q:'كم سنة استغرق تأليف قاموس أكسفورد الأول؟',opts:['عشر سنوات','سبعون سنة','أربعون سنة'],ans:1,exp:'بدأ العمل في قاموس أكسفورد عام ١٨٥٧ ولم يكتمل إلا عام ١٩٢٨.'},
+  {cat:'ثقافة',q:'ما الدولة الأولى في قراءة الكتب عالمياً؟',opts:['اليابان','فنلندا','الهند'],ans:2,exp:'الهند تحتل المرتبة الأولى بمعدل عشر ساعات وأربعة وعشرين دقيقة أسبوعياً للفرد.'},
+  {cat:'ثقافة',q:'أي عمل عربي ترجم لأكبر عدد من اللغات؟',opts:['ألف ليلة وليلة','البيان والتبيين','الأيام لطه حسين'],ans:0,exp:'ألف ليلة وليلة تُرجمت لأكثر من مئتي لغة وأثّرت في الأدب العالمي.'},
+  {cat:'ثقافة',q:'ما الرياضة التي يلعبها أكبر عدد من الناس في العالم؟',opts:['كرة القدم','كرة الطاولة','الكريكيت'],ans:1,exp:'كرة الطاولة يمارسها حوالي ثلاثمئة مليون شخص بانتظام.'},
+  {cat:'ثقافة',q:'كم عدد الرياضيين في أول أولمبياد حديث عام ١٨٩٦؟',opts:['أكثر من ألف رياضي','٢٤١ رياضياً','خمسمئة رياضي'],ans:1,exp:'أول أولمبياد في أثينا ١٨٩٦ شهد ٢٤١ رياضياً من ١٤ دولة جميعهم ذكور.'},
+  {cat:'ثقافة',q:'ما البلد الأكثر فوزاً بكأس العالم لكرة القدم؟',opts:['ألمانيا','البرازيل','الأرجنتين'],ans:1,exp:'البرازيل الأكثر فوزاً بخمسة ألقاب، وهي الدولة الوحيدة التي شاركت في جميع نسخ كأس العالم.'},
+  {cat:'ثقافة',q:'كم عدد الألوان التي يستطيع الإنسان تمييزها؟',opts:['مليون لون','عشرة آلاف لون','مئة ألف لون'],ans:0,exp:'العين البشرية قادرة على التمييز بين نحو مليون درجة لونية.'},
+  {cat:'ثقافة',q:'من أين جاءت لعبة الورق "البوكر"؟',opts:['أمريكا','فرنسا','الصين'],ans:1,exp:'البوكر اشتق من لعبة فرنسية تُسمى "Poque" أُحضرت لنيو أورلينز في القرن الثامن عشر.'},
+  {cat:'ثقافة',q:'ما أقدم رياضة في التاريخ الموثق؟',opts:['المصارعة','الرماية','العدو'],ans:0,exp:'المصارعة أقدم رياضة موثقة تاريخياً، ظهرت في الرسومات المصرية والسومرية قبل خمسة آلاف سنة.'},
+  {cat:'أرقام',q:'كم مرة يضرب القلب في اليوم؟',opts:['أربعون ألف مرة','مئة ألف مرة','مليون مرة'],ans:1,exp:'القلب يضرب بمعدل سبعين مرة في الدقيقة أي نحو مئة ألف مرة في اليوم.'},
+  {cat:'أرقام',q:'كم طن من الغبار الكوني يسقط على الأرض يومياً؟',opts:['عشرة أطنان','مئة طن','أربعون إلى ثمانون طناً'],ans:2,exp:'يسقط على الأرض يومياً ما بين أربعين وثمانين طناً من الغبار الكوني.'},
+  {cat:'أرقام',q:'كم عدد البكتيريا على جلد إنسان واحد؟',opts:['ألف مليار بكتيريا','مليون بكتيريا','مئة بكتيريا'],ans:0,exp:'جلدك يحتضن نحو ألف مليار بكتيريا — معظمها مفيد ويحميك من الميكروبات الضارة.'},
+  {cat:'أرقام',q:'ما الرقم الذي ألهم تسمية محرك البحث Google؟',opts:['مليون مليون','واحد أمامه مئة صفر','واحد أمامه مليون صفر'],ans:1,exp:'غوغول هو ١ أمامه مئة صفر. سُمّي به المحرك لأنه يهدف لفهرسة كميات خيالية من المعلومات.'},
+  {cat:'أرقام',q:'كم تبلغ سرعة الضوء في الثانية؟',opts:['ثلاثون ألف كيلومتر','ثلاثمئة ألف كيلومتر','ثلاثة ملايين كيلومتر'],ans:1,exp:'الضوء يسافر ٢٩٩٧٩٢ كيلومتراً في الثانية — يدور حول الأرض سبع مرات ونصف في ثانية.'},
+  {cat:'أرقام',q:'كم عدد العضلات التي يستخدمها الإنسان لخطوة مشي واحدة؟',opts:['عضلتان','مئتا عضلة','عشر عضلات'],ans:1,exp:'خطوة المشي الواحدة تستخدم نحو مئتي عضلة تنسّق مع بعضها بدقة مذهلة.'},
+  {cat:'أرقام',q:'ما نسبة الماء في جسم الإنسان البالغ؟',opts:['ثلاثون بالمئة','ستون بالمئة','تسعون بالمئة'],ans:1,exp:'جسم الإنسان البالغ يتكون من حوالي ستين بالمئة ماء، والدماغ وحده من خمسة وسبعين بالمئة.'},
+  {cat:'أرقام',q:'كم عدد اللغات المنقرضة في القرن الماضي؟',opts:['أكثر من مئتي لغة','عشر لغات','خمسون لغة'],ans:0,exp:'انقرضت أكثر من مئتي لغة في القرن العشرين وحده.'},
+  {cat:'أرقام',q:'ما أبطأ حيوان في العالم؟',opts:['الحلزون','الكسلان','السلحفاء'],ans:1,exp:'الكسلان يتحرك بسرعة لا تتجاوز مئتي متر في الساعة.'},
+  {cat:'أرقام',q:'كم نجمة تقريباً في مجرة درب التبانة؟',opts:['مليون نجمة','مئة مليار نجمة','مليار نجمة'],ans:1,exp:'درب التبانة تحتوي على ما بين مئة وأربعمئة مليار نجمة — وشمسنا مجرد واحدة منها.'},
+];
+
+// ══════════════════════════════════════
+// CTA POOL
+// ══════════════════════════════════════
+const CTAS=[
+  '💬 علّق بجوابك!',
+  '🤔 هل عرفت؟',
+  '👇 كومنت جوابك',
+  '⚡ سرّع قبل الإجابة!',
+  '🔥 من عارف؟',
+  '🎯 جاوب الآن!',
+  '😱 هل توقعت؟',
+  '💡 شاركنا جوابك',
+];
+
+// ══════════════════════════════════════
+// PARTICLES
+// ══════════════════════════════════════
+let _pts=[];
+function spawnPts(x,y,col,n){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2,spd=4+Math.random()*10;
+    _pts.push({x,y,vx:Math.cos(a)*spd,vy:Math.sin(a)*spd-2,life:1,decay:.018+Math.random()*.025,size:4+Math.random()*7,col,shape:Math.random()<.5?'circle':'star'});
+  }
+}
+function tickPts(){
+  _pts=_pts.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.18;p.vx*=.97;p.life-=p.decay;return p.life>0;});
+}
+function drawPts(){
+  _pts.forEach(p=>{
+    ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.col;
+    if(p.shape==='circle'){ctx.beginPath();ctx.arc(p.x,p.y,p.size*p.life,0,Math.PI*2);ctx.fill();}
+    else{
+      ctx.translate(p.x,p.y);ctx.rotate(p.life*4);
+      ctx.beginPath();
+      for(let i=0;i<5;i++){
+        const a=(Math.PI*2/5)*i-Math.PI/2,ai=(Math.PI*2/5)*(i+.5)-Math.PI/2;
+        const r=p.size*p.life,ri=r*.4;
+        if(i===0)ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r);else ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);
+        ctx.lineTo(Math.cos(ai)*ri,Math.sin(ai)*ri);
+      }
+      ctx.closePath();ctx.fill();
+    }
+    ctx.restore();
+  });
+}
+
+// ══════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════
+let _shk=0;
+function shake(){_shk=14;}
+
+function ease(x){return 1-Math.pow(1-Math.min(1,Math.max(0,x)),3);}
+function bounceOut(x){
+  x=Math.min(1,Math.max(0,x));
+  const n1=7.5625,d1=2.75;
+  if(x<1/d1)return n1*x*x;
+  if(x<2/d1){x-=1.5/d1;return n1*x*x+.75;}
+  if(x<2.5/d1){x-=2.25/d1;return n1*x*x+.9375;}
+  x-=2.625/d1;return n1*x*x+.984375;
+}
+function wrapText(ctx,text,maxW){
+  const words=text.split(' ');const lines=[];let line='';
+  for(const w of words){
+    const test=line?line+' '+w:w;
+    if(ctx.measureText(test).width>maxW&&line){lines.push(line);line=w;}else line=test;
+  }
+  if(line)lines.push(line);return lines;
+}
+function rr(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();
+}
+function drawCard(ctx,x,y,w,h,radius,bg,border,outlineW,shadow,shadowCol){
+  if(shadow&&shadowCol){
+    ctx.save();ctx.shadowColor=shadowCol;ctx.shadowBlur=18;ctx.shadowOffsetY=6;
+    rr(ctx,x,y,w,h,radius);ctx.fillStyle=bg;ctx.fill();ctx.restore();
+  }
+  rr(ctx,x,y,w,h,radius);ctx.fillStyle=bg;ctx.fill();
+  ctx.strokeStyle=border;ctx.lineWidth=outlineW;ctx.stroke();
+}
+
+// ══════════════════════════════════════
+// AUDIO
+// ══════════════════════════════════════
+const AC=new (window.AudioContext||window.webkitAudioContext)();
+const master=AC.createGain();master.gain.value=.7;master.connect(AC.destination);
+let _recDest=null,_audioOn=false;
+function unlockAC(){if(_audioOn)return;AC.resume().then(()=>{_audioOn=true;});}
+function tone(freq,type,dur,vol,startFreq){
+  if(!_audioOn)return;
+  try{const o=AC.createOscillator(),g=AC.createGain();
+    o.type=type||'sine';
+    if(startFreq){o.frequency.setValueAtTime(startFreq,AC.currentTime);o.frequency.exponentialRampToValueAtTime(freq,AC.currentTime+dur*.3);}
+    else o.frequency.value=freq;
+    g.gain.setValueAtTime(vol||.3,AC.currentTime);g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+dur);
+    o.connect(g);g.connect(master);o.start();o.stop(AC.currentTime+dur);
+  }catch(e){}
+}
+function sfxQ(){tone(440,'sine',.3,.25,200);setTimeout(()=>tone(660,'sine',.25,.2),150);}
+function sfxOpt(i){tone(280+i*90,'triangle',.18,.22);}
+function sfxTick(){tone(900,'square',.05,.07);}
+function sfxOk(){tone(523,'sine',.12,.28);setTimeout(()=>tone(659,'sine',.12,.28),90);setTimeout(()=>tone(784,'sine',.25,.32),180);setTimeout(()=>tone(1047,'sine',.35,.28),320);}
+function sfxWrong(){tone(180,'sawtooth',.18,.28);setTimeout(()=>tone(140,'sawtooth',.28,.28),140);}
+function sfxCta(){tone(520,'sine',.18,.2,320);}
+
+// ══════════════════════════════════════
+// STATE
+// ══════════════════════════════════════
+const PH={IDLE:0,Q_IN:1,OPT_A:2,OPT_B:3,OPT_C:4,TIMER:5,CTA:6,REVEAL:7};
+let _t=0,_thIdx=-1,_th=THEMES[0],_quiz=null;
+let _phase=PH.IDLE,_phT=0;
+let _qAlpha=0,_catAlpha=0,_timerProg=1;
+let _optAlpha=[0,0,0],_optScale=[0,0,0];
+let _ctaAlpha=0,_revAlpha=0;
+let _ctaTxt='';
+let _deck=[...QUIZZES].sort(()=>Math.random()-.5),_di=0;
+
+function nextQ(){if(_di>=_deck.length){_deck=[...QUIZZES].sort(()=>Math.random()-.5);_di=0;}return _deck[_di++];}
+function nextTh(){_thIdx=(_thIdx+1)%THEMES.length;_th=THEMES[_thIdx];if(_th.init)_th.init(W,H);}
+
+function startScene(){
+  nextTh();_quiz=nextQ();
+  _ctaTxt=CTAS[Math.floor(Math.random()*CTAS.length)];
+  _phase=PH.Q_IN;_phT=0;
+  _qAlpha=0;_catAlpha=0;_timerProg=1;
+  _optAlpha=[0,0,0];_optScale=[0,0,0];
+  _ctaAlpha=0;_revAlpha=0;_pts=[];
+  sfxQ();
+}
+
+function skipToNext(){startScene();}
+
+// ══════════════════════════════════════
+// UPDATE
+// ══════════════════════════════════════
+function update(dt){
+  if(_phase===PH.IDLE)return;
+  _phT+=dt;
+  const qIn=CFG.questionHoldSec;
+  const optD=CFG.optionDelaySec;
+  const optA=CFG.optionAnimSec;
+  const timerD=CFG.timerSec;
+  const ctaD=CFG.ctaHoldSec;
+
+  if(_phase===PH.Q_IN){
+    _catAlpha=ease(_phT/.4);
+    _qAlpha=ease((_phT-.2)/qIn);
+    if(_phT>qIn){_phase=PH.OPT_A;_phT=0;sfxOpt(0);}
+  }
+  else if(_phase===PH.OPT_A){
+    _optAlpha[0]=ease(_phT/optA);_optScale[0]=bounceOut(_phT/optA);
+    if(_phT>optD){_phase=PH.OPT_B;_phT=0;sfxOpt(1);}
+  }
+  else if(_phase===PH.OPT_B){
+    _optAlpha[1]=ease(_phT/optA);_optScale[1]=bounceOut(_phT/optA);
+    if(_phT>optD){_phase=PH.OPT_C;_phT=0;sfxOpt(2);}
+  }
+  else if(_phase===PH.OPT_C){
+    _optAlpha[2]=ease(_phT/optA);_optScale[2]=bounceOut(_phT/optA);
+    if(_phT>optD){_phase=PH.TIMER;_phT=0;}
+  }
+  else if(_phase===PH.TIMER){
+    _timerProg=Math.max(0,1-_phT/timerD);
+    if(Math.floor(_phT*4)!==Math.floor((_phT-dt)*4))sfxTick();
+    if(_timerProg<=0){_phase=PH.CTA;_phT=0;sfxCta();}
+  }
+  else if(_phase===PH.CTA){
+    _ctaAlpha=ease(_phT/.5);
+    if(_phT>ctaD){_phase=PH.REVEAL;_phT=0;doReveal();}
+  }
+  else if(_phase===PH.REVEAL){
+    _revAlpha=ease(_phT/.6);
+  }
+}
+
+function doReveal(){
+  sfxOk();
+  const oy=optY(_quiz.ans);
+  spawnPts(W/2,oy+optH()/2,_th.correctCol,50);
+  spawnPts(W/2,oy+optH()/2,'#ffffff',20);
+  setTimeout(()=>sfxWrong(),100);
+  setTimeout(()=>sfxOk(),300);
+  shake();
+}
+
+// ══════════════════════════════════════
+// LAYOUT helpers
+// ══════════════════════════════════════
+function PAD(){return W*.055;}
+function mW(){return W-PAD()*2;}
+function qFontSize(){return Math.max(16,W*.048);}
+function qBoxH(){
+  ctx.font=`700 ${qFontSize()}px 'Noto Naskh Arabic',serif`;
+  const lines=wrapText(ctx,_quiz?_quiz.q:'',mW()-PAD()*.8);
+  return lines.length*qFontSize()*1.55+PAD()*.9;
+}
+function qBoxY(){return H*.12;}
+function optH(){return H*.1;}
+function optGap(){return H*.018;}
+function optY(i){return qBoxY()+qBoxH()+H*.03+i*(optH()+optGap());}
+function timerY(){return qBoxY()-H*.065;}
+function radius(){return mW()*(_th.cardRadius||.04);}
+
+// ══════════════════════════════════════
+// DRAW
+// ══════════════════════════════════════
+function draw(){
+  if(!_quiz)return;
+  const th=_th;
+  const sx=_shk>0?(Math.random()-.5)*_shk:0;
+  const sy=_shk>0?(Math.random()-.5)*_shk:0;
+  if(_shk>0)_shk*=.72;
+
+  ctx.save();ctx.translate(sx,sy);
+  th.bgDraw(ctx,W,H,_t);
+
+  // overlay for CTA/REVEAL phases
+  if(_phase===PH.CTA||_phase===PH.REVEAL){
+    const oa=_phase===PH.CTA?ease(_phT/.4):ease(_phT/.5);
+    ctx.save();ctx.globalAlpha=oa*.92;
+    ctx.fillStyle=th.overlayCol;ctx.fillRect(0,0,W,H);
+    ctx.restore();
+  }
+
+  const cx=W/2;
+  ctx.direction='rtl';ctx.textAlign='center';
+
+  // ── CATEGORY BADGE ──
+  if(_catAlpha>0&&_phase!==PH.CTA&&_phase!==PH.REVEAL){
+    ctx.save();ctx.globalAlpha=_catAlpha;
+    const fs=Math.max(11,W*.028);
+    ctx.font=`700 ${fs}px 'Noto Sans Arabic',sans-serif`;
+    ctx.textBaseline='middle';
+    const bw=ctx.measureText(_quiz.cat).width+fs*2,bh=fs*2.2;
+    const bx=cx-bw/2,by=H*.055-bh/2;
+    drawCard(ctx,bx,by,bw,bh,bh/2,th.labelCol+'33',th.labelCol,th.outlineW||2,th.shadow,th.shadowCol);
+    ctx.fillStyle=th.labelCol;ctx.fillText(_quiz.cat,cx,H*.055);
+    ctx.restore();
+  }
+
+  // ── TIMER BAR (top) ──
+  if((_phase===PH.TIMER||_phase===PH.CTA)&&_phase!==PH.REVEAL){
+    const ty=timerY(),th2=H*.022,bw=mW();
+    ctx.save();
+    rr(ctx,PAD(),ty,bw,th2,th2/2);ctx.fillStyle=_th.timerTrack;ctx.fill();
+    if(_timerProg>0){
+      const fillW=bw*_timerProg;
+      rr(ctx,PAD(),ty,fillW,th2,th2/2);
+      const tg=ctx.createLinearGradient(PAD(),0,PAD()+bw,0);
+      tg.addColorStop(0,_th.timerCol);tg.addColorStop(1,_th.timerCol+'99');
+      ctx.fillStyle=tg;ctx.fill();
+      ctx.shadowColor=_th.timerCol;ctx.shadowBlur=12;
+      rr(ctx,PAD(),ty,fillW,th2,th2/2);ctx.strokeStyle=_th.timerCol+'55';ctx.lineWidth=1;ctx.stroke();
+      ctx.shadowBlur=0;
+    }
+    ctx.restore();
+  }
+
+  // ── QUESTION BOX ──
+  if(_qAlpha>0&&_phase!==PH.CTA&&_phase!==PH.REVEAL){
+    ctx.save();ctx.globalAlpha=_qAlpha;
+    const fs=qFontSize();
+    ctx.font=`700 ${fs}px 'Noto Naskh Arabic',serif`;
+    ctx.textBaseline='middle';
+    const lines=wrapText(ctx,_quiz.q,mW()-PAD()*.8);
+    const lh=fs*1.55,qh=lines.length*lh+PAD()*.9;
+    const qy=qBoxY();
+    drawCard(ctx,PAD(),qy,mW(),qh,radius(),th.qBg,th.qBorder,th.outlineW||2,th.shadow,th.shadowCol);
+    ctx.fillStyle=th.qText;ctx.shadowColor='rgba(0,0,0,0.4)';ctx.shadowBlur=6;
+    lines.forEach((ln,i)=>ctx.fillText(ln,cx,qy+PAD()*.45+i*lh+lh/2));
+    ctx.shadowBlur=0;ctx.restore();
+  }
+
+  // ── OPTIONS ──
+  const optLabels=['أ','ب','ج'];
+  if(_phase!==PH.CTA&&_phase!==PH.REVEAL){
+    _quiz.opts.forEach((opt,i)=>{
+      if(_optAlpha[i]<=0)return;
+      const oy=optY(i),oh=optH(),ow=mW();
+      const sc=_optScale[i];
+      ctx.save();ctx.globalAlpha=_optAlpha[i];
+      ctx.translate(cx,oy+oh/2);ctx.scale(1,sc);ctx.translate(-cx,-(oy+oh/2));
+      drawCard(ctx,PAD(),oy,ow,oh,radius(),th.optBg,th.optColors[i],th.outlineW||2,th.shadow,th.shadowCol);
+      // label
+      const ls=oh*.38;
+      ctx.beginPath();ctx.arc(W-PAD()-ls,oy+oh/2,ls,0,Math.PI*2);
+      ctx.fillStyle=th.optColors[i]+'44';ctx.fill();
+      ctx.strokeStyle=th.optColors[i];ctx.lineWidth=th.outlineW||2;ctx.stroke();
+      ctx.font=`900 ${ls*1.15}px 'Noto Sans Arabic',sans-serif`;
+      ctx.textBaseline='middle';ctx.fillStyle=th.optColors[i];
+      ctx.fillText(optLabels[i],W-PAD()-ls,oy+oh/2);
+      // text
+      ctx.font=`700 ${Math.max(13,W*.038)}px 'Noto Sans Arabic',sans-serif`;
+      ctx.fillStyle=th.qText;ctx.shadowColor='rgba(0,0,0,0.3)';ctx.shadowBlur=5;
+      const ol=wrapText(ctx,opt,ow-ls*2.8-PAD()*.3);
+      const olh=Math.max(13,W*.038)*1.35,oth=ol.length*olh;
+      ol.forEach((ln,li)=>ctx.fillText(ln,cx-ls*.5,oy+oh/2-oth/2+li*olh+olh/2));
+      ctx.shadowBlur=0;ctx.restore();
+    });
+  }
+
+  // ── CTA SCREEN ──
+  if(_phase===PH.CTA&&_ctaAlpha>0){
+    ctx.save();ctx.globalAlpha=_ctaAlpha;
+    const fs=Math.max(20,W*.072);
+    ctx.font=`900 ${fs}px 'Noto Sans Arabic',sans-serif`;
+    ctx.textBaseline='middle';
+    const cw=ctx.measureText(_ctaTxt).width+fs*1.6,ch=fs*2.4;
+    const pulse=1+Math.sin(_t*4)*.04;
+    ctx.translate(cx,H*.45);ctx.scale(pulse,pulse);ctx.translate(-cx,-H*.45);
+    drawCard(ctx,cx-cw/2,H*.45-ch/2,cw,ch,ch/2,th.timerCol+'33',th.timerCol,th.outlineW+1||3,th.shadow||true,'rgba(0,0,0,0.3)');
+    ctx.fillStyle='#ffffff';ctx.shadowColor=th.timerCol;ctx.shadowBlur=20;
+    ctx.fillText(_ctaTxt,cx,H*.45);ctx.shadowBlur=0;ctx.restore();
+  }
+
+  // ── REVEAL SCREEN ──
+  if(_phase===PH.REVEAL&&_revAlpha>0){
+    ctx.save();ctx.globalAlpha=_revAlpha;
+    // correct option big
+    const ans=_quiz.ans;
+    const fs=Math.max(18,W*.052);
+    ctx.font=`900 ${fs}px 'Noto Sans Arabic',sans-serif`;
+    ctx.textBaseline='middle';
+    const ol=wrapText(ctx,_quiz.opts[ans],mW()-PAD());
+    const olh=fs*1.5,oth=ol.length*olh+PAD()*1.2;
+    const oy=H*.25;
+    drawCard(ctx,PAD(),oy,mW(),oth,radius(),th.correctCol+'33',th.correctCol,(th.outlineW||2)+1,true,'rgba(0,0,0,0.3)');
+    ctx.fillStyle=th.correctCol;ctx.shadowColor=th.correctCol;ctx.shadowBlur=18;
+    ol.forEach((ln,i)=>ctx.fillText(ln,cx,oy+PAD()*.6+i*olh+olh/2));
+    ctx.shadowBlur=0;
+
+    // checkmark
+    const ck=H*.065;
+    ctx.font=`900 ${ck}px sans-serif`;ctx.fillStyle=th.correctCol;
+    ctx.shadowColor=th.correctCol;ctx.shadowBlur=15;
+    ctx.fillText('✓',cx,oy-ck*.7);ctx.shadowBlur=0;
+
+    // explanation
+    if(_quiz.exp){
+      const eFs=Math.max(13,W*.036);
+      ctx.font=`400 ${eFs}px 'Noto Sans Arabic',sans-serif`;
+      const el=wrapText(ctx,_quiz.exp,mW()-PAD());
+      const elh=eFs*1.6,eth=el.length*elh+PAD();
+      const ey=oy+oth+H*.035;
+      drawCard(ctx,PAD(),ey,mW(),eth,radius(),th.overlayCol,th.expBorder,th.outlineW||2,false,'');
+      ctx.fillStyle=th.qText;
+      el.forEach((ln,i)=>ctx.fillText(ln,cx,ey+PAD()*.5+i*elh+elh/2));
+    }
+
+    // tap hint
+    const hFs=Math.max(10,W*.028);
+    ctx.font=`600 ${hFs}px 'Noto Sans Arabic',sans-serif`;
+    ctx.fillStyle=th.labelCol;ctx.globalAlpha=_revAlpha*(0.5+Math.sin(_t*3)*.4);
+    ctx.fillText('اضغط للسؤال التالي ←',cx,H*.88);
+    ctx.restore();
+  }
+
+  drawPts();tickPts();
+  ctx.restore();
+}
+
+// ══════════════════════════════════════
+// LOOP
+// ══════════════════════════════════════
+let _lastTs=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt=Math.min((ts-_lastTs)/1000,.05);_lastTs=ts;_t+=dt;
+  update(dt);draw();
+}
+
+// ══════════════════════════════════════
+// RECORDING
+// ══════════════════════════════════════
+window._recActive=false;window._recordingDone=false;window._recordingBlob=null;
+let _recChunks=[],_recorder=null,_recD=null;
+window.startRecording=function(fps){
+  fps=fps||30;
+  try{
+    AC.resume().catch(()=>{});
+    window._recActive=true;window._recordingDone=false;_recChunks=[];
+    _recD=AC.createMediaStreamDestination();master.connect(_recD);
+    const vs=canvas.captureStream(fps);
+    const combined=new MediaStream([...vs.getVideoTracks(),..._recD.stream.getAudioTracks()]);
+    const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(m=>MediaRecorder.isTypeSupported(m))||'video/webm';
+    _recorder=new MediaRecorder(combined,{mimeType:mime,videoBitsPerSecond:8000000,audioBitsPerSecond:192000});
+    _recorder.ondataavailable=e=>{if(e.data&&e.data.size>0)_recChunks.push(e.data);};
+    _recorder.onstop=()=>{window._recActive=false;try{master.disconnect(_recD);}catch(e){}window._recordingBlob=new Blob(_recChunks,{type:'video/webm'});window._recordingDone=true;};
+    _recorder.start(200);console.log('Recording started');
+  }catch(e){console.error(e);}
+};
+window.stopRecording=function(){try{if(_recorder&&_recorder.state!=='inactive')_recorder.stop();}catch(e){}};
+window.forceFinalize=function(){window._recActive=false;if(_recChunks.length>0&&!window._recordingDone){window._recordingBlob=new Blob(_recChunks,{type:'video/webm'});window._recordingDone=true;}};
+window.getRecordingBase64=function(){
+  return new Promise((resolve,reject)=>{
+    const chk=()=>{if(!window._recordingBlob){setTimeout(chk,100);return;}const r=new FileReader();r.onloadend=()=>resolve(r.result.split(',')[1]);r.onerror=reject;r.readAsDataURL(window._recordingBlob);};chk();
+  });
+};
+
+// ── INPUT ──
+function onTap(){
+  unlockAC();
+  if(_phase===PH.IDLE){startScene();return;}
+  skipToNext();
+}
+document.body.addEventListener('click',onTap);
+document.body.addEventListener('touchend',e=>{e.preventDefault();onTap();},{passive:false});
+window.addEventListener('resize',()=>{W=window.innerWidth;H=window.innerHeight;canvas.width=W;canvas.height=H;THEMES.forEach(th=>{if(th.init)th.init(W,H);});});
+
+// ── BOOT ──
+unlockAC();
+startScene();
+requestAnimationFrame(loop);
+window.AC=AC;window.master=master;
+})();
+</script>
+</body>
+</html>
