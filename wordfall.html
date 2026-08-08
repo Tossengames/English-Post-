@@ -7,8 +7,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Baloo+2:wght@600;700;800&family=Cairo:wght@700;800;900&family=Tajawal:wght@700;800;900&family=Nunito:wght@800;900&family=Righteous&family=Orbitron:wght@700;900&family=Amiri:wght@700&family=Rubik+Mono+One&family=Changa:wght@700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-html,body{width:100%;height:100%;overflow:hidden;background:#000}
-body{font-family:'Baloo 2','Tajawal',sans-serif;user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;background:#fff6e0}
+body{font-family:'Baloo 2','Tajawal',sans-serif;user-select:none;transition:background .4s}
 canvas{position:fixed;inset:0;pointer-events:none}
 #bgC{z-index:0}
 #vfC{z-index:50}
@@ -40,7 +40,7 @@ canvas{position:fixed;inset:0;pointer-events:none}
 
 /* ---- Options ---- */
 #optsWrap{margin-top:18px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:12px;align-items:center;flex-shrink:1;min-height:0}
-.optCard{width:100%;max-width:360px;padding:15px 18px;font-family:'Tajawal',sans-serif;font-weight:800;font-size:19px;text-align:center;direction:rtl;border:3px solid rgba(255,255,255,.28);box-shadow:0 8px 20px rgba(0,0,0,.35),inset 0 2px 0 rgba(255,255,255,.25);opacity:0;transform:translateX(80px) scale(.7) rotate(6deg);position:relative;overflow:hidden;transition:box-shadow .3s,border-color .3s}
+.optCard{width:100%;max-width:360px;padding:15px 18px;font-family:'Tajawal',sans-serif;font-weight:800;font-size:19px;text-align:center;direction:rtl;border:3px solid rgba(255,255,255,.5);box-shadow:0 10px 24px rgba(0,0,0,.16),inset 0 2px 0 rgba(255,255,255,.35);opacity:0;transform:translateX(80px) scale(.7) rotate(6deg);position:relative;overflow:hidden;transition:box-shadow .3s,border-color .3s}
 .optCard.flyL{transform:translateX(-80px) scale(.7) rotate(-6deg)}
 .optCard.flyUp{transform:translateY(60px) scale(.7)}
 .optCard.show{animation:optIn .5s cubic-bezier(.34,1.56,.64,1) forwards}
@@ -55,20 +55,20 @@ canvas{position:fixed;inset:0;pointer-events:none}
 @keyframes popIn{0%{opacity:0;transform:translateY(-18px) scale(.9)}100%{opacity:1;transform:translateY(0) scale(1)}}
 
 /* ---- CTA (boxed, then exits) ---- */
-#ctaBox{position:fixed;top:50%;left:50%;z-index:56;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;opacity:0;pointer-events:none;text-align:center;padding:26px 30px;max-width:320px;border-radius:26px;border:3px solid rgba(255,255,255,.35);box-shadow:0 20px 50px rgba(0,0,0,.5),inset 0 2px 0 rgba(255,255,255,.2);transform:translate(-50%,-50%) scale(.5) rotate(-3deg)}
+#ctaBox{position:fixed;top:50%;left:50%;z-index:56;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;opacity:0;pointer-events:none;text-align:center;padding:26px 30px;max-width:320px;border-radius:26px;border:3px solid rgba(0,0,0,.1);box-shadow:0 20px 50px rgba(0,0,0,.22),inset 0 2px 0 rgba(255,255,255,.6);transform:translate(-50%,-50%) scale(.5) rotate(-3deg)}
 #ctaBox.show{animation:ctaIn .55s cubic-bezier(.34,1.56,.64,1) forwards}
 #ctaBox.hide{animation:ctaOut .4s cubic-bezier(.5,0,.75,0) forwards}
 @keyframes ctaIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.5) rotate(-3deg)}60%{opacity:1;transform:translate(-50%,-50%) scale(1.08) rotate(1deg)}100%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0)}}
 @keyframes ctaOut{0%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0)}100%{opacity:0;transform:translate(-50%,-50%) scale(.6) translateY(-40px) rotate(4deg)}}
-#ctaText{font-family:'Tajawal',sans-serif;font-weight:900;font-size:26px;direction:rtl;text-shadow:0 4px 14px rgba(0,0,0,.5)}
-#ctaSub{font-family:'Tajawal',sans-serif;font-weight:700;font-size:14px;opacity:.85;direction:rtl}
+#ctaText{font-family:'Tajawal',sans-serif;font-weight:900;font-size:26px;direction:rtl;text-shadow:0 1px 0 rgba(255,255,255,.5)}
+#ctaSub{font-family:'Tajawal',sans-serif;font-weight:700;font-size:14px;opacity:.75;direction:rtl}
 
 /* ---- Reveal panel (solid box, clearly readable) ---- */
-#reveal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);z-index:65;text-align:center;pointer-events:none;padding:26px 34px;border-radius:24px;border:3px solid rgba(255,255,255,.4);box-shadow:0 24px 60px rgba(0,0,0,.55),inset 0 2px 0 rgba(255,255,255,.15);max-width:320px}
+#reveal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);z-index:65;text-align:center;pointer-events:none;padding:26px 34px;border-radius:24px;border:3px solid rgba(0,0,0,.1);box-shadow:0 24px 60px rgba(0,0,0,.25),inset 0 2px 0 rgba(255,255,255,.6);max-width:320px}
 #reveal.show{transform:translate(-50%,-50%) scale(1);transition:transform .45s cubic-bezier(.34,1.56,.64,1)}
-#revealWord{font-family:'Nunito',sans-serif;font-weight:900;font-size:32px;direction:ltr;text-shadow:0 0 24px currentColor}
+#revealWord{font-family:'Nunito',sans-serif;font-weight:900;font-size:32px;direction:ltr;text-shadow:0 1px 0 rgba(255,255,255,.4)}
 #revealAr{font-family:'Tajawal',sans-serif;font-weight:800;font-size:21px;margin-top:8px;direction:rtl}
-#revealTag{font-family:'Tajawal',sans-serif;font-weight:700;font-size:12px;margin-top:10px;opacity:.7;letter-spacing:2px}
+#revealTag{font-family:'Tajawal',sans-serif;font-weight:700;font-size:12px;margin-top:10px;opacity:.65;letter-spacing:2px}
 </style>
 </head>
 <body>
@@ -146,9 +146,10 @@ function _drawRecFrame(cx,W2,H2){
     } else if(el.id==='promptWrap'){
       const lbl=document.getElementById('promptLbl'),wd=document.getElementById('promptWord');
       const lr=lbl.getBoundingClientRect(),wr=wd.getBoundingClientRect();
-      cx.font=`700 13px Tajawal,sans-serif`;cx.fillStyle='rgba(255,255,255,.6)';
+      cx.font=`700 13px Tajawal,sans-serif`;cx.fillStyle=S.txt;cx.globalAlpha=0.65;
       cx.textAlign='center';cx.textBaseline='top';
       cx.fillText(lbl.textContent,lr.left+lr.width/2,lr.top);
+      cx.globalAlpha=parseFloat(st.opacity);
       const wst=getComputedStyle(wd);
       cx.fillStyle=wst.backgroundColor!=='rgba(0, 0, 0, 0)'?wst.backgroundColor:S.acc;
       cx.beginPath();_roundShape(cx,wr.left,wr.top,wr.width,wr.height,S.shape);cx.fill();
@@ -196,14 +197,13 @@ function _drawRecFrame(cx,W2,H2){
   if(ctaOp>0.01){
     const cr=ctaBox.getBoundingClientRect();
     cx.save();cx.globalAlpha=ctaOp;
-    cx.fillStyle=S.bg2||'#1a1a2e';
-    cx.strokeStyle='rgba(255,255,255,.35)';cx.lineWidth=3;
+    cx.fillStyle=S.bg2||'#ffffff';
+    cx.strokeStyle='rgba(0,0,0,.1)';cx.lineWidth=3;
     cx.beginPath();_roundShape(cx,cr.left,cr.top,cr.width,cr.height,'round',26);cx.fill();cx.stroke();
-    cx.font=`900 26px Tajawal,sans-serif`;cx.fillStyle=S.txt;
+    cx.font=`900 26px Tajawal,sans-serif`;cx.fillStyle=S.cardTxt||S.txt;
     cx.textAlign='center';cx.textBaseline='middle';
-    cx.shadowColor='rgba(0,0,0,.5)';cx.shadowBlur=8;
     cx.fillText(document.getElementById('ctaText').textContent,cr.left+cr.width/2,cr.top+cr.height*0.4);
-    cx.font=`700 14px Tajawal,sans-serif`;cx.globalAlpha=ctaOp*.85;cx.shadowBlur=0;
+    cx.font=`700 14px Tajawal,sans-serif`;cx.globalAlpha=ctaOp*.75;
     cx.fillText(document.getElementById('ctaSub').textContent,cr.left+cr.width/2,cr.top+cr.height*0.68);
     cx.restore();
   }
@@ -213,16 +213,15 @@ function _drawRecFrame(cx,W2,H2){
   if(rv.classList.contains('show')){
     const rr=rv.getBoundingClientRect();
     cx.save();
-    cx.fillStyle=S.bg2||'#1a1a2e';
-    cx.strokeStyle='rgba(255,255,255,.4)';cx.lineWidth=3;
+    cx.fillStyle=S.bg2||'#ffffff';
+    cx.strokeStyle='rgba(0,0,0,.1)';cx.lineWidth=3;
     cx.beginPath();_roundShape(cx,rr.left,rr.top,rr.width,rr.height,'round',24);cx.fill();cx.stroke();
     cx.font=`900 32px Nunito,sans-serif`;cx.fillStyle=S.acc;
     cx.textAlign='center';cx.textBaseline='middle';
-    cx.shadowColor=S.acc;cx.shadowBlur=S.glow?18:0;
     cx.fillText(document.getElementById('revealWord').textContent,rr.left+rr.width/2,rr.top+rr.height*0.32);
-    cx.font=`800 21px Tajawal,sans-serif`;cx.fillStyle=S.txt;cx.shadowBlur=0;
+    cx.font=`800 21px Tajawal,sans-serif`;cx.fillStyle=S.cardTxt||S.txt;
     cx.fillText(document.getElementById('revealAr').textContent,rr.left+rr.width/2,rr.top+rr.height*0.58);
-    cx.font=`700 12px Tajawal,sans-serif`;cx.globalAlpha=.7;
+    cx.font=`700 12px Tajawal,sans-serif`;cx.globalAlpha=.65;
     cx.fillText(document.getElementById('revealTag').textContent,rr.left+rr.width/2,rr.top+rr.height*0.82);
     cx.restore();
   }
@@ -307,40 +306,47 @@ const QUIZ_ADV=[
 const QUIZ=[...QUIZ_MID,...QUIZ_ADV];
 
 // ══════════════════════════════════════════════════════════════════
-// THEMES — palette + background pattern + font + card shape
+// THEMES — bright, happy, high-energy palettes for FB Reels/Shorts.
+// Each theme: sunny gradient background, vivid card colors, dark-ink
+// text on cards for readability (no white-on-white / low-contrast).
 // ══════════════════════════════════════════════════════════════════
 const STYLES=[
-  {name:'NEON',    font:'Orbitron',    bg:'#020014',bg2:'#0c0630',pat:'grid', shape:'angular',radius:6,
-   pal:['#ff006e','#fb5607','#ffbe0b','#8338ec','#3a86ff','#06d6a9'],
-   txt:'#ffffff',acc:'#ffbe0b',glow:true},
-  {name:'CANDY',   font:'Fredoka One', bg:'#1a0a2e',bg2:'#2b0f45',pat:'dots', shape:'blob',radius:26,
-   pal:['#ff6eb4','#c77dff','#48cae4','#ffd166','#06d6a9','#f72585'],
-   txt:'#ffffff',acc:'#ffd166',glow:true},
-  {name:'BUBBLE',  font:'Righteous',   bg:'#001d3d',bg2:'#012a52',pat:'stars',shape:'round',radius:24,
-   pal:['#ffd60a','#00f5d4','#ff477e','#7bf1a8','#ff9e00','#c77dff'],
-   txt:'#ffffff',acc:'#00f5d4',glow:true},
-  {name:'SUNNY',   font:'Changa',      bg:'#2d1b00',bg2:'#3d2601',pat:'rays', shape:'round',radius:18,
-   pal:['#ffb703','#fb8500','#8ecae6','#ff595e','#ffca3a','#8ac926'],
-   txt:'#fff3e0',acc:'#ffca3a',glow:false},
-  {name:'ROYAL',   font:'Amiri',       bg:'#0d0a1f',bg2:'#171235',pat:'scan', shape:'angular',radius:8,
-   pal:['#c9a227','#e0c068','#7b2fff','#4b2e83','#f5e6b8','#9c6b1f'],
-   txt:'#f5e6c8',acc:'#e0c068',glow:false},
-  {name:'GLITCH',  font:'Rubik Mono One',bg:'#0a0014',bg2:'#160026',pat:'grid', shape:'angular',radius:2,
-   pal:['#00ff9f','#ff00c8','#00c8ff','#ffee00','#ff4d00','#9d00ff'],
-   txt:'#ffffff',acc:'#00ff9f',glow:true},
+  {name:'CITRUS',  font:'Fredoka One', bg:'#fff6e0',bg1:'#fff6e0',bg2:'#ffffff',pat:'dots', shape:'blob',radius:26,
+   pal:['#ff6b6b','#ffa62b','#ffd93d','#6bcB77','#4ea8de','#ff8fab'],
+   txt:'#3a2a12',acc:'#c93a0d',cardTxt:'#2b1a08',glow:false,patCol:'rgba(255,140,0,.10)'},
+  {name:'BUBBLEGUM',font:'Baloo 2',    bg:'#ffe8f5',bg1:'#ffe8f5',bg2:'#ffffff',pat:'dots', shape:'round',radius:24,
+   pal:['#ff5da2','#ff9ecb','#845ec2','#4ecdc4','#ffc75f','#ff8066'],
+   txt:'#4a1440',acc:'#ff2d87',cardTxt:'#3a0f30',glow:false,patCol:'rgba(255,45,135,.08)'},
+  {name:'SUNSHINE',font:'Changa',      bg:'#fff9db',bg1:'#fff9db',bg2:'#ffffff',pat:'rays', shape:'round',radius:20,
+   pal:['#ffb703','#fb8500','#06d6a0','#3fa7d6','#ef476f','#ffd166'],
+   txt:'#432c04',acc:'#c25a00',cardTxt:'#3a2400',glow:false,patCol:'rgba(255,183,3,.09)'},
+  {name:'MINTPOP', font:'Righteous',   bg:'#e6fff5',bg1:'#e6fff5',bg2:'#ffffff',pat:'dots', shape:'round',radius:22,
+   pal:['#06d6a0','#1b9aaa','#ef476f','#ffd166','#7b61ff','#ff8fa3'],
+   txt:'#0a3d2e',acc:'#03734f',cardTxt:'#063d2c',glow:false,patCol:'rgba(6,214,160,.10)'},
+  {name:'SKYPOP',  font:'Baloo 2',     bg:'#e8f4ff',bg1:'#e8f4ff',bg2:'#ffffff',pat:'clouds',shape:'blob',radius:24,
+   pal:['#3fa7d6','#ff6b6b','#ffd166','#8ac926','#ff8fab','#845ec2'],
+   txt:'#0d2b4a',acc:'#1a73e8',cardTxt:'#0d2b4a',glow:false,patCol:'rgba(63,167,214,.10)'},
+  {name:'TROPICAL',font:'Fredoka One', bg:'#fff0e6',bg1:'#fff0e6',bg2:'#ffffff',pat:'dots', shape:'blob',radius:28,
+   pal:['#ff7b54','#ffb26b','#ffd56b','#4ecdc4','#6a994e','#ff5d8f'],
+   txt:'#4a2200',acc:'#cc3d09',cardTxt:'#3a1a00',glow:false,patCol:'rgba(255,123,84,.10)'},
 ];
 let S=STYLES[0];
 
 function applyStyle(s){
   S=s;
   const fn=`'${s.font}',sans-serif`;
+  document.body.style.background=`linear-gradient(160deg,${s.bg1},${s.bg2})`;
   document.getElementById('brand').style.color=s.acc;
   document.getElementById('brand').style.fontFamily=fn;
+  document.getElementById('brand').style.textShadow='0 2px 0 rgba(255,255,255,.6),0 4px 10px rgba(0,0,0,.12)';
   document.getElementById('promptLbl').style.color=s.txt;
+  document.getElementById('timerBg').style.stroke='rgba(0,0,0,.08)';
   document.getElementById('timerFg').style.stroke=s.acc;
-  document.getElementById('reveal').style.color=s.txt;
-  document.getElementById('ctaBox').style.background=s.bg2;
-  document.getElementById('ctaBox').style.color=s.txt;
+  document.getElementById('timerNum').style.color=s.txt;
+  document.getElementById('reveal').style.color=s.cardTxt;
+  document.getElementById('ctaBox').style.background=`linear-gradient(160deg,${s.bg2},${s.bg1})`;
+  document.getElementById('ctaBox').style.color=s.cardTxt;
+  document.getElementById('ctaBox').style.borderColor='rgba(0,0,0,.08)';
   document.querySelectorAll('.optCard').forEach(applyShapeToCard);
   document.getElementById('promptWord').style.borderRadius=(s.shape==='blob'?'34px 14px 34px 14px':s.shape==='angular'?'4px':s.radius+'px');
   initBgPts();initStars();
@@ -447,14 +453,20 @@ function initBgPts(){bgPts=[];for(let i=0;i<28;i++)bgPts.push({x:Math.random()*b
 
 function drawBg(){
   const w=bgC.width,h=bgC.height;
-  bgX.clearRect(0,0,w,h);bgX.fillStyle=S.bg;bgX.fillRect(0,0,w,h);
+  bgX.clearRect(0,0,w,h);
+  const grad=bgX.createLinearGradient(0,0,w*0.3,h);
+  grad.addColorStop(0,S.bg1||S.bg);
+  grad.addColorStop(1,S.bg2||S.bg);
+  bgX.fillStyle=grad;bgX.fillRect(0,0,w,h);
   const p=S.pat;
-  if(p==='grid'){bgX.strokeStyle='rgba(255,255,255,.04)';bgX.lineWidth=1;for(let x=0;x<w;x+=40){bgX.beginPath();bgX.moveTo(x,0);bgX.lineTo(x,h);bgX.stroke()}for(let y=0;y<h;y+=40){bgX.beginPath();bgX.moveTo(0,y);bgX.lineTo(w,y);bgX.stroke()}}
-  else if(p==='dots'){bgX.fillStyle='rgba(255,255,255,.06)';for(let x=0;x<w;x+=28)for(let y=0;y<h;y+=28){bgX.beginPath();bgX.arc(x,y,2.5,0,Math.PI*2);bgX.fill()}}
-  else if(p==='scan'){bgX.fillStyle='rgba(0,0,0,.18)';for(let y=0;y<h;y+=4)bgX.fillRect(0,y,w,2)}
-  else if(p==='stars'){stars.forEach(s=>{bgX.globalAlpha=s.a;bgX.fillStyle='#fff';bgX.fillRect(s.x,s.y,s.r,s.r)});bgX.globalAlpha=1}
-  else if(p==='rays'){const cxr=w/2,cyr=h;for(let a=0;a<Math.PI;a+=Math.PI/10){bgX.beginPath();bgX.moveTo(cxr,cyr);bgX.lineTo(cxr+Math.cos(a)*w*1.6,cyr-Math.sin(a)*h*1.6);bgX.lineWidth=28;bgX.strokeStyle='rgba(255,180,0,.03)';bgX.stroke()}}
-  bgPts.forEach(p=>{bgX.globalAlpha=p.a;bgX.fillStyle=p.c;bgX.beginPath();bgX.arc(p.x,p.y,p.r,0,Math.PI*2);bgX.fill();p.y-=p.vy;p.x+=p.vx;if(p.y<-10){p.y=bgC.height+10;p.x=Math.random()*bgC.width;p.a=Math.random()*.25+.05}});
+  const pc=S.patCol||'rgba(0,0,0,.05)';
+  if(p==='grid'){bgX.strokeStyle=pc;bgX.lineWidth=1;for(let x=0;x<w;x+=40){bgX.beginPath();bgX.moveTo(x,0);bgX.lineTo(x,h);bgX.stroke()}for(let y=0;y<h;y+=40){bgX.beginPath();bgX.moveTo(0,y);bgX.lineTo(w,y);bgX.stroke()}}
+  else if(p==='dots'){bgX.fillStyle=pc;for(let x=0;x<w;x+=30)for(let y=0;y<h;y+=30){bgX.beginPath();bgX.arc(x,y,3,0,Math.PI*2);bgX.fill()}}
+  else if(p==='scan'){bgX.fillStyle=pc;for(let y=0;y<h;y+=4)bgX.fillRect(0,y,w,2)}
+  else if(p==='stars'){stars.forEach(s=>{bgX.globalAlpha=s.a*0.5;bgX.fillStyle=S.acc;bgX.fillRect(s.x,s.y,s.r*1.6,s.r*1.6)});bgX.globalAlpha=1}
+  else if(p==='rays'){const cxr=w/2,cyr=h;for(let a=0;a<Math.PI;a+=Math.PI/10){bgX.beginPath();bgX.moveTo(cxr,cyr);bgX.lineTo(cxr+Math.cos(a)*w*1.6,cyr-Math.sin(a)*h*1.6);bgX.lineWidth=30;bgX.strokeStyle=pc;bgX.stroke()}}
+  else if(p==='clouds'){stars.forEach(s=>{bgX.globalAlpha=s.a*0.35;bgX.fillStyle='#ffffff';bgX.beginPath();bgX.ellipse(s.x,s.y,s.r*10,s.r*5,0,0,Math.PI*2);bgX.fill()});bgX.globalAlpha=1}
+  bgPts.forEach(p=>{bgX.globalAlpha=p.a;bgX.fillStyle=p.c;bgX.beginPath();bgX.arc(p.x,p.y,p.r,0,Math.PI*2);bgX.fill();p.y-=p.vy;p.x+=p.vx;if(p.y<-10){p.y=bgC.height+10;p.x=Math.random()*bgC.width;p.a=Math.random()*.3+.12}});
   bgX.globalAlpha=1;
 }
 function spawnParts(x,y,color,n=14,big=false){
@@ -532,7 +544,9 @@ function runQuiz(){
     el.className='optCard '+(i%2===0?'flyL':'flyUp');
     el.dataset.text=opt;
     el.style.background=S.pal[(i+1)%S.pal.length];
-    el.style.color='#fff';
+    el.style.color='#ffffff';
+    el.style.textShadow='0 2px 4px rgba(0,0,0,.35), 0 0 1px rgba(0,0,0,.5)';
+    el.style.borderColor='rgba(255,255,255,.55)';
     el.style.fontFamily=`'Tajawal',sans-serif`;
     applyShapeToCard(el);
     el.innerHTML=`<span class="badge">✓</span>${opt}`;
@@ -622,7 +636,7 @@ function runQuiz(){
       }
     });
     sfxReveal();
-    flashScreen('#fff',.35);
+    flashScreen(S.acc,.4);
     shake(10,10);
     document.getElementById('revealWord').textContent=q.word;
     document.getElementById('revealAr').textContent=q.correct;
