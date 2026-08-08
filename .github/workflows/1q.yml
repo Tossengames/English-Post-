@@ -1,4 +1,4 @@
-name: 🎮 Post WordFall (quiz(
+name: Post WordFall quiz
 
 on:
   workflow_dispatch:
