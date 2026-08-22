@@ -8,7 +8,7 @@ name: french-words-post
         required: false
         default: ""
   schedule:
-    - cron: "0 16 * * *"  # 11 AM EST / 3 PM UTC daily
+    - cron: "0 15 * * *"  # 11 AM EST / 3 PM UTC daily
 
 jobs:
   post:
@@ -23,7 +23,7 @@ jobs:
         timeout-minutes: 3
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg bc jq python3 fonts-noto fonts-noto-color-emoji fonts-noto-cjk fonts-noto-core fonts-noto-ui-core
+          sudo apt-get install -y ffmpeg bc jq python3 fonts-noto fonts-noto-extra fonts-noto-color-emoji fonts-noto-cjk fonts-noto-core fonts-noto-ui-core
 
       - name: find-video
         id: vid
@@ -209,7 +209,14 @@ jobs:
           dur = float(os.environ.get("DUR", "18"))
           fadeout = float(os.environ.get("FADEOUT", "16.5"))
 
-          font_en = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+          # Noto Sans has full Latin Extended coverage (needed for French accents: é è à ç û ï etc.)
+          # Liberation Sans is kept only as a last-resort fallback.
+          font_en_candidates = [
+              "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+              "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+          ]
+          font_en = next((f for f in font_en_candidates if os.path.exists(f)), font_en_candidates[-1])
+
           font_ar_candidates = [
               "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf",
               "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
@@ -261,7 +268,7 @@ jobs:
               f":shadowcolor=black@0.85:shadowx=3:shadowy=3"
           )
 
-          # 2) Small "FRENCH" language tag directly above the word, always visible early, so it's unmistakable
+          # 2) Small "FRENCH" language tag directly above the word
           y_tag = 330
           t_tag = 0.9
           filters.append(
