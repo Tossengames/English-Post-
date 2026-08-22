@@ -210,7 +210,6 @@ jobs:
           fadeout = float(os.environ.get("FADEOUT", "16.5"))
 
           # Noto Sans has full Latin Extended coverage (needed for French accents: é è à ç û ï etc.)
-          # Liberation Sans is kept only as a last-resort fallback.
           font_en_candidates = [
               "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
               "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
@@ -237,7 +236,7 @@ jobs:
           def esc(t):
               return t.replace("'", "\u2019").replace(":", "\\:").replace(",", "\\,")
 
-          # Rotating Arabic intro line — explicitly says FRENCH so there's no confusion with English lessons
+          # Rotating Arabic intro line — explicitly says French so there's no confusion with English lessons
           intros = [
               "تعلم كلمة فرنسية جديدة",
               "كلمة اليوم باللغة الفرنسية",
@@ -268,21 +267,7 @@ jobs:
               f":shadowcolor=black@0.85:shadowx=3:shadowy=3"
           )
 
-          # 2) Small "FRENCH" language tag directly above the word
-          y_tag = 330
-          t_tag = 0.9
-          filters.append(
-              f"drawtext=text='بالفرنسية - FRENCH'"
-              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=lightyellow@0.95"
-              f":fontsize=38"
-              f":x=(w-text_w)/2"
-              f":y={y_tag}"
-              f":alpha='{fade_in(t_tag)}'"
-              f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
-          )
-
-          # 3) The French word (large, bold, center-upper)
+          # 2) The French word (large, bold, center-upper)
           y_word = 460
           t_word = text_start
           filters.append(
@@ -296,7 +281,7 @@ jobs:
               f":shadowcolor=black@0.85:shadowx=4:shadowy=4"
           )
 
-          # 4) Pronunciation in English letters
+          # 3) Pronunciation in English letters
           y_pron_en = 640
           t_pron_en = text_start + line_interval
           filters.append(
@@ -310,7 +295,7 @@ jobs:
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # 5) Pronunciation in Arabic letters
+          # 4) Pronunciation in Arabic letters
           y_pron_ar = 760
           t_pron_ar = text_start + line_interval * 2
           filters.append(
@@ -324,7 +309,7 @@ jobs:
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # 6) Meaning in Arabic
+          # 5) Meaning in Arabic
           y_meaning = 900
           t_meaning = text_start + line_interval * 3
           filters.append(
@@ -338,7 +323,7 @@ jobs:
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # 7) CTA box near bottom
+          # 6) CTA box near bottom
           ctas = ["تابعنا", "اترك تعليق", "شارك مع صديق", "احفظ الفيديو", "تابعنا لمزيد"]
           cta_text = random.choice(ctas)
           t_cta = text_start + line_interval * 4 + 0.3
