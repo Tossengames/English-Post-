@@ -107,38 +107,38 @@ jobs:
         id: content
         timeout-minutes: 1
         run: |
-          # 30 French words — each: WORD|ENGLISH_PRONUNCIATION|ARABIC_PRONUNCIATION|ARABIC_MEANING
+          # 30 NEW French words — each: WORD|ENGLISH_PRONUNCIATION|ARABIC_PRONUNCIATION|ARABIC_MEANING
           CONTENT_RAW=(
-            "Bonjour|bohn-ZHOOR|بونجور|مرحبا"
-            "Merci|mehr-SEE|مِرسي|شكرا"
-            "Amour|ah-MOOR|آمور|حب"
-            "Fromage|froh-MAHZH|فروماج|جبن"
-            "Château|shah-TOH|شاتو|قصر"
-            "Voiture|vwah-TEWR|ڤواتور|سيارة"
-            "Musique|myoo-ZEEK|ميوزيك|موسيقى"
-            "Café|ka-FAY|كافيه|قهوة"
-            "Maison|may-ZOHN|ميزون|منزل"
-            "Bibliothèque|bee-blee-oh-TEK|بيبليوتيك|مكتبة"
-            "Beaucoup|boh-KOO|بوكو|كثيرا"
-            "Aujourd'hui|oh-zhoor-DWEE|أوجوردوي|اليوم"
-            "Étoile|ay-TWAHL|إيتوال|نجمة"
-            "Fleur|FLUR|فلور|زهرة"
-            "Voyage|vwah-YAHZH|ڤوياج|رحلة"
-            "Bonheur|bo-NUR|بونور|سعادة"
-            "Soleil|so-LAY|سولاي|شمس"
-            "Nuage|noo-AHZH|نواج|سحابة"
-            "Rivière|ree-VYEHR|ريڤيير|نهر"
-            "Montagne|mohn-TAHN-yuh|مونتانيا|جبل"
-            "Ville|VEEL|ڤيل|مدينة"
-            "École|ay-KOHL|إيكول|مدرسة"
-            "Travail|trah-VYE|ترافاي|عمل"
-            "Famille|fah-MEEY|فاميي|عائلة"
-            "Enfant|ahn-FAHN|أونفون|طفل"
-            "Livre|LEEV-ruh|ليڤر|كتاب"
-            "Jardin|zhar-DAN|جاردان|حديقة"
-            "Cuisine|kwee-ZEEN|كويزين|مطبخ"
-            "Chanson|shahn-SOHN|شونسون|أغنية"
-            "Liberté|lee-behr-TAY|ليبيرتيه|حرية"
+            "Pomme|POHM|بوم|تفاحة"
+            "Chien|shee-YEN|شيان|كلب"
+            "Chat|SHAH|شا|قطة"
+            "Pain|PAN|بان|خبز"
+            "Eau|OH|أو|ماء"
+            "Table|TAHBL|تابل|طاولة"
+            "Porte|PORT|بورت|باب"
+            "Fenêtre|fuh-NEH-truh|فينيتر|نافذة"
+            "Rouge|ROOZH|روج|أحمر"
+            "Bleu|BLUH|بلو|أزرق"
+            "Grand|GRAHN|غران|كبير"
+            "Petit|puh-TEE|بيتي|صغير"
+            "Nouveau|noo-VOH|نوفو|جديد"
+            "Vieux|VYUH|ڤيو|قديم"
+            "Rapide|rah-PEED|رابيد|سريع"
+            "Lent|LAHN|لان|بطيء"
+            "Chaud|SHOH|شو|حار"
+            "Froid|FRWAH|فروا|بارد"
+            "Content|kohn-TAHN|كونتان|مسرور"
+            "Triste|TREEST|تريست|حزين"
+            "Fort|FOR|فور|قوي"
+            "Faible|FEHBL|فيبل|ضعيف"
+            "Facile|fah-SEEL|فاسيل|سهل"
+            "Difficile|dee-fee-SEEL|ديفيسيل|صعب"
+            "Matin|mah-TAN|ماتان|صباح"
+            "Soir|SWAHR|سوار|مساء"
+            "Semaine|suh-MEHN|سيمين|أسبوع"
+            "Année|ah-NAY|آنيه|سنة"
+            "Argent|ar-ZHAHN|أرجان|مال"
+            "Temps|TAHN|تان|وقت"
           )
 
           IDX=$((RANDOM % ${#CONTENT_RAW[@]}))
@@ -152,7 +152,7 @@ jobs:
           echo "pron_en=$PRON_EN" >> "$GITHUB_OUTPUT"
           echo "pron_ar=$PRON_AR" >> "$GITHUB_OUTPUT"
           echo "meaning=$MEANING" >> "$GITHUB_OUTPUT"
-          echo "Selected word: $WORD"
+          echo "Selected word: $WORD | pron_en: $PRON_EN | pron_ar: $PRON_AR | meaning: $MEANING"
 
       - name: pick-caption
         id: caption
@@ -168,7 +168,6 @@ jobs:
           PRON_AR="${{ steps.content.outputs.pron_ar }}"
           MEANING="${{ steps.content.outputs.meaning }}"
 
-          # Short, simple, generic captions for the video post
           CAPTIONS=(
             "كلمة اليوم بالفرنسية 🇫🇷 #تعلم_الفرنسية #french #learnfrench"
             "تعلم معنا 🇫🇷 #تعلم_الفرنسية #french #learnfrench"
@@ -180,7 +179,6 @@ jobs:
           PICKED="${CAPTIONS[$IDX]}"
           echo "caption=$PICKED" >> "$GITHUB_OUTPUT"
 
-          # Image caption includes the actual word content plus hashtags
           IMAGE_CAPTION="${WORD} - ${PRON_AR} - ${MEANING} 🇫🇷 #تعلم_الفرنسية #french #learnfrench #اللغة_الفرنسية #FLE"
           echo "image_caption=$IMAGE_CAPTION" >> "$GITHUB_OUTPUT"
 
@@ -191,10 +189,8 @@ jobs:
           START="${{ steps.vid.outputs.start }}"
           DUR="${{ steps.vid.outputs.clip }}"
           MUSIC_FILE="${{ steps.music.outputs.music_file }}"
-          WORD="${{ steps.content.outputs.word }}"
-          PRON_EN="${{ steps.content.outputs.pron_en }}"
-          PRON_AR="${{ steps.content.outputs.pron_ar }}"
-          MEANING="${{ steps.content.outputs.meaning }}"
+
+          echo "Video step word check: WORD=$WORD PRON_EN=$PRON_EN PRON_AR=$PRON_AR MEANING=$MEANING"
 
           FETCH=$(echo "$DUR + 5" | bc)
           FADEOUT=$(echo "$DUR - 1.5" | bc)
@@ -299,7 +295,21 @@ jobs:
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          y_pron_ar = 760
+          # Small label above the Arabic pronunciation line clarifying what it is
+          y_pron_ar_label = 715
+          t_pron_ar_label = text_start + line_interval * 2 - 0.15
+          filters.append(
+              f"drawtext=text='{esc('طريقة النطق')}'"
+              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
+              f":fontcolor=white@0.75"
+              f":fontsize=34"
+              f":x=(w-text_w)/2"
+              f":y={y_pron_ar_label}"
+              f":alpha='{fade_in(t_pron_ar_label)}'"
+              f":shadowcolor=black@0.7:shadowx=2:shadowy=2"
+          )
+
+          y_pron_ar = 765
           t_pron_ar = text_start + line_interval * 2
           filters.append(
               f"drawtext=text='{esc(pron_ar)}'"
@@ -361,9 +371,9 @@ jobs:
           with open("/tmp/vfilter.txt", "w") as f:
               f.write(vfilter)
 
-          # Save chosen colors so the image step reuses the same look
-          with open("/tmp/colors.txt", "w") as f:
-              f.write(f"{main_color}\n{accent_color}\n{intro_text}\n{cta_text}\n")
+          # Save chosen word + colors so process-image reuses EXACT same values (fixes mismatch bug)
+          with open("/tmp/shared_state.txt", "w") as f:
+              f.write(f"{word}\n{pron_en}\n{pron_ar}\n{meaning}\n{main_color}\n{accent_color}\n{intro_text}\n{cta_text}\n")
 
           print(f"Built filter | word: {word} | main_color: {main_color} | accent: {accent_color} | intro: {intro_text} | cta: {cta_text}")
           PYEOF
@@ -397,26 +407,25 @@ jobs:
         run: |
           URL="${{ steps.vid.outputs.video_url }}"
           START="${{ steps.vid.outputs.start }}"
-          WORD="${{ steps.content.outputs.word }}"
-          PRON_EN="${{ steps.content.outputs.pron_en }}"
-          PRON_AR="${{ steps.content.outputs.pron_ar }}"
-          MEANING="${{ steps.content.outputs.meaning }}"
 
-          # Grab a single still frame from the same video/timestamp used for the video post, as the image background
+          # Read the EXACT same word/pron/meaning/colors that process-video used — guarantees no mismatch
+          WORD=$(sed -n '1p' /tmp/shared_state.txt)
+          PRON_EN=$(sed -n '2p' /tmp/shared_state.txt)
+          PRON_AR=$(sed -n '3p' /tmp/shared_state.txt)
+          MEANING=$(sed -n '4p' /tmp/shared_state.txt)
+
+          echo "Image step word check (from shared_state.txt): WORD=$WORD PRON_EN=$PRON_EN PRON_AR=$PRON_AR MEANING=$MEANING"
+
           timeout 60 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -frames:v 1 bg_frame.jpg
 
           python3 << 'PYEOF'
           import os
 
-          word = os.environ.get("WORD", "Bonjour")
-          pron_en = os.environ.get("PRON_EN", "bohn-ZHOOR")
-          pron_ar = os.environ.get("PRON_AR", "بونجور")
-          meaning = os.environ.get("MEANING", "مرحبا")
+          with open("/tmp/shared_state.txt") as f:
+              lines = [l.rstrip("\n") for l in f.readlines()]
+          word, pron_en, pron_ar, meaning, main_color, accent_color, intro_text, cta_text = lines[0:8]
 
-          # Reuse the same colors/intro/cta chosen for the video, for visual consistency
-          with open("/tmp/colors.txt") as f:
-              lines = [l.strip() for l in f.readlines()]
-          main_color, accent_color, intro_text, cta_text = lines[0], lines[1], lines[2], lines[3]
+          print(f"process-image using shared_state: word={word} pron_en={pron_en} pron_ar={pron_ar} meaning={meaning}")
 
           font_en_candidates = [
               "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
@@ -436,7 +445,6 @@ jobs:
 
           filters = []
 
-          # Same layout as the video, but all lines fully visible at once (static image)
           filters.append(
               f"drawtext=text='{esc(intro_text)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
@@ -455,10 +463,17 @@ jobs:
               f":fontcolor={accent_color}:fontsize=58:x=(w-text_w)/2:y=640"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
+          # Label clarifying the Arabic-letter pronunciation line
+          filters.append(
+              f"drawtext=text='{esc('طريقة النطق')}'"
+              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
+              f":fontcolor=white@0.75:fontsize=34:x=(w-text_w)/2:y=715"
+              f":shadowcolor=black@0.7:shadowx=2:shadowy=2"
+          )
           filters.append(
               f"drawtext=text='{esc(pron_ar)}'"
               f":fontfile={font_ar}"
-              f":fontcolor={accent_color}:fontsize=64:x=(w-text_w)/2:y=760"
+              f":fontcolor={accent_color}:fontsize=64:x=(w-text_w)/2:y=765"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
           filters.append(
@@ -491,8 +506,6 @@ jobs:
 
           with open("/tmp/ifilter.txt", "w") as f:
               f.write(vfilter)
-
-          print(f"Built image filter | word: {word}")
           PYEOF
 
           IFILTER=$(cat /tmp/ifilter.txt)
@@ -504,12 +517,6 @@ jobs:
             final_image.jpg
 
           ls -lh final_image.jpg
-
-      - name: pick-caption-image
-        id: image_caption_step
-        timeout-minutes: 1
-        run: |
-          echo "Image caption ready: ${{ steps.caption.outputs.image_caption }}"
 
       - name: post-to-facebook
         timeout-minutes: 3
