@@ -8,7 +8,7 @@ name: french-words-post
         required: false
         default: ""
   schedule:
-    - cron: "0 12 * * *"  # 11 AM EST / 3 PM UTC daily
+    - cron: "0 15 * * *"  # 11 AM EST / 3 PM UTC daily
 
 jobs:
   post:
@@ -161,19 +161,28 @@ jobs:
           INPUT_CAPTION="${{ github.event.inputs.caption }}"
           if [ -n "$INPUT_CAPTION" ]; then
             echo "caption=$INPUT_CAPTION" >> "$GITHUB_OUTPUT"
+            echo "image_caption=$INPUT_CAPTION" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           WORD="${{ steps.content.outputs.word }}"
+          PRON_AR="${{ steps.content.outputs.pron_ar }}"
+          MEANING="${{ steps.content.outputs.meaning }}"
+
+          # Short, simple, generic captions for the video post
           CAPTIONS=(
-            "تعلم كلمة فرنسية جديدة كل يوم. تابعنا لمزيد من الكلمات. #تعلم_الفرنسية #french #learnfrench #اللغة_الفرنسية #FLE #تعلم_اللغة_الفرنسية #frenchwithme"
-            "كلمة فرنسية اليوم: ${WORD}. احفظها وكررها. #تعلم_الفرنسية #french #learnfrench #اللغة_الفرنسية #FLE #frenchvocabulary #تعلم_اللغة"
-            "هل تعرف كيف تنطق هذه الكلمة بالفرنسية؟ شاركها مع صديقك. #تعلم_الفرنسية #french #learnfrench #اللغة_الفرنسية #FLE #frenchlessons #تعلم_اللغة_الفرنسية"
-            "تعلم النطق الفرنسي الصحيح خطوة بخطوة. احفظ هذا الفيديو. #تعلم_الفرنسية #french #learnfrench #اللغة_الفرنسية #FLE #speakfrench #تعلم_اللغة"
-            "كل كلمة فرنسية جديدة تقربك من إتقان اللغة. تابعنا. #تعلم_الفرنسية #french #learnfrench #اللغة_الفرنسية #FLE #frenchteacher #تعلم_اللغة_الفرنسية"
+            "كلمة اليوم بالفرنسية 🇫🇷 #تعلم_الفرنسية #french #learnfrench"
+            "تعلم معنا 🇫🇷 #تعلم_الفرنسية #french #learnfrench"
+            "كلمة جديدة كل يوم 🇫🇷 #تعلم_الفرنسية #french #learnfrench"
+            "تابعنا لمزيد 🇫🇷 #تعلم_الفرنسية #french #learnfrench"
+            "تعلم الفرنسية بسهولة 🇫🇷 #تعلم_الفرنسية #french #learnfrench"
           )
           IDX=$((RANDOM % ${#CAPTIONS[@]}))
           PICKED="${CAPTIONS[$IDX]}"
           echo "caption=$PICKED" >> "$GITHUB_OUTPUT"
+
+          # Image caption includes the actual word content plus hashtags
+          IMAGE_CAPTION="${WORD} - ${PRON_AR} - ${MEANING} 🇫🇷 #تعلم_الفرنسية #french #learnfrench #اللغة_الفرنسية #FLE"
+          echo "image_caption=$IMAGE_CAPTION" >> "$GITHUB_OUTPUT"
 
       - name: process-video
         timeout-minutes: 8
@@ -209,7 +218,6 @@ jobs:
           dur = float(os.environ.get("DUR", "18"))
           fadeout = float(os.environ.get("FADEOUT", "16.5"))
 
-          # Noto Sans has full Latin Extended coverage (needed for French accents: é è à ç û ï etc.)
           font_en_candidates = [
               "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
               "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
@@ -236,7 +244,6 @@ jobs:
           def esc(t):
               return t.replace("'", "\u2019").replace(":", "\\:").replace(",", "\\,")
 
-          # Rotating Arabic intro line — explicitly says French so there's no confusion with English lessons
           intros = [
               "تعلم كلمة فرنسية جديدة",
               "كلمة اليوم باللغة الفرنسية",
@@ -253,7 +260,6 @@ jobs:
           def fade_in(t):
               return f"if(lt(t,{t:.2f}),0,min(1,(t-{t:.2f})/0.35))"
 
-          # 1) Top: Arabic intro line (explicitly mentions French)
           y_intro = 160
           t_intro = 0.4
           filters.append(
@@ -267,7 +273,6 @@ jobs:
               f":shadowcolor=black@0.85:shadowx=3:shadowy=3"
           )
 
-          # 2) The French word (large, bold, center-upper)
           y_word = 460
           t_word = text_start
           filters.append(
@@ -281,7 +286,6 @@ jobs:
               f":shadowcolor=black@0.85:shadowx=4:shadowy=4"
           )
 
-          # 3) Pronunciation in English letters
           y_pron_en = 640
           t_pron_en = text_start + line_interval
           filters.append(
@@ -295,7 +299,6 @@ jobs:
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # 4) Pronunciation in Arabic letters
           y_pron_ar = 760
           t_pron_ar = text_start + line_interval * 2
           filters.append(
@@ -309,7 +312,6 @@ jobs:
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # 5) Meaning in Arabic
           y_meaning = 900
           t_meaning = text_start + line_interval * 3
           filters.append(
@@ -323,7 +325,6 @@ jobs:
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # 6) CTA box near bottom
           ctas = ["تابعنا", "اترك تعليق", "شارك مع صديق", "احفظ الفيديو", "تابعنا لمزيد"]
           cta_text = random.choice(ctas)
           t_cta = text_start + line_interval * 4 + 0.3
@@ -360,6 +361,10 @@ jobs:
           with open("/tmp/vfilter.txt", "w") as f:
               f.write(vfilter)
 
+          # Save chosen colors so the image step reuses the same look
+          with open("/tmp/colors.txt", "w") as f:
+              f.write(f"{main_color}\n{accent_color}\n{intro_text}\n{cta_text}\n")
+
           print(f"Built filter | word: {word} | main_color: {main_color} | accent: {accent_color} | intro: {intro_text} | cta: {cta_text}")
           PYEOF
 
@@ -387,6 +392,125 @@ jobs:
           DUR: "18"
           FADEOUT: "16.5"
 
+      - name: process-image
+        timeout-minutes: 3
+        run: |
+          URL="${{ steps.vid.outputs.video_url }}"
+          START="${{ steps.vid.outputs.start }}"
+          WORD="${{ steps.content.outputs.word }}"
+          PRON_EN="${{ steps.content.outputs.pron_en }}"
+          PRON_AR="${{ steps.content.outputs.pron_ar }}"
+          MEANING="${{ steps.content.outputs.meaning }}"
+
+          # Grab a single still frame from the same video/timestamp used for the video post, as the image background
+          timeout 60 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -frames:v 1 bg_frame.jpg
+
+          python3 << 'PYEOF'
+          import os
+
+          word = os.environ.get("WORD", "Bonjour")
+          pron_en = os.environ.get("PRON_EN", "bohn-ZHOOR")
+          pron_ar = os.environ.get("PRON_AR", "بونجور")
+          meaning = os.environ.get("MEANING", "مرحبا")
+
+          # Reuse the same colors/intro/cta chosen for the video, for visual consistency
+          with open("/tmp/colors.txt") as f:
+              lines = [l.strip() for l in f.readlines()]
+          main_color, accent_color, intro_text, cta_text = lines[0], lines[1], lines[2], lines[3]
+
+          font_en_candidates = [
+              "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+              "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+          ]
+          font_en = next((f for f in font_en_candidates if os.path.exists(f)), font_en_candidates[-1])
+
+          font_ar_candidates = [
+              "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf",
+              "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+              "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+          ]
+          font_ar = next((f for f in font_ar_candidates if os.path.exists(f)), font_en)
+
+          def esc(t):
+              return t.replace("'", "\u2019").replace(":", "\\:").replace(",", "\\,")
+
+          filters = []
+
+          # Same layout as the video, but all lines fully visible at once (static image)
+          filters.append(
+              f"drawtext=text='{esc(intro_text)}'"
+              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
+              f":fontcolor=white@0.95:fontsize=50:x=(w-text_w)/2:y=160"
+              f":shadowcolor=black@0.85:shadowx=3:shadowy=3"
+          )
+          filters.append(
+              f"drawtext=text='{esc(word)}'"
+              f":fontfile={font_en}"
+              f":fontcolor={main_color}:fontsize=100:x=(w-text_w)/2:y=460"
+              f":shadowcolor=black@0.85:shadowx=4:shadowy=4"
+          )
+          filters.append(
+              f"drawtext=text='{esc(pron_en)}'"
+              f":fontfile={font_en}"
+              f":fontcolor={accent_color}:fontsize=58:x=(w-text_w)/2:y=640"
+              f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
+          )
+          filters.append(
+              f"drawtext=text='{esc(pron_ar)}'"
+              f":fontfile={font_ar}"
+              f":fontcolor={accent_color}:fontsize=64:x=(w-text_w)/2:y=760"
+              f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
+          )
+          filters.append(
+              f"drawtext=text='{esc('المعنى: ' + meaning)}'"
+              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
+              f":fontcolor=white@0.9:fontsize=52:x=(w-text_w)/2:y=900"
+              f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
+          )
+
+          box_y_top = 1580
+          box_y_bottom = 1680
+          filters.append(
+              f"drawbox=x=240:y={box_y_top}:w=600:h={box_y_bottom - box_y_top}:color=black@0.55:t=fill"
+          )
+          filters.append(
+              f"drawtext=text='{esc(cta_text)}'"
+              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
+              f":fontcolor=lightyellow:fontsize=56:x=(w-text_w)/2:y={box_y_top + 22}"
+              f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
+          )
+
+          all_dt = ",".join(filters)
+          vfilter = (
+              f"[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
+              f"crop=1080:1920,"
+              f"setsar=1,"
+              f"gblur=sigma=25,"
+              f"{all_dt}"
+          )
+
+          with open("/tmp/ifilter.txt", "w") as f:
+              f.write(vfilter)
+
+          print(f"Built image filter | word: {word}")
+          PYEOF
+
+          IFILTER=$(cat /tmp/ifilter.txt)
+
+          timeout 60 ffmpeg -hide_banner -loglevel error -y \
+            -i bg_frame.jpg \
+            -vf "$IFILTER" \
+            -frames:v 1 \
+            final_image.jpg
+
+          ls -lh final_image.jpg
+
+      - name: pick-caption-image
+        id: image_caption_step
+        timeout-minutes: 1
+        run: |
+          echo "Image caption ready: ${{ steps.caption.outputs.image_caption }}"
+
       - name: post-to-facebook
         timeout-minutes: 3
         env:
@@ -400,7 +524,7 @@ jobs:
           API="https://graph.facebook.com/v19.0"
 
           for attempt in 1 2 3; do
-            echo "Facebook post attempt $attempt..."
+            echo "Facebook video post attempt $attempt..."
             INIT=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"start\",\"access_token\":\"${PAGE_TOKEN}\"}") || true
             SESSION=$(echo "$INIT" | jq -r '.upload_session_id' 2>/dev/null)
             VID_ID=$(echo "$INIT" | jq -r '.video_id' 2>/dev/null)
@@ -427,13 +551,44 @@ jobs:
 
             OK=$(echo "$FINISH" | jq -r '.success // .id // empty' 2>/dev/null)
             if [ -n "$OK" ]; then
-              echo "Posted! Video ID: $VID_ID"
+              echo "Video posted! Video ID: $VID_ID"
               exit 0
             fi
 
-            echo "Post failed attempt $attempt: $FINISH"
+            echo "Video post failed attempt $attempt: $FINISH"
             sleep 10
           done
 
-          echo "All post attempts failed"
+          echo "All video post attempts failed"
+          exit 1
+
+      - name: post-image-to-facebook
+        timeout-minutes: 3
+        env:
+          PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          IMAGE_CAPTION: ${{ steps.caption.outputs.image_caption }}
+        run: |
+          set -e
+          API="https://graph.facebook.com/v19.0"
+
+          for attempt in 1 2 3; do
+            echo "Facebook image post attempt $attempt..."
+            RESP=$(timeout 60 curl -sf -X POST "${API}/${PAGE_ID}/photos" \
+              -F "source=@final_image.jpg" \
+              -F "caption=${IMAGE_CAPTION}" \
+              -F "published=true" \
+              -F "access_token=${PAGE_TOKEN}") || true
+
+            OK=$(echo "$RESP" | jq -r '.id // empty' 2>/dev/null)
+            if [ -n "$OK" ]; then
+              echo "Image posted! Photo ID: $OK"
+              exit 0
+            fi
+
+            echo "Image post failed attempt $attempt: $RESP"
+            sleep 10
+          done
+
+          echo "All image post attempts failed"
           exit 1
