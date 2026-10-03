@@ -1,4 +1,4 @@
-lname: french-words-post
+name: french-words-post
 
 "on":
   workflow_dispatch:
