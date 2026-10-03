@@ -139,38 +139,38 @@ jobs:
         id: content
         timeout-minutes: 1
         run: |
-          # 30 French words — each: WORD|ENGLISH_PRONUNCIATION|ARABIC_PRONUNCIATION|ARABIC_MEANING
+          # 30 NEW French words — each: WORD|ENGLISH_PRONUNCIATION|ARABIC_PRONUNCIATION|ARABIC_MEANING
           CONTENT_RAW=(
-            "Pomme|POHM|بوم|تفاحة"
-            "Chien|shee-YEN|شيان|كلب"
-            "Chat|SHAH|شا|قطة"
-            "Pain|PAN|بان|خبز"
-            "Eau|OH|أو|ماء"
-            "Table|TAHBL|تابل|طاولة"
-            "Porte|PORT|بورت|باب"
-            "Fenêtre|fuh-NEH-truh|فينيتر|نافذة"
-            "Rouge|ROOZH|روج|أحمر"
-            "Bleu|BLUH|بلو|أزرق"
-            "Grand|GRAHN|غران|كبير"
-            "Petit|puh-TEE|بيتي|صغير"
-            "Nouveau|noo-VOH|نوفو|جديد"
-            "Vieux|VYUH|ڤيو|قديم"
-            "Rapide|rah-PEED|رابيد|سريع"
-            "Lent|LAHN|لان|بطيء"
-            "Chaud|SHOH|شو|حار"
-            "Froid|FRWAH|فروا|بارد"
-            "Content|kohn-TAHN|كونتان|مسرور"
-            "Triste|TREEST|تريست|حزين"
-            "Fort|FOR|فور|قوي"
-            "Faible|FEHBL|فيبل|ضعيف"
-            "Facile|fah-SEEL|فاسيل|سهل"
-            "Difficile|dee-fee-SEEL|ديفيسيل|صعب"
-            "Matin|mah-TAN|ماتان|صباح"
-            "Soir|SWAHR|سوار|مساء"
-            "Semaine|suh-MEHN|سيمين|أسبوع"
-            "Année|ah-NAY|آنيه|سنة"
-            "Argent|ar-ZHAHN|أرجان|مال"
-            "Temps|TAHN|تان|وقت"
+            "Plage|PLAHZH|بلاج|شاطئ"
+            "Montagne|mohn-TAHN-yuh|مونتانيا|جبل"
+            "Nuage|noo-AHZH|نواج|سحابة"
+            "Étoile|ay-TWAHL|إيتوال|نجمة"
+            "Lune|LEWN|لون|قمر"
+            "Soleil|so-LAY|سولاي|شمس"
+            "Fleur|FLUR|فلور|زهرة"
+            "Arbre|AHR-bruh|أربر|شجرة"
+            "Oiseau|wah-ZOH|وازو|طائر"
+            "Papillon|pah-pee-YOHN|بابيون|فراشة"
+            "Musique|myoo-ZEEK|ميوزيك|موسيقى"
+            "Danse|DAHNS|دانس|رقص"
+            "Peinture|pan-TEWR|بانتور|لوحة"
+            "Histoire|ees-TWAHR|إيستوار|قصة"
+            "Voyage|vwah-YAHZH|ڤوياج|رحلة"
+            "Sourire|soo-REER|سوریر|ابتسامة"
+            "Silence|see-LAHNS|سيلانس|صمت"
+            "Rêve|REHV|ريڤ|حلم"
+            "Espoir|es-PWAHR|إسبوار|أمل"
+            "Courage|koo-RAHZH|كوراج|شجاعة"
+            "Sagesse|sah-ZHES|ساجيس|حكمة"
+            "Vérité|vay-ree-TAY|ڤيريتيه|حقيقة"
+            "Respect|res-PEK|ريسبيك|احترام"
+            "Confiance|kohn-fee-AHNS|كونفيانس|ثقة"
+            "Patience|pah-syAHNS|باسيانس|صبر"
+            "Gentillesse|zhahn-tee-YES|جانتييس|لطف"
+            "Générosité|zhay-nay-roh-see-TAY|جينيروزيتيه|كرم"
+            "Simplicité|san-plee-see-TAY|سامبليسيتيه|بساطة"
+            "Créativité|kray-ah-tee-vee-TAY|كرياتيڤيتيه|إبداع"
+            "Curiosité|kew-ryoh-zee-TAY|كيريوزيتيه|فضول"
           )
 
           IDX=$((RANDOM % ${#CONTENT_RAW[@]}))
@@ -264,13 +264,12 @@ jobs:
           fi
 
           if [ "$SUCCESS" -eq 1 ]; then
-            # Normalize each part with a moderate gain (lowered from before, per feedback)
             for f in intro_raw word1_raw repeat_raw word2_raw; do
               timeout 10 ffmpeg -hide_banner -loglevel error -y -i "${f}.wav" -ac 2 -ar 44100 -filter:a "volume=1.8" "${f}_norm.wav"
             done
 
             timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 0.3 silence_short.wav
-            timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 1.6 silence_long.wav
+            timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 1.2 silence_long.wav
 
             timeout 15 ffmpeg -hide_banner -loglevel error -y \
               -i intro_raw_norm.wav -i silence_short.wav \
@@ -358,10 +357,7 @@ jobs:
           def fade_in(t):
               return f"if(lt(t,{t:.2f}),0,min(1,(t-{t:.2f})/0.25))"
 
-          def fade_in_out(t_in, t_out):
-              return f"if(lt(t,{t_in:.2f}),0,if(lt(t,{t_out:.2f}),min(1,(t-{t_in:.2f})/0.2),0))"
-
-          # Top: Arabic intro line (static once shown)
+          # Top: Arabic intro line
           filters.append(
               f"drawtext=text='{esc(intro_text)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
@@ -370,19 +366,35 @@ jobs:
               f":shadowcolor=black@0.85:shadowx=3:shadowy=3"
           )
 
-          # Arabic subtitle synced to "Le mot est." (0.5s-1.3s) and "On répète." (5.0s-5.6s)
+          # Subtitle 1: "الكلمة هي" — bold text on solid colored box, synced to "Le mot est." (0.5s-1.6s)
+          sub1_box_top = 290
+          sub1_box_h = 90
+          filters.append(
+              f"drawbox=x=300:y={sub1_box_top}:w=480:h={sub1_box_h}"
+              f":color=black@0.75:t=fill"
+              f":enable='between(t,0.5,1.6)'"
+          )
           filters.append(
               f"drawtext=text='{esc('الكلمة هي')}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=lightyellow@0.9:fontsize=38:x=(w-text_w)/2:y=330"
+              f":fontcolor=lightyellow:fontsize=52:x=(w-text_w)/2:y={sub1_box_top + 18}"
               f":enable='between(t,0.5,1.6)'"
               f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
+          )
+
+          # Subtitle 2: "لنكررها" — shown earlier now (4.6s-5.6s instead of 5.0s-5.9s), synced to shortened pause before "On répète."
+          sub2_box_top = 290
+          sub2_box_h = 90
+          filters.append(
+              f"drawbox=x=300:y={sub2_box_top}:w=480:h={sub2_box_h}"
+              f":color=black@0.75:t=fill"
+              f":enable='between(t,4.6,5.6)'"
           )
           filters.append(
               f"drawtext=text='{esc('لنكررها')}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=lightyellow@0.9:fontsize=38:x=(w-text_w)/2:y=330"
-              f":enable='between(t,5.0,5.9)'"
+              f":fontcolor=lightyellow:fontsize=52:x=(w-text_w)/2:y={sub2_box_top + 18}"
+              f":enable='between(t,4.6,5.6)'"
               f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
           )
 
@@ -395,7 +407,7 @@ jobs:
               f":shadowcolor=black@0.85:shadowx=4:shadowy=4"
           )
 
-          # English pronunciation — appears right after word is spoken (2.6s), no longer waits for repeat
+          # English pronunciation — appears right after word is spoken (2.6s)
           filters.append(
               f"drawtext=text='{esc(pron_en)}'"
               f":fontfile={font_en}"
@@ -404,7 +416,7 @@ jobs:
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # Arabic pronunciation label + text — appears shortly after (3.0s / 3.2s)
+          # Arabic pronunciation label + text
           filters.append(
               f"drawtext=text='{esc('طريقة النطق')}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
@@ -420,19 +432,19 @@ jobs:
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # Meaning — appears after the repeat sequence wraps up (6.9s)
+          # Meaning — appears after the repeat sequence wraps up
           filters.append(
               f"drawtext=text='{esc('المعنى: ' + meaning)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
               f":fontcolor=white@0.9:fontsize=48:x=(w-text_w)/2:y=890"
-              f":alpha='{fade_in(6.9)}'"
+              f":alpha='{fade_in(6.5)}'"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # CTA box — last, at 7.3s
+          # CTA box — last
           ctas = ["تابعنا", "اترك تعليق", "شارك مع صديق", "احفظ الفيديو", "تابعنا لمزيد"]
           cta_text = random.choice(ctas)
-          t_cta = 7.3
+          t_cta = 6.9
           box_y_top = 1580
           box_y_bottom = 1680
           filters.append(
@@ -471,10 +483,9 @@ jobs:
 
           VFILTER=$(cat /tmp/vfilter.txt)
 
-          # Audio mix: music louder than before, TTS slightly lower than before, still ducking during speech window (0.5s-6.9s)
           if [ "${{ steps.tts.outputs.tts_available }}" = "true" ]; then
             echo "Mixing with TTS speech overlay..."
-            AFILTER="[1:a]volume=0.7,afade=t=in:st=0:d=0.5,afade=t=out:st=${FADEOUT}:d=1.5,volume='if(between(t,0.5,6.9),0.25,0.7)':eval=frame[music];[2:a]adelay=500|500,volume=0.85[speech];[music][speech]amix=inputs=2:duration=first:dropout_transition=0,volume=1.4[aout]"
+            AFILTER="[1:a]volume=0.7,afade=t=in:st=0:d=0.5,afade=t=out:st=${FADEOUT}:d=1.5,volume='if(between(t,0.5,6.5),0.25,0.7)':eval=frame[music];[2:a]adelay=500|500,volume=0.85[speech];[music][speech]amix=inputs=2:duration=first:dropout_transition=0,volume=1.4[aout]"
             timeout 240 ffmpeg -hide_banner -loglevel error -y \
               -i source.mp4 \
               -i music_clip.mp3 \
