@@ -64,7 +64,7 @@ jobs:
           PIXABAY_KEY: "50973339-3e27fd59ddfd9c68378e78753"
         run: |
           set -e
-          CLIP=11
+          CLIP=14
           SKIP_HEAD=5
           SKIP_TAIL=5
           MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
@@ -139,7 +139,7 @@ jobs:
         id: content
         timeout-minutes: 1
         run: |
-          # 30 NEW French words — each: WORD|ENGLISH_PRONUNCIATION|ARABIC_PRONUNCIATION|ARABIC_MEANING
+          # 30 French words — each: WORD|ENGLISH_PRONUNCIATION|ARABIC_PRONUNCIATION|ARABIC_MEANING
           CONTENT_RAW=(
             "Plage|PLAHZH|بلاج|شاطئ"
             "Montagne|mohn-TAHN-yuh|مونتانيا|جبل"
@@ -241,11 +241,13 @@ jobs:
 
           if [ "${{ steps.piper_setup.outputs.piper_ready }}" = "true" ]; then
             echo "Attempting Piper TTS for all parts..."
+            synth_piper "Apprenons à prononcer des mots français." opening_raw.wav || true
             synth_piper "Le mot est." intro_raw.wav || true
             synth_piper "$WORD." word1_raw.wav || true
             synth_piper "On répète." repeat_raw.wav || true
             synth_piper "$WORD." word2_raw.wav || true
-            if [ -s intro_raw.wav ] && [ -s word1_raw.wav ] && [ -s repeat_raw.wav ] && [ -s word2_raw.wav ]; then
+            synth_piper "Suivez-nous et laissez un commentaire." closing_raw.wav || true
+            if [ -s opening_raw.wav ] && [ -s intro_raw.wav ] && [ -s word1_raw.wav ] && [ -s repeat_raw.wav ] && [ -s word2_raw.wav ] && [ -s closing_raw.wav ]; then
               SUCCESS=1
               echo "Piper succeeded for all parts."
             fi
@@ -253,30 +255,36 @@ jobs:
 
           if [ "$SUCCESS" -eq 0 ]; then
             echo "Falling back to espeak-ng for all parts..."
+            synth_espeak "Apprenons à prononcer des mots français." opening_raw.wav
             synth_espeak "Le mot est." intro_raw.wav
             synth_espeak "$WORD." word1_raw.wav
             synth_espeak "On répète." repeat_raw.wav
             synth_espeak "$WORD." word2_raw.wav
-            if [ -s intro_raw.wav ] && [ -s word1_raw.wav ] && [ -s repeat_raw.wav ] && [ -s word2_raw.wav ]; then
+            synth_espeak "Suivez-nous et laissez un commentaire." closing_raw.wav
+            if [ -s opening_raw.wav ] && [ -s intro_raw.wav ] && [ -s word1_raw.wav ] && [ -s repeat_raw.wav ] && [ -s word2_raw.wav ] && [ -s closing_raw.wav ]; then
               SUCCESS=1
               echo "espeak-ng succeeded for all parts."
             fi
           fi
 
           if [ "$SUCCESS" -eq 1 ]; then
-            for f in intro_raw word1_raw repeat_raw word2_raw; do
+            for f in opening_raw intro_raw word1_raw repeat_raw word2_raw closing_raw; do
               timeout 10 ffmpeg -hide_banner -loglevel error -y -i "${f}.wav" -ac 2 -ar 44100 -filter:a "volume=1.8" "${f}_norm.wav"
             done
 
             timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 0.3 silence_short.wav
             timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 1.2 silence_long.wav
+            timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 0.6 silence_medium.wav
 
+            # opening -> pause -> intro -> short pause -> word1 -> long pause -> repeat -> short pause -> word2 -> medium pause -> closing
             timeout 15 ffmpeg -hide_banner -loglevel error -y \
+              -i opening_raw_norm.wav -i silence_medium.wav \
               -i intro_raw_norm.wav -i silence_short.wav \
               -i word1_raw_norm.wav -i silence_long.wav \
               -i repeat_raw_norm.wav -i silence_short.wav \
-              -i word2_raw_norm.wav \
-              -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a]concat=n=7:v=0:a=1[aout]" \
+              -i word2_raw_norm.wav -i silence_medium.wav \
+              -i closing_raw_norm.wav \
+              -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a][8:a][9:a][10:a]concat=n=11:v=0:a=1[aout]" \
               -map "[aout]" speech_final.wav
 
             echo "tts_available=true" >> "$GITHUB_OUTPUT"
@@ -314,8 +322,8 @@ jobs:
           pron_en = os.environ.get("PRON_EN", "bohn-ZHOOR")
           pron_ar = os.environ.get("PRON_AR", "بونجور")
           meaning = os.environ.get("MEANING", "مرحبا")
-          dur = float(os.environ.get("DUR", "11"))
-          fadeout = float(os.environ.get("FADEOUT", "9.5"))
+          dur = float(os.environ.get("DUR", "14"))
+          fadeout = float(os.environ.get("FADEOUT", "12.5"))
 
           font_en_candidates = [
               "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
@@ -357,62 +365,55 @@ jobs:
           def fade_in(t):
               return f"if(lt(t,{t:.2f}),0,min(1,(t-{t:.2f})/0.25))"
 
-          # Top: Arabic intro line
+          def subtitle(text, t_start, t_end, box_top=290, box_h=90):
+              out = []
+              out.append(
+                  f"drawbox=x=220:y={box_top}:w=640:h={box_h}"
+                  f":color=black@0.75:t=fill"
+                  f":enable='between(t,{t_start},{t_end})'"
+              )
+              out.append(
+                  f"drawtext=text='{esc(text)}'"
+                  f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
+                  f":fontcolor=lightyellow:fontsize=48:x=(w-text_w)/2:y={box_top + 20}"
+                  f":enable='between(t,{t_start},{t_end})'"
+                  f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
+              )
+              return out
+
+          # Top: rotating Arabic intro line (static)
           filters.append(
               f"drawtext=text='{esc(intro_text)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.95:fontsize=46:x=(w-text_w)/2:y=140"
+              f":fontcolor=white@0.95:fontsize=44:x=(w-text_w)/2:y=120"
               f":alpha='{fade_in(0.3)}'"
               f":shadowcolor=black@0.85:shadowx=3:shadowy=3"
           )
 
-          # Subtitle 1: "الكلمة هي" — bold text on solid colored box, synced to "Le mot est." (0.5s-1.6s)
-          sub1_box_top = 290
-          sub1_box_h = 90
-          filters.append(
-              f"drawbox=x=300:y={sub1_box_top}:w=480:h={sub1_box_h}"
-              f":color=black@0.75:t=fill"
-              f":enable='between(t,0.5,1.6)'"
-          )
-          filters.append(
-              f"drawtext=text='{esc('الكلمة هي')}'"
-              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=lightyellow:fontsize=52:x=(w-text_w)/2:y={sub1_box_top + 18}"
-              f":enable='between(t,0.5,1.6)'"
-              f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
-          )
+          # Subtitle: opening line, synced to "Apprenons à prononcer..." (0.5s-1.9s)
+          filters += subtitle("لنتعلم كيف ننطق الكلمات الفرنسية", 0.5, 1.9)
 
-          # Subtitle 2: "لنكررها" — shown earlier now (4.6s-5.6s instead of 5.0s-5.9s), synced to shortened pause before "On répète."
-          sub2_box_top = 290
-          sub2_box_h = 90
-          filters.append(
-              f"drawbox=x=300:y={sub2_box_top}:w=480:h={sub2_box_h}"
-              f":color=black@0.75:t=fill"
-              f":enable='between(t,4.6,5.6)'"
-          )
-          filters.append(
-              f"drawtext=text='{esc('لنكررها')}'"
-              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=lightyellow:fontsize=52:x=(w-text_w)/2:y={sub2_box_top + 18}"
-              f":enable='between(t,4.6,5.6)'"
-              f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
-          )
+          # Subtitle: "الكلمة هي" synced to "Le mot est." (2.1s-2.7s)
+          filters += subtitle("الكلمة هي", 2.1, 2.7)
 
-          # The French word (appears at 1.6s, when TTS says it)
+          # The French word (appears at 2.7s, when TTS says it)
           filters.append(
               f"drawtext=text='{esc(word)}'"
               f":fontfile={font_en}"
               f":fontcolor={main_color}:fontsize=100:x=(w-text_w)/2:y=460"
-              f":alpha='{fade_in(1.6)}'"
+              f":alpha='{fade_in(2.7)}'"
               f":shadowcolor=black@0.85:shadowx=4:shadowy=4"
           )
 
-          # English pronunciation — appears right after word is spoken (2.6s)
+          # Subtitle: "لنكررها" shown slightly before "On répète." (4.5s-5.5s)
+          filters += subtitle("لنكررها", 4.5, 5.5)
+
+          # English pronunciation — appears after both word reads finish
           filters.append(
               f"drawtext=text='{esc(pron_en)}'"
               f":fontfile={font_en}"
-              f":fontcolor={accent_color}:fontsize=54:x=(w-text_w)/2:y=640"
-              f":alpha='{fade_in(2.6)}'"
+              f":fontcolor={accent_color}:fontsize=52:x=(w-text_w)/2:y=640"
+              f":alpha='{fade_in(6.5)}'"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
@@ -420,45 +421,29 @@ jobs:
           filters.append(
               f"drawtext=text='{esc('طريقة النطق')}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.75:fontsize=32:x=(w-text_w)/2:y=710"
-              f":alpha='{fade_in(3.0)}'"
+              f":fontcolor=white@0.75:fontsize=30:x=(w-text_w)/2:y=708"
+              f":alpha='{fade_in(6.9)}'"
               f":shadowcolor=black@0.7:shadowx=2:shadowy=2"
           )
           filters.append(
               f"drawtext=text='{esc(pron_ar)}'"
               f":fontfile={font_ar}"
-              f":fontcolor={accent_color}:fontsize=60:x=(w-text_w)/2:y=758"
-              f":alpha='{fade_in(3.2)}'"
+              f":fontcolor={accent_color}:fontsize=58:x=(w-text_w)/2:y=756"
+              f":alpha='{fade_in(7.1)}'"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # Meaning — appears after the repeat sequence wraps up
+          # Meaning
           filters.append(
               f"drawtext=text='{esc('المعنى: ' + meaning)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.9:fontsize=48:x=(w-text_w)/2:y=890"
-              f":alpha='{fade_in(6.5)}'"
+              f":fontcolor=white@0.9:fontsize=46:x=(w-text_w)/2:y=880"
+              f":alpha='{fade_in(7.5)}'"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # CTA box — last
-          ctas = ["تابعنا", "اترك تعليق", "شارك مع صديق", "احفظ الفيديو", "تابعنا لمزيد"]
-          cta_text = random.choice(ctas)
-          t_cta = 6.9
-          box_y_top = 1580
-          box_y_bottom = 1680
-          filters.append(
-              f"drawbox=x=240:y={box_y_top}:w=600:h={box_y_bottom - box_y_top}"
-              f":color=black@0.55:t=fill"
-              f":enable='gte(t,{t_cta:.2f})'"
-          )
-          filters.append(
-              f"drawtext=text='{esc(cta_text)}'"
-              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=lightyellow:fontsize=52:x=(w-text_w)/2:y={box_y_top + 22}"
-              f":alpha='{fade_in(t_cta)}'"
-              f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
-          )
+          # Closing CTA — spoken + subtitle + on-screen box, synced to "Suivez-nous..." (8.0s-9.7s)
+          filters += subtitle("تابعونا واتركوا تعليقا", 8.0, 9.7, box_top=1560, box_h=100)
 
           all_dt = ",".join(filters)
 
@@ -476,16 +461,16 @@ jobs:
               f.write(vfilter)
 
           with open("/tmp/shared_state.txt", "w") as f:
-              f.write(f"{word}\n{pron_en}\n{pron_ar}\n{meaning}\n{main_color}\n{accent_color}\n{intro_text}\n{cta_text}\n")
+              f.write(f"{word}\n{pron_en}\n{pron_ar}\n{meaning}\n{main_color}\n{accent_color}\n{intro_text}\ntabعونا واتركوا تعليقا\n")
 
-          print(f"Built filter | word: {word} | main_color: {main_color} | accent: {accent_color} | intro: {intro_text} | cta: {cta_text}")
+          print(f"Built filter | word: {word} | main_color: {main_color} | accent: {accent_color} | intro: {intro_text}")
           PYEOF
 
           VFILTER=$(cat /tmp/vfilter.txt)
 
           if [ "${{ steps.tts.outputs.tts_available }}" = "true" ]; then
             echo "Mixing with TTS speech overlay..."
-            AFILTER="[1:a]volume=0.7,afade=t=in:st=0:d=0.5,afade=t=out:st=${FADEOUT}:d=1.5,volume='if(between(t,0.5,6.5),0.25,0.7)':eval=frame[music];[2:a]adelay=500|500,volume=0.85[speech];[music][speech]amix=inputs=2:duration=first:dropout_transition=0,volume=1.4[aout]"
+            AFILTER="[1:a]volume=0.7,afade=t=in:st=0:d=0.5,afade=t=out:st=${FADEOUT}:d=1.5,volume='if(between(t,0.5,9.7),0.25,0.7)':eval=frame[music];[2:a]adelay=500|500,volume=0.85[speech];[music][speech]amix=inputs=2:duration=first:dropout_transition=0,volume=1.4[aout]"
             timeout 240 ffmpeg -hide_banner -loglevel error -y \
               -i source.mp4 \
               -i music_clip.mp3 \
@@ -521,8 +506,8 @@ jobs:
           PRON_EN: ${{ steps.content.outputs.pron_en }}
           PRON_AR: ${{ steps.content.outputs.pron_ar }}
           MEANING: ${{ steps.content.outputs.meaning }}
-          DUR: "11"
-          FADEOUT: "9.5"
+          DUR: "14"
+          FADEOUT: "12.5"
 
       - name: process-image
         timeout-minutes: 3
@@ -569,7 +554,7 @@ jobs:
           filters.append(
               f"drawtext=text='{esc(intro_text)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.95:fontsize=46:x=(w-text_w)/2:y=140"
+              f":fontcolor=white@0.95:fontsize=44:x=(w-text_w)/2:y=120"
               f":shadowcolor=black@0.85:shadowx=3:shadowy=3"
           )
           filters.append(
@@ -581,37 +566,37 @@ jobs:
           filters.append(
               f"drawtext=text='{esc(pron_en)}'"
               f":fontfile={font_en}"
-              f":fontcolor={accent_color}:fontsize=54:x=(w-text_w)/2:y=640"
+              f":fontcolor={accent_color}:fontsize=52:x=(w-text_w)/2:y=640"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
           filters.append(
               f"drawtext=text='{esc('طريقة النطق')}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.75:fontsize=32:x=(w-text_w)/2:y=710"
+              f":fontcolor=white@0.75:fontsize=30:x=(w-text_w)/2:y=708"
               f":shadowcolor=black@0.7:shadowx=2:shadowy=2"
           )
           filters.append(
               f"drawtext=text='{esc(pron_ar)}'"
               f":fontfile={font_ar}"
-              f":fontcolor={accent_color}:fontsize=60:x=(w-text_w)/2:y=758"
+              f":fontcolor={accent_color}:fontsize=58:x=(w-text_w)/2:y=756"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
           filters.append(
               f"drawtext=text='{esc('المعنى: ' + meaning)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.9:fontsize=48:x=(w-text_w)/2:y=890"
+              f":fontcolor=white@0.9:fontsize=46:x=(w-text_w)/2:y=880"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          box_y_top = 1580
-          box_y_bottom = 1680
+          box_y_top = 1560
+          box_y_bottom = 1660
           filters.append(
-              f"drawbox=x=240:y={box_y_top}:w=600:h={box_y_bottom - box_y_top}:color=black@0.55:t=fill"
+              f"drawbox=x=220:y={box_y_top}:w=640:h={box_y_bottom - box_y_top}:color=black@0.75:t=fill"
           )
           filters.append(
               f"drawtext=text='{esc(cta_text)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=lightyellow:fontsize=52:x=(w-text_w)/2:y={box_y_top + 22}"
+              f":fontcolor=lightyellow:fontsize=48:x=(w-text_w)/2:y={box_y_top + 28}"
               f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
           )
 
