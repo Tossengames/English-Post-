@@ -8,7 +8,15 @@ name: english-top10-post
         required: false
         default: ""
       list_number:
-        description: "Force a lesson number (1-4). Leave empty for daily rotation"
+        description: "Force a post number (1 to total posts). Leave empty for daily rotation"
+        required: false
+        default: ""
+      words_per_post:
+        description: "Words per post (1-10). Leave empty for 5"
+        required: false
+        default: ""
+      layout:
+        description: "Force a layout: table, cards or stack. Leave empty for random"
         required: false
         default: ""
   schedule:
@@ -135,8 +143,8 @@ jobs:
           echo "Selected: $PICKED"
 
       # ------------------------------------------------------------------
-      # CONTENT: each lesson = title + 10 rows of [English word, Arabic pronunciation, Arabic meaning]
-      # Rotates daily. Add more lessons by copying a block inside LESSONS.
+      # CONTENT is inside the script below (CONTENT = r"""..."""), so this
+      # workflow is a single self-contained file. Posts rotate daily in order.
       # ------------------------------------------------------------------
       - name: pick-content
         id: content
@@ -144,89 +152,796 @@ jobs:
         env:
           INPUT_CAPTION: ${{ github.event.inputs.caption }}
           INPUT_LIST: ${{ github.event.inputs.list_number }}
+          WORDS_PER_POST: ${{ github.event.inputs.words_per_post }}
         run: |
           python3 << 'PYEOF'
           import os, json, random, datetime
 
-          LESSONS = [
-              {
-                  "title_ar": "١٠ أفعال يومية مهمة",
-                  "label": "10 أفعال يومية بالإنجليزية",
-                  "intro_en": "Let's learn ten useful English verbs.",
-                  "words": [
-                      ["Eat", "إيت", "يأكل"],
-                      ["Drink", "درينك", "يشرب"],
-                      ["Walk", "ووك", "يمشي"],
-                      ["Run", "ران", "يركض"],
-                      ["Sleep", "سليب", "ينام"],
-                      ["Read", "ريد", "يقرأ"],
-                      ["Write", "رايت", "يكتب"],
-                      ["Listen", "ليسن", "يستمع"],
-                      ["Speak", "سبيك", "يتحدث"],
-                      ["Learn", "لِرن", "يتعلم"],
-                  ],
-              },
-              {
-                  "title_ar": "١٠ كلمات عن العائلة",
-                  "label": "10 كلمات عن العائلة بالإنجليزية",
-                  "intro_en": "Let's learn ten English words about family.",
-                  "words": [
-                      ["Mother", "ماذر", "أم"],
-                      ["Father", "فاذر", "أب"],
-                      ["Brother", "براذر", "أخ"],
-                      ["Sister", "سيستر", "أخت"],
-                      ["Son", "سان", "ابن"],
-                      ["Daughter", "دوتر", "ابنة"],
-                      ["Grandfather", "جراندفاذر", "جد"],
-                      ["Grandmother", "جراندماذر", "جدة"],
-                      ["Uncle", "أنكل", "عم / خال"],
-                      ["Aunt", "آنت", "عمة / خالة"],
-                  ],
-              },
-              {
-                  "title_ar": "١٠ كلمات عن الطعام",
-                  "label": "10 كلمات عن الطعام بالإنجليزية",
-                  "intro_en": "Let's learn ten English words about food.",
-                  "words": [
-                      ["Bread", "بريد", "خبز"],
-                      ["Water", "ووتر", "ماء"],
-                      ["Milk", "ميلك", "حليب"],
-                      ["Rice", "رايس", "أرز"],
-                      ["Chicken", "تشيكن", "دجاج"],
-                      ["Apple", "آبل", "تفاح"],
-                      ["Egg", "إيج", "بيضة"],
-                      ["Cheese", "تشيز", "جبن"],
-                      ["Sugar", "شوجر", "سكر"],
-                      ["Salt", "سولت", "ملح"],
-                  ],
-              },
-              {
-                  "title_ar": "١٠ كلمات عن الوقت",
-                  "label": "10 كلمات عن الوقت بالإنجليزية",
-                  "intro_en": "Let's learn ten English words about time.",
-                  "words": [
-                      ["Today", "تودي", "اليوم"],
-                      ["Tomorrow", "تومورو", "غدا"],
-                      ["Yesterday", "يستردي", "أمس"],
-                      ["Morning", "مورنينج", "الصباح"],
-                      ["Evening", "إيفنينج", "المساء"],
-                      ["Night", "نايت", "الليل"],
-                      ["Week", "ويك", "أسبوع"],
-                      ["Month", "مانث", "شهر"],
-                      ["Year", "يير", "سنة"],
-                      ["Hour", "أور", "ساعة"],
-                  ],
-              },
-          ]
+          # =====================================================================
+          # CONTENT  -  one lesson = a "==" line + up to 10 word lines
+          #   == Arabic title | English intro sentence (spoken)
+          #   English word | Arabic pronunciation | Arabic meaning
+          # Each lesson is cut into posts of WORDS_PER_POST words (default 5).
+          # Add new lessons at the END so the rotation order stays stable.
+          # =====================================================================
+          CONTENT = r"""
+          # Format:  == Arabic title | English intro sentence (spoken)
+          # Then up to 10 lines:  English word | Arabic pronunciation | Arabic meaning
+          # Each lesson is split into posts of WORDS_PER_POST words. Add new lessons at the END.
 
-          n = len(LESSONS)
+          == ١٠ أفعال يومية مهمة | Let's learn ten useful English verbs.
+          Eat|إيت|يأكل
+          Drink|درينك|يشرب
+          Walk|ووك|يمشي
+          Run|ران|يركض
+          Sleep|سليب|ينام
+          Read|ريد|يقرأ
+          Write|رايت|يكتب
+          Listen|ليسن|يستمع
+          Speak|سبيك|يتحدث
+          Learn|لرن|يتعلم
+
+          == ١٠ كلمات عن العائلة | Let's learn ten English words about family.
+          Mother|ماذر|أم
+          Father|فاذر|أب
+          Brother|براذر|أخ
+          Sister|سيستر|أخت
+          Son|سان|ابن
+          Daughter|دوتر|ابنة
+          Grandfather|جراندفاذر|جد
+          Grandmother|جراندماذر|جدة
+          Uncle|أنكل|عم / خال
+          Aunt|آنت|عمة / خالة
+
+          == ١٠ كلمات عن الطعام | Let's learn ten English words about food.
+          Bread|بريد|خبز
+          Water|ووتر|ماء
+          Milk|ميلك|حليب
+          Rice|رايس|أرز
+          Chicken|تشيكن|دجاج
+          Apple|آبل|تفاح
+          Egg|إيج|بيضة
+          Cheese|تشيز|جبن
+          Sugar|شوجر|سكر
+          Salt|سولت|ملح
+
+          == ١٠ كلمات عن الوقت | Let's learn ten English words about time.
+          Today|تودي|اليوم
+          Tomorrow|تومورو|غدا
+          Yesterday|يستردي|أمس
+          Morning|مورنينج|الصباح
+          Evening|إيفنينج|المساء
+          Night|نايت|الليل
+          Week|ويك|أسبوع
+          Month|مانث|شهر
+          Year|يير|سنة
+          Hour|أور|ساعة
+
+          == ١٠ ألوان أساسية | Let's learn ten basic English colors.
+          Red|ريد|أحمر
+          Blue|بلو|أزرق
+          Green|جرين|أخضر
+          Yellow|يلو|أصفر
+          Black|بلاك|أسود
+          White|وايت|أبيض
+          Orange|أورنج|برتقالي
+          Purple|بيربل|بنفسجي
+          Pink|بينك|وردي
+          Brown|براون|بني
+
+          == الأرقام من ١ إلى ١٠ | Let's learn the numbers from one to ten.
+          One|وان|واحد
+          Two|تو|اثنان
+          Three|ثري|ثلاثة
+          Four|فور|أربعة
+          Five|فايف|خمسة
+          Six|سيكس|ستة
+          Seven|سيفن|سبعة
+          Eight|إيت|ثمانية
+          Nine|ناين|تسعة
+          Ten|تن|عشرة
+
+          == ١٠ كلمات عن الجسم | Let's learn ten English words about the body.
+          Head|هيد|رأس
+          Eye|آي|عين
+          Ear|إير|أذن
+          Nose|نوز|أنف
+          Mouth|ماوث|فم
+          Hand|هاند|يد
+          Leg|ليج|ساق
+          Foot|فوت|قدم
+          Hair|هير|شعر
+          Heart|هارت|قلب
+
+          == ١٠ حيوانات شائعة | Let's learn ten common English animal names.
+          Cat|كات|قطة
+          Dog|دوج|كلب
+          Bird|بيرد|طائر
+          Fish|فيش|سمكة
+          Lion|لايون|أسد
+          Elephant|إليفنت|فيل
+          Monkey|مانكي|قرد
+          Tiger|تايجر|نمر
+          Snake|سنيك|ثعبان
+          Bear|بير|دب
+
+          == ١٠ فواكه | Let's learn ten English fruit names.
+          Banana|بانانا|موز
+          Grape|جريب|عنب
+          Mango|مانجو|مانجو
+          Peach|بيتش|خوخ
+          Pear|بير|كمثرى
+          Strawberry|ستروبيري|فراولة
+          Watermelon|ووترميلون|بطيخ
+          Lemon|ليمون|ليمون
+          Cherry|تشيري|كرز
+          Pineapple|باينابل|أناناس
+
+          == ١٠ خضروات | Let's learn ten English vegetable names.
+          Potato|بوتيتو|بطاطس
+          Tomato|توميتو|طماطم
+          Onion|أنيون|بصل
+          Carrot|كاروت|جزر
+          Cucumber|كيوكمبر|خيار
+          Garlic|جارلك|ثوم
+          Pepper|بيبر|فلفل
+          Lettuce|ليتس|خس
+          Corn|كورن|ذرة
+          Spinach|سبيناتش|سبانخ
+
+          == ١٠ كلمات عن الملابس | Let's learn ten English words about clothes.
+          Shirt|شيرت|قميص
+          Pants|بانتس|بنطلون
+          Dress|درس|فستان
+          Shoes|شوز|حذاء
+          Hat|هات|قبعة
+          Jacket|جاكيت|سترة
+          Socks|سوكس|جوارب
+          Coat|كوت|معطف
+          Scarf|سكارف|وشاح
+          Gloves|جلافز|قفازات
+
+          == ١٠ كلمات عن البيت | Let's learn ten English words about the house.
+          Kitchen|كيتشن|مطبخ
+          Bedroom|بيدروم|غرفة نوم
+          Bathroom|باثروم|حمام
+          Living room|ليفينج روم|غرفة المعيشة
+          Garden|جاردن|حديقة
+          Roof|روف|سطح
+          Floor|فلور|أرضية
+          Wall|وول|جدار
+          Stairs|ستيرز|درج
+          Garage|جراج|مرآب
+
+          == ١٠ كلمات عن الطقس | Let's learn ten English words about the weather.
+          Sunny|ساني|مشمس
+          Cloudy|كلاودي|غائم
+          Rainy|رايني|ممطر
+          Windy|ويندي|عاصف
+          Snowy|سنوي|مثلج
+          Hot|هوت|حار
+          Cold|كولد|بارد
+          Storm|ستورم|عاصفة
+          Fog|فوج|ضباب
+          Temperature|تمبرتشر|درجة الحرارة
+
+          == ١٠ مهن شائعة | Let's learn ten common English job names.
+          Doctor|دوكتر|طبيب
+          Teacher|تيتشر|معلم
+          Engineer|إنجينير|مهندس
+          Driver|درايفر|سائق
+          Cook|كوك|طباخ
+          Pilot|بايلت|طيار
+          Lawyer|لوير|محامي
+          Artist|آرتست|فنان
+          Dentist|دنتست|طبيب أسنان
+          Builder|بيلدر|بنّاء
+
+          == ١٠ وسائل نقل | Let's learn ten English words about transport.
+          Car|كار|سيارة
+          Bus|باص|حافلة
+          Train|ترين|قطار
+          Plane|بلين|طائرة
+          Bike|بايك|دراجة
+          Taxi|تاكسي|سيارة أجرة
+          Ship|شيب|سفينة
+          Truck|تراك|شاحنة
+          Road|رود|طريق
+          Station|ستيشن|محطة
+
+          == ١٠ أماكن في المدينة | Let's learn ten English words about the city.
+          Park|بارك|حديقة عامة
+          Market|ماركت|سوق
+          Museum|ميوزيم|متحف
+          Cinema|سينما|سينما
+          Bridge|بريدج|جسر
+          Stadium|ستاديوم|ملعب
+          Village|فيليج|قرية
+          City|سيتي|مدينة
+          Country|كانتري|بلد
+          Capital|كابيتال|عاصمة
+
+          == ١٠ صفات مهمة | Let's learn ten important English adjectives.
+          Big|بيج|كبير
+          Small|سمول|صغير
+          New|نيو|جديد
+          Old|أولد|قديم
+          Fast|فاست|سريع
+          Slow|سلو|بطيء
+          Easy|إيزي|سهل
+          Hard|هارد|صعب
+          Heavy|هيفي|ثقيل
+          Light|لايت|خفيف
+
+          == ١٠ كلمات عن المشاعر | Let's learn ten English words about feelings.
+          Happy|هابي|سعيد
+          Sad|ساد|حزين
+          Angry|أنجري|غاضب
+          Tired|تايرد|متعب
+          Hungry|هنجري|جائع
+          Thirsty|ثيرستي|عطشان
+          Afraid|أفريد|خائف
+          Bored|بورد|ممل
+          Excited|إكسايتد|متحمس
+          Surprised|سيربرايزد|متفاجئ
+
+          == ١٠ كلمات عن الطبيعة | Let's learn ten English words about nature.
+          Tree|تري|شجرة
+          Flower|فلاور|زهرة
+          River|ريفر|نهر
+          Mountain|ماونتن|جبل
+          Forest|فورست|غابة
+          Desert|ديزرت|صحراء
+          Lake|ليك|بحيرة
+          Grass|جراس|عشب
+          Rock|روك|صخرة
+          Valley|فالي|وادي
+
+          == ١٠ كلمات عن المدرسة | Let's learn ten English words about school.
+          Student|ستيودنت|طالب
+          Book|بوك|كتاب
+          Pencil|بنسل|قلم رصاص
+          Pen|بن|قلم حبر
+          Notebook|نوتبوك|دفتر
+          Lesson|ليسن|درس
+          Exam|إجزام|امتحان
+          Homework|هومورك|واجب منزلي
+          Classroom|كلاسروم|فصل دراسي
+          Library|لايبريري|مكتبة
+
+          == ١٠ أدوات المطبخ | Let's learn ten English words for the kitchen.
+          Plate|بليت|طبق
+          Cup|كاب|كوب
+          Spoon|سبون|ملعقة
+          Fork|فورك|شوكة
+          Knife|نايف|سكين
+          Pot|بوت|قدر
+          Oven|أفن|فرن
+          Fridge|فريدج|ثلاجة
+          Bowl|بول|وعاء
+          Glass|جلاس|كأس
+
+          == ١٠ كلمات للفطور | Let's learn ten English words for breakfast.
+          Tea|تي|شاي
+          Coffee|كوفي|قهوة
+          Juice|جوس|عصير
+          Honey|هاني|عسل
+          Butter|باتر|زبدة
+          Jam|جام|مربى
+          Yogurt|يوجرت|زبادي
+          Cereal|سيريال|حبوب الإفطار
+          Toast|توست|خبز محمص
+          Pancake|بانكيك|فطيرة
+
+          == ١٠ كلمات للتسوق | Let's learn ten English words for shopping.
+          Price|برايس|سعر
+          Cheap|تشيب|رخيص
+          Expensive|إكسبنسيف|غالي
+          Sale|سيل|تخفيضات
+          Shop|شوب|متجر
+          Bag|باج|حقيبة
+          Receipt|ريسيت|إيصال
+          Customer|كاستمر|زبون
+          Cash|كاش|نقد
+          Discount|ديسكاونت|خصم
+
+          == ١٠ كلمات للسفر | Let's learn ten English words for travel.
+          Passport|باسبورت|جواز سفر
+          Ticket|تيكت|تذكرة
+          Airport|إيربورت|مطار
+          Flight|فلايت|رحلة جوية
+          Luggage|لاجيج|أمتعة
+          Hotel|هوتيل|فندق
+          Visa|فيزا|تأشيرة
+          Tourist|توريست|سائح
+          Suitcase|سوتكيس|حقيبة سفر
+          Map|ماب|خريطة
+
+          == ١٠ كلمات عن الصحة | Let's learn ten English words about health.
+          Doctor|دوكتر|طبيب
+          Nurse|نيرس|ممرض
+          Hospital|هوسبيتل|مستشفى
+          Medicine|ميدسن|دواء
+          Pain|بين|ألم
+          Fever|فيفر|حمى
+          Cough|كوف|سعال
+          Headache|هيديك|صداع
+          Pharmacy|فارماسي|صيدلية
+          Ambulance|آمبيولنس|إسعاف
+
+          == ١٠ عبارات مهذبة | Let's learn ten polite English expressions.
+          Hello|هالو|مرحبا
+          Good morning|جود مورنينج|صباح الخير
+          Good night|جود نايت|تصبح على خير
+          Thank you|ثانك يو|شكرا لك
+          Please|بليز|من فضلك
+          Sorry|سوري|آسف
+          Excuse me|إكسكيوز مي|عذرا
+          Goodbye|جودباي|وداعا
+          Welcome|ويلكم|أهلا بك
+          See you later|سي يو ليتر|أراك لاحقا
+
+          == ١٠ كلمات للأسئلة | Let's learn ten English question words.
+          What|وات|ماذا
+          Where|وير|أين
+          When|وين|متى
+          Why|واي|لماذا
+          Who|هو|من
+          How|هاو|كيف
+          Which|ويتش|أي
+          Whose|هوز|لمن
+          How much|هاو ماتش|بكم
+          How many|هاو ميني|كم عدد
+
+          == ١٠ حروف جر مهمة | Let's learn ten important English prepositions.
+          In|إن|في
+          On|أون|على
+          At|آت|عند
+          Under|أندر|تحت
+          Behind|بيهايند|خلف
+          Between|بيتوين|بين
+          Near|نير|قريب من
+          Inside|إنسايد|داخل
+          Outside|أوتسايد|خارج
+          Above|أبوف|فوق
+
+          == ١٠ أفعال شائعة ٢ | Let's learn ten more common English verbs.
+          Go|جو|يذهب
+          Come|كام|يأتي
+          Give|جيف|يعطي
+          Take|تيك|يأخذ
+          Make|ميك|يصنع
+          Do|دو|يفعل
+          See|سي|يرى
+          Know|نو|يعرف
+          Think|ثينك|يفكر
+          Want|وانت|يريد
+
+          == ١٠ أفعال شائعة ٣ | Let's learn ten more useful English verbs.
+          Buy|باي|يشتري
+          Sell|سيل|يبيع
+          Open|أوبن|يفتح
+          Close|كلوز|يغلق
+          Start|ستارت|يبدأ
+          Finish|فينيش|ينهي
+          Help|هيلب|يساعد
+          Wait|ويت|ينتظر
+          Ask|آسك|يسأل
+          Answer|آنسر|يجيب
+
+          == ١٠ أفعال مفيدة | Let's learn ten more English verbs you will use every day.
+          Love|لاف|يحب
+          Like|لايك|يعجبه
+          Need|نيد|يحتاج
+          Use|يوز|يستخدم
+          Find|فايند|يجد
+          Keep|كيب|يحتفظ
+          Bring|برينج|يحضر
+          Call|كول|يتصل
+          Play|بلاي|يلعب
+          Work|وورك|يعمل
+
+          == ١٠ صفات للشخصية | Let's learn ten English words to describe people.
+          Kind|كايند|طيب
+          Brave|بريف|شجاع
+          Smart|سمارت|ذكي
+          Funny|فاني|مضحك
+          Lazy|ليزي|كسول
+          Generous|جينرس|كريم
+          Polite|بولايت|مهذب
+          Honest|أونست|صادق
+          Strong|سترونج|قوي
+          Weak|ويك|ضعيف
+
+          == ١٠ صفات متضادة | Let's learn ten more English adjectives.
+          Beautiful|بيوتيفل|جميل
+          Ugly|أجلي|قبيح
+          Clean|كلين|نظيف
+          Dirty|ديرتي|متسخ
+          Rich|ريتش|غني
+          Poor|بور|فقير
+          Full|فول|ممتلئ
+          Empty|إمبتي|فارغ
+          Tall|تول|طويل
+          Short|شورت|قصير
+
+          == ١٠ كلمات عن التكنولوجيا | Let's learn ten English words about technology.
+          Phone|فون|هاتف
+          Computer|كمبيوتر|حاسوب
+          Internet|إنترنت|الإنترنت
+          Screen|سكرين|شاشة
+          Keyboard|كيبورد|لوحة مفاتيح
+          Mouse|ماوس|فأرة
+          Camera|كاميرا|كاميرا
+          Battery|باتري|بطارية
+          Password|باسوورد|كلمة مرور
+          Website|ويبسايت|موقع إلكتروني
+
+          == ١٠ كلمات عن المال | Let's learn ten English words about money.
+          Money|ماني|مال
+          Bank|بانك|بنك
+          Coin|كوين|عملة معدنية
+          Card|كارد|بطاقة
+          Wallet|واليت|محفظة
+          Pay|باي|يدفع
+          Save|سيف|يوفر
+          Spend|سبند|ينفق
+          Debt|دت|دين
+          Tax|تاكس|ضريبة
+
+          == ١٠ كلمات عن الرياضة | Let's learn ten English words about sports.
+          Football|فوتبول|كرة القدم
+          Basketball|باسكتبول|كرة السلة
+          Tennis|تنس|تنس
+          Swimming|سويمنج|سباحة
+          Race|ريس|سباق
+          Team|تيم|فريق
+          Player|بلاير|لاعب
+          Coach|كوتش|مدرب
+          Goal|جول|هدف
+          Match|ماتش|مباراة
+
+          == ١٠ هوايات | Let's learn ten English words about hobbies.
+          Music|ميوزك|موسيقى
+          Painting|بينتينج|رسم
+          Singing|سينجينج|غناء
+          Dancing|دانسينج|رقص
+          Cooking|كوكينج|طبخ
+          Photography|فوتوجرافي|تصوير
+          Gardening|جاردنينج|بستنة
+          Fishing|فيشينج|صيد
+          Chess|تشس|شطرنج
+          Movie|موفي|فيلم
+
+          == ١٠ كلمات في المطعم | Let's learn ten English words for the restaurant.
+          Menu|ميني|قائمة الطعام
+          Waiter|ويتر|نادل
+          Bill|بيل|فاتورة
+          Order|أوردر|طلب
+          Table|تيبل|طاولة
+          Breakfast|بريكفاست|فطور
+          Lunch|لانش|غداء
+          Dinner|دينر|عشاء
+          Dessert|ديزرت|حلوى
+          Tip|تيب|بقشيش
+
+          == ١٠ كلمات للاتجاهات | Let's learn ten English words for directions.
+          Left|ليفت|يسار
+          Right|رايت|يمين
+          Straight|ستريت|مستقيم
+          Corner|كورنر|زاوية
+          Street|ستريت|شارع
+          Turn|ترن|يلتفت
+          Far|فار|بعيد
+          Address|أدرس|عنوان
+          Traffic|ترافيك|مرور
+          Roundabout|راوند أباوت|دوار
+
+          == ١٠ مشاعر أخرى | Let's learn ten more English words about feelings.
+          Proud|براود|فخور
+          Worried|وريد|قلق
+          Lonely|لونلي|وحيد
+          Calm|كام|هادئ
+          Nervous|نيرفس|متوتر
+          Jealous|جيلس|غيور
+          Grateful|جريتفل|ممتن
+          Confident|كونفيدنت|واثق
+          Curious|كيوريس|فضولي
+          Shy|شاي|خجول
+
+          == ١٠ كلمات عن الفصول والتاريخ | Let's learn ten English words about seasons and dates.
+          Spring|سبرينج|الربيع
+          Summer|سامر|الصيف
+          Autumn|أوتم|الخريف
+          Winter|وينتر|الشتاء
+          Season|سيزن|فصل
+          Holiday|هوليداي|عطلة
+          Birthday|بيرثداي|عيد ميلاد
+          Weekend|ويكند|نهاية الأسبوع
+          Calendar|كالندر|تقويم
+          Date|ديت|تاريخ
+
+          == ١٠ أدوات الحمام | Let's learn ten English words for the bathroom.
+          Soap|سوب|صابون
+          Towel|تاول|منشفة
+          Toothbrush|توثبراش|فرشاة أسنان
+          Toothpaste|توثبيست|معجون أسنان
+          Shampoo|شامبو|شامبو
+          Mirror|ميرور|مرآة
+          Shower|شاور|دش
+          Comb|كوم|مشط
+          Perfume|بيرفيوم|عطر
+          Tissue|تيشو|منديل ورقي
+
+          == ١٠ كلمات في العمل | Let's learn ten English words for work.
+          Office|أوفيس|مكتب
+          Meeting|ميتينج|اجتماع
+          Boss|بوس|مدير
+          Employee|إمبلويي|موظف
+          Salary|سالري|راتب
+          Email|إيميل|بريد إلكتروني
+          Desk|ديسك|طاولة المكتب
+          Project|بروجكت|مشروع
+          Deadline|ديدلاين|موعد نهائي
+          Interview|إنترفيو|مقابلة عمل
+
+          == ١٠ أثاث المنزل | Let's learn ten English words for furniture.
+          Chair|تشير|كرسي
+          Bed|بيد|سرير
+          Door|دور|باب
+          Window|ويندو|نافذة
+          Sofa|صوفا|أريكة
+          Lamp|لامب|مصباح
+          Carpet|كاربت|سجادة
+          Curtain|كيرتن|ستارة
+          Shelf|شيلف|رف
+          Clock|كلوك|ساعة حائط
+
+          == ١٠ حيوانات المزرعة | Let's learn ten English words about the farm.
+          Cow|كاو|بقرة
+          Sheep|شيب|خروف
+          Goat|جوت|ماعز
+          Horse|هورس|حصان
+          Donkey|دونكي|حمار
+          Camel|كامل|جمل
+          Duck|داك|بطة
+          Rabbit|رابت|أرنب
+          Rooster|روستر|ديك
+          Farmer|فارمر|مزارع
+
+          == ١٠ كلمات عن البحر | Let's learn ten English words about the sea.
+          Sea|سي|بحر
+          Beach|بيتش|شاطئ
+          Wave|ويف|موجة
+          Sand|ساند|رمل
+          Island|آيلاند|جزيرة
+          Boat|بوت|قارب
+          Shark|شارك|قرش
+          Whale|ويل|حوت
+          Dolphin|دولفن|دلفين
+          Crab|كراب|سرطان البحر
+
+          == ١٠ كلمات عن الفضاء | Let's learn ten English words about space.
+          Moon|مون|قمر
+          Sun|سان|شمس
+          Star|ستار|نجمة
+          Planet|بلانت|كوكب
+          Earth|إيرث|الأرض
+          Sky|سكاي|سماء
+          Space|سبيس|فضاء
+          Galaxy|جالاكسي|مجرة
+          Rocket|روكت|صاروخ
+          Comet|كوميت|مذنب
+
+          == ١٠ كلمات عن الزمن | Let's learn ten English words about time expressions.
+          Now|ناو|الآن
+          Soon|سون|قريبا
+          Later|ليتر|لاحقا
+          Always|أولويز|دائما
+          Never|نيفر|أبدا
+          Sometimes|سامتايمز|أحيانا
+          Often|أوفن|غالبا
+          Early|إيرلي|مبكرا
+          Late|ليت|متأخرا
+          Again|أجين|مرة أخرى
+
+          == ١٠ كلمات للكمية | Let's learn ten English words for quantity.
+          All|أول|الكل
+          Some|سام|بعض
+          Many|ميني|كثير
+          Few|فيو|قليل
+          Much|ماتش|كثير
+          Little|ليتل|قليل
+          Every|إيفري|كل
+          None|نان|لا شيء
+          Both|بوث|كلاهما
+          Enough|إيناف|كافٍ
+
+          == ١٠ أدوات ربط | Let's learn ten English linking words.
+          And|آند|و
+          But|بات|لكن
+          Because|بيكوز|لأن
+          So|سو|لذلك
+          Or|أور|أو
+          If|إف|إذا
+          Then|ذين|ثم
+          Also|أولسو|أيضا
+          Maybe|ميبي|ربما
+          However|هاوايفر|مع ذلك
+
+          == ١٠ ضمائر مهمة | Let's learn ten important English pronouns.
+          I|آي|أنا
+          You|يو|أنت
+          He|هي|هو
+          She|شي|هي
+          It|إت|هو / هي لغير العاقل
+          We|وي|نحن
+          They|ذي|هم
+          My|ماي|ملكي
+          Your|يور|ملكك
+          Our|آور|ملكنا
+
+          == ١٠ عبارات يومية | Let's learn ten everyday English phrases.
+          How are you?|هاو آر يو|كيف حالك؟
+          I'm fine|آيم فاين|أنا بخير
+          I don't know|آي دونت نو|لا أعرف
+          I understand|آي أندرستاند|أنا أفهم
+          Nice to meet you|نايس تو ميت يو|سررت بلقائك
+          Good luck|جود لك|حظا موفقا
+          Take care|تيك كير|اعتن بنفسك
+          Of course|أوف كورس|بالطبع
+          No problem|نو بروبلم|لا مشكلة
+          Let's go|ليتس جو|هيا بنا
+
+          == ١٠ طيور وحشرات | Let's learn ten English words about birds and insects.
+          Eagle|إيجل|نسر
+          Owl|أول|بومة
+          Parrot|باروت|ببغاء
+          Pigeon|بيجن|حمامة
+          Butterfly|باترفلاي|فراشة
+          Bee|بي|نحلة
+          Ant|آنت|نملة
+          Spider|سبايدر|عنكبوت
+          Fly|فلاي|ذبابة
+          Mosquito|موسكيتو|بعوضة
+
+          == ١٠ أشكال هندسية | Let's learn ten English words about shapes.
+          Circle|سيركل|دائرة
+          Square|سكوير|مربع
+          Triangle|ترايانجل|مثلث
+          Rectangle|ريكتانجل|مستطيل
+          Line|لاين|خط
+          Curve|كيرف|منحنى
+          Cube|كيوب|مكعب
+          Point|بوينت|نقطة
+          Oval|أوفال|بيضاوي
+          Diamond|دايموند|معين
+
+          == ١٠ أدوات شائعة | Let's learn ten English words for tools.
+          Hammer|هامر|مطرقة
+          Scissors|سيزرز|مقص
+          Axe|آكس|فأس
+          Key|كي|مفتاح
+          Rope|روب|حبل
+          Ladder|لادر|سلم
+          Needle|نيدل|إبرة
+          Brush|براش|فرشاة
+          Nail|نيل|مسمار
+          Saw|سو|منشار
+
+          == ١٠ كلمات عن الاحتفالات | Let's learn ten English words about celebrations.
+          Party|بارتي|حفلة
+          Gift|جفت|هدية
+          Wedding|ويدينج|زفاف
+          Guest|جيست|ضيف
+          Cake|كيك|كعكة
+          Candle|كاندل|شمعة
+          Balloon|بالون|بالون
+          Invitation|إنفيتيشن|دعوة
+          Surprise|سيربرايز|مفاجأة
+          Celebrate|سيليبريت|يحتفل
+
+          == ١٠ كلمات عن الأفكار | Let's learn ten English words about ideas and thinking.
+          Idea|آيديا|فكرة
+          Memory|ميموري|ذاكرة
+          Dream|دريم|حلم
+          Hope|هوب|أمل
+          Wish|ويش|أمنية
+          Plan|بلان|خطة
+          Choice|تشويس|اختيار
+          Decision|ديسيجن|قرار
+          Mistake|ميستيك|خطأ
+          Success|سكسس|نجاح
+
+          == ١٠ قيم جميلة | Let's learn ten English words for good values.
+          Peace|بيس|سلام
+          Freedom|فريدم|حرية
+          Justice|جستس|عدالة
+          Honesty|أونستي|صدق
+          Respect|ريسبكت|احترام
+          Trust|ترست|ثقة
+          Courage|كاريج|شجاعة
+          Patience|بيشنس|صبر
+          Wisdom|ويزدم|حكمة
+          Kindness|كايندنس|لطف
+
+          == ١٠ كلمات عن التواصل | Let's learn ten English words about communication.
+          Message|ميسيج|رسالة
+          Letter|ليتر|خطاب
+          Voice|فويس|صوت
+          Language|لانجويج|لغة
+          Sentence|سينتنس|جملة
+          Question|كويستشن|سؤال
+          Story|ستوري|قصة
+          News|نيوز|أخبار
+          Meaning|مينينج|معنى
+          Translate|ترانسليت|يترجم
+
+          == ١٠ مواد وخامات | Let's learn ten English words for materials.
+          Gold|جولد|ذهب
+          Silver|سيلفر|فضة
+          Iron|آيرن|حديد
+          Wood|وود|خشب
+          Plastic|بلاستيك|بلاستيك
+          Paper|بيبر|ورق
+          Stone|ستون|حجر
+          Leather|ليذر|جلد
+          Cotton|كوتون|قطن
+          Wool|وول|صوف
+          """
+
+          PER = os.environ.get("WORDS_PER_POST", "").strip()
+          PER = int(PER) if PER.isdigit() and 1 <= int(PER) <= 10 else 5
+          AR_DIGITS = str.maketrans("0123456789", "٠١٢٣٤٥٦٧٨٩")
+          EN_NUM = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
+
+          # ---- parse lessons ----
+          lessons, cur = [], None
+          for line in CONTENT.splitlines():
+              line = line.strip()
+              if not line or line.startswith("#"):
+                  continue
+              if line.startswith("=="):
+                  title, intro = [x.strip() for x in line[2:].split("|", 1)]
+                  cur = {"title": title, "intro": intro, "words": []}
+                  lessons.append(cur)
+              elif cur is not None:
+                  parts = [x.strip() for x in line.split("|")]
+                  if len(parts) == 3 and len(cur["words"]) < 10:
+                      cur["words"].append(parts)
+
+          # ---- cut every lesson into posts of PER words ----
+          posts = []
+          for les in lessons:
+              w = les["words"]
+              chunks = [w[i:i + PER] for i in range(0, len(w), PER)]
+              if len(chunks) > 1 and len(chunks[-1]) < 3:
+                  chunks[-2] += chunks.pop()
+              for part, chunk in enumerate(chunks, 1):
+                  title = les["title"]
+                  if title.startswith("١٠"):
+                      title = str(len(chunk)).translate(AR_DIGITS) + title[2:]
+                  suffix = f" - الجزء {str(part).translate(AR_DIGITS)}" if len(chunks) > 1 else ""
+                  intro = les["intro"]
+                  if "ten " in intro:
+                      intro = intro.replace("ten ", EN_NUM[len(chunk)] + " ", 1)
+                  posts.append({
+                      "title_ar": title + suffix,
+                      "label": title + " بالإنجليزية" + suffix,
+                      "intro_en": intro,
+                      "words": chunk,
+                  })
+
+          n = len(posts)
+          print(f"Loaded {len(lessons)} lessons -> {n} posts of ~{PER} words")
+
           raw = os.environ.get("INPUT_LIST", "").strip()
           if raw.isdigit() and 1 <= int(raw) <= n:
               idx = int(raw) - 1
           else:
               idx = datetime.date.today().toordinal() % n
-          lesson = LESSONS[idx]
-          print(f"Selected lesson {idx + 1}/{n}: {lesson['label']}")
+          lesson = posts[idx]
+          print(f"Selected post {idx + 1}/{n}: {lesson['label']}")
 
           with open("/tmp/lesson.json", "w", encoding="utf-8") as f:
               json.dump(lesson, f, ensure_ascii=False)
@@ -297,7 +1012,7 @@ jobs:
           def build(engine):
               texts = {"intro": L["intro_en"], "outro": "Follow us and leave a comment."}
               for i, w in enumerate(words):
-                  texts[f"w{i}"] = w + "."
+                  texts[f"w{i}"] = w if w[-1] in ".?!" else w + "."
               clips = {}
               for k, t in texts.items():
                   raw, norm = f"/tmp/tts_{k}_raw.wav", f"/tmp/tts_{k}.wav"
@@ -362,20 +1077,22 @@ jobs:
 
       - name: render-frames
         timeout-minutes: 3
+        env:
+          INPUT_LAYOUT: ${{ github.event.inputs.layout }}
         run: |
           mkdir -p /tmp/frames
           python3 << 'PYEOF'
-          import glob, json
+          import glob, json, os, random
           from PIL import Image, ImageDraw, ImageFont
           import arabic_reshaper
           from bidi.algorithm import get_display
 
           L = json.load(open("/tmp/lesson.json", encoding="utf-8"))
-          T = json.load(open("/tmp/timing.json"))
           rows = L["words"]
           N = len(rows)
           W, H = 1080, 1920
 
+          # ---------------- fonts ----------------
           def find_font(names):
               for n in names:
                   hits = glob.glob(f"/usr/share/fonts/**/{n}", recursive=True)
@@ -385,77 +1102,170 @@ jobs:
 
           FONT_EN = find_font(["NotoSans-Bold.ttf", "DejaVuSans-Bold.ttf", "LiberationSans-Bold.ttf"])
           FONT_AR = find_font(["NotoNaskhArabic-Bold.ttf", "NotoSansArabic-Bold.ttf", "NotoSansArabic-Regular.ttf", "DejaVuSans-Bold.ttf"])
-          print("Fonts:", FONT_EN, FONT_AR)
 
           def ar(t):
               return get_display(arabic_reshaper.reshape(t))
 
           def mk(path, size):
-              return ImageFont.truetype(path, size, layout_engine=ImageFont.Layout.BASIC)
+              return ImageFont.truetype(path, int(size), layout_engine=ImageFont.Layout.BASIC)
 
           _m = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
 
           def fit(text, path, size, maxw):
+              size = int(size)
               f = mk(path, size)
               while size > 18 and _m.textlength(text, font=f) > maxw:
                   size -= 2
                   f = mk(path, size)
               return f
 
-          PALETTE = [(255,107,107),(255,159,67),(254,202,87),(29,209,161),(72,219,251),
-                     (84,160,255),(165,94,234),(255,121,198),(46,213,115),(255,177,66)]
-          GOLD = (255, 214, 102)
+          # ---------------- random look ----------------
+          BRIGHT = [(255,107,107),(255,159,67),(254,202,87),(29,209,161),(72,219,251),
+                    (84,160,255),(165,94,234),(255,121,198),(46,213,115),(255,177,66)]
+          DEEP   = [(190,40,40),(200,100,0),(150,110,0),(0,130,100),(0,110,150),
+                    (40,90,200),(110,50,180),(190,40,120),(20,130,60),(160,90,0)]
 
-          COL_WORD, COL_PRON, COL_MEAN = 800, 480, 195
-          Y0, RH = 410, 112
+          THEMES = {
+              "midnight": dict(panel=(8,14,30,185),  accent=(255,214,102), pill_txt=(40,30,10),
+                               word=(255,255,255), pron=(170,240,255), mean=(255,250,190), row=(255,255,255,28), light=False),
+              "emerald":  dict(panel=(6,40,32,190),  accent=(110,240,180), pill_txt=(5,40,30),
+                               word=(255,255,255), pron=(190,255,230), mean=(255,240,170), row=(255,255,255,28), light=False),
+              "royal":    dict(panel=(30,12,60,190), accent=(230,160,255), pill_txt=(40,10,60),
+                               word=(255,255,255), pron=(200,220,255), mean=(255,225,160), row=(255,255,255,28), light=False),
+              "sunset":   dict(panel=(60,14,20,190), accent=(255,160,90),  pill_txt=(60,14,0),
+                               word=(255,245,235), pron=(255,205,160), mean=(255,235,150), row=(255,255,255,26), light=False),
+              "ocean":    dict(panel=(5,40,60,190),  accent=(90,220,255),  pill_txt=(0,35,50),
+                               word=(255,255,255), pron=(170,255,245), mean=(255,245,180), row=(255,255,255,28), light=False),
+              "rose":     dict(panel=(50,10,40,190), accent=(255,140,190), pill_txt=(60,0,30),
+                               word=(255,255,255), pron=(255,200,230), mean=(255,240,170), row=(255,255,255,28), light=False),
+              "cream":    dict(panel=(255,250,240,238), accent=(225,140,20), pill_txt=(255,255,255),
+                               word=(20,30,60), pron=(0,100,150), mean=(160,60,30), row=(0,0,0,16), light=True),
+          }
 
-          def txt(d, xy, text, font, fill, stroke=2):
+          theme_name = random.choice(list(THEMES))
+          TH = THEMES[theme_name]
+          LAYOUT = os.environ.get("INPUT_LAYOUT", "").strip().lower()
+          if LAYOUT not in ("table", "cards", "stack"):
+              LAYOUT = random.choice(["table", "table", "cards", "stack"])
+          ROW_STYLE = random.choice(["filled", "outline", "line"])
+          RAINBOW = random.random() < 0.6
+          MIRROR = (LAYOUT == "table") and random.random() < 0.5
+          PAL = list(DEEP if TH["light"] else BRIGHT)
+          random.shuffle(PAL)
+          BADGE_PAL = list(BRIGHT)
+          random.shuffle(BADGE_PAL)
+          BADGE_TXT = (20, 20, 30, 255)
+          ACC = TH["accent"]
+          STROKE = 0 if TH["light"] else 2
+          print(f"LOOK: theme={theme_name} layout={LAYOUT} rows={ROW_STYLE} rainbow={RAINBOW} mirror={MIRROR} words={N}")
+
+          def txt(d, xy, text, font, fill, stroke=None):
+              s = STROKE if stroke is None else stroke
               d.text(xy, text, font=font, fill=fill, anchor="mm",
-                     stroke_width=stroke, stroke_fill=(0, 0, 0, 255))
+                     stroke_width=s, stroke_fill=(0, 0, 0, 255))
+
+          def word_color(i):
+              return PAL[i % len(PAL)] + (255,) if RAINBOW else TH["word"] + (255,)
+
+          def box_style(d, box, hl, r=24):
+              if hl:
+                  d.rounded_rectangle(box, radius=r, fill=ACC + (80,), outline=ACC + (255,), width=4)
+              elif ROW_STYLE == "filled":
+                  d.rounded_rectangle(box, radius=r, fill=TH["row"])
+              elif ROW_STYLE == "outline":
+                  d.rounded_rectangle(box, radius=r, outline=ACC + (170,), width=2)
+              else:
+                  d.line((box[0] + 24, box[3], box[2] - 24, box[3]), fill=ACC + (170,), width=2)
+
+          def badge(d, cx, cy, i, r=30):
+              d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=BADGE_PAL[i % len(BADGE_PAL)] + (255,))
+              d.text((cx, cy), str(i + 1), font=mk(FONT_EN, r * 1.05), fill=BADGE_TXT, anchor="mm")
+
+          def header_and_panel(d, bottom):
+              title = ar(L["title_ar"])
+              txt(d, (W / 2, 135), title, fit(title, FONT_AR, 84, 940), (255, 255, 255, 255), 3)
+              sub = ar("مع النطق والمعنى بالعربية")
+              d.rounded_rectangle((250, 205, 830, 275), radius=35, fill=ACC + (245,))
+              d.text((W / 2, 240), sub, font=fit(sub, FONT_AR, 38, 540), fill=TH["pill_txt"] + (255,), anchor="mm")
+              d.rounded_rectangle((40, 310, 1040, bottom), radius=40, fill=TH["panel"])
+
+          # ---- geometry that adapts to the number of words (fewer words = bigger rows) ----
+          T_Y0 = 410
+          T_RH = min(230, (1540 - T_Y0) // N)
+          T_F = max(1.0, min(1.35, T_RH / 112))
+          S_Y0 = 335
+          S_RH = min(250, (1540 - S_Y0) // N)
+          S_F = max(1.0, min(1.45, S_RH / 120))
+          C_R = (N + 1) // 2
+          C_H = min(390, (1205 - 12 * (C_R - 1)) // C_R)
+          C_F = max(1.0, min(1.6, C_H / 228))
 
           def draw_state(shown, highlight, cta):
               img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
               d = ImageDraw.Draw(img, "RGBA")
 
-              title = ar(L["title_ar"])
-              txt(d, (W / 2, 135), title, fit(title, FONT_AR, 84, 940), (255, 255, 255, 255), 3)
-              sub = ar("مع النطق والمعنى بالعربية")
-              d.rounded_rectangle((250, 205, 830, 275), radius=35, fill=GOLD + (240,))
-              d.text((W / 2, 240), sub, font=fit(sub, FONT_AR, 38, 540), fill=(40, 30, 10, 255), anchor="mm")
+              if LAYOUT == "table":
+                  header_and_panel(d, min(1550, T_Y0 + N * T_RH + 20))
+                  cw, cp, cm = 800, 480, 195
+                  bx = 985
+                  wdx = -15
+                  if MIRROR:
+                      cw, cp, cm, bx, wdx = W - cw, W - cp, W - cm, W - 985, 15
+                  # column titles: white text on a dark, almost opaque band
+                  d.rounded_rectangle((60, 328, 1020, 398), radius=20, fill=(0, 0, 0, 240), outline=ACC + (255,), width=2)
+                  for x, label in ((cw, "الكلمة"), (cp, "النطق"), (cm, "المعنى")):
+                      txt(d, (x, 363), ar(label), mk(FONT_AR, 42), (255, 255, 255, 255), 2)
+                  for i in range(shown):
+                      word, pron, mean = rows[i]
+                      top = T_Y0 + i * T_RH
+                      cy = top + T_RH / 2
+                      box_style(d, (60, top + 6, 1020, top + T_RH - 6), highlight and i == shown - 1)
+                      badge(d, bx, cy, i, r=30 * T_F)
+                      txt(d, (cw + wdx, cy), word, fit(word, FONT_EN, 54 * T_F, 270), word_color(i))
+                      p = ar(pron); m = ar(mean)
+                      txt(d, (cp, cy), p, fit(p, FONT_AR, 48 * T_F, 300), TH["pron"] + (255,))
+                      txt(d, (cm, cy), m, fit(m, FONT_AR, 46 * T_F, 270), TH["mean"] + (255,))
 
-              d.rounded_rectangle((40, 310, 1040, 1550), radius=40, fill=(8, 14, 30, 175))
-              d.rounded_rectangle((60, 330, 1020, 395), radius=20, fill=(255, 255, 255, 45))
-              for x, label in ((COL_WORD, "الكلمة"), (COL_PRON, "النطق"), (COL_MEAN, "المعنى")):
-                  t = ar(label)
-                  d.text((x, 362), t, font=mk(FONT_AR, 36), fill=GOLD + (255,), anchor="mm")
+              elif LAYOUT == "cards":
+                  header_and_panel(d, 1550)
+                  cwid, gap = 470, 12
+                  for i in range(shown):
+                      word, pron, mean = rows[i]
+                      col, rw = i % 2, i // 2            # col 0 = right side (RTL reading)
+                      x1 = 1020 - col * (cwid + 20)
+                      x0 = x1 - cwid
+                      if N % 2 == 1 and i == N - 1:      # last odd card is centered
+                          x0, x1 = W / 2 - cwid / 2, W / 2 + cwid / 2
+                      top = 335 + rw * (C_H + gap)
+                      box_style(d, (x0, top, x1, top + C_H), highlight and i == shown - 1, r=30)
+                      cx = (x0 + x1) / 2
+                      badge(d, x1 - 36 * C_F, top + 36 * C_F, i, r=24 * C_F)
+                      txt(d, (cx, top + C_H * 0.36), word, fit(word, FONT_EN, 62 * C_F, 380), word_color(i))
+                      p = ar(pron); m = ar(mean)
+                      txt(d, (cx, top + C_H * 0.62), p, fit(p, FONT_AR, 44 * C_F, 420), TH["pron"] + (255,))
+                      txt(d, (cx, top + C_H * 0.85), m, fit(m, FONT_AR, 44 * C_F, 420), TH["mean"] + (255,))
 
-              for i in range(shown):
-                  word, pron, mean = rows[i]
-                  top = Y0 + i * RH
-                  cy = top + RH / 2
-                  is_hl = highlight and i == shown - 1
-                  if is_hl:
-                      d.rounded_rectangle((60, top + 6, 1020, top + RH - 6), radius=24,
-                                          fill=GOLD + (80,), outline=GOLD + (255,), width=4)
-                  else:
-                      d.rounded_rectangle((60, top + 6, 1020, top + RH - 6), radius=24,
-                                          fill=(255, 255, 255, 28))
-                  d.ellipse((955, cy - 30, 1015, cy + 30), fill=PALETTE[i % len(PALETTE)] + (255,))
-                  d.text((985, cy), str(i + 1), font=mk(FONT_EN, 32), fill=(20, 20, 30, 255), anchor="mm")
-
-                  txt(d, (COL_WORD - 15, cy), word, fit(word, FONT_EN, 54, 280), (255, 255, 255, 255))
-                  p = ar(pron)
-                  txt(d, (COL_PRON, cy), p, fit(p, FONT_AR, 48, 300), (170, 240, 255, 255))
-                  m = ar(mean)
-                  txt(d, (COL_MEAN, cy), m, fit(m, FONT_AR, 46, 270), (255, 250, 190, 255))
+              else:  # stack
+                  header_and_panel(d, 1550)
+                  for i in range(shown):
+                      word, pron, mean = rows[i]
+                      top = S_Y0 + i * S_RH
+                      cy = top + S_RH / 2
+                      box_style(d, (60, top + 6, 1020, top + S_RH - 6), highlight and i == shown - 1)
+                      badge(d, 985, cy, i, r=30 * S_F)
+                      txt(d, (W / 2, cy - S_RH * 0.18), word, fit(word, FONT_EN, 52 * S_F, 760), word_color(i))
+                      p = ar(pron); m = ar(mean)
+                      sy = cy + S_RH * 0.23
+                      txt(d, (W / 2 + 200, sy), p, fit(p, FONT_AR, 42 * S_F, 330), TH["pron"] + (255,))
+                      txt(d, (W / 2 - 200, sy), m, fit(m, FONT_AR, 42 * S_F, 330), TH["mean"] + (255,))
+                      d.ellipse((W / 2 - 5, sy - 5, W / 2 + 5, sy + 5), fill=ACC + (255,))
 
               if cta:
-                  d.rounded_rectangle((190, 1585, 890, 1685), radius=30, fill=(0, 0, 0, 190))
+                  d.rounded_rectangle((190, 1585, 890, 1685), radius=30, fill=(0, 0, 0, 205), outline=ACC + (255,), width=2)
                   c = ar("تابعونا واتركوا تعليقا")
                   d.text((W / 2, 1635), c, font=fit(c, FONT_AR, 52, 640), fill=(255, 255, 200, 255), anchor="mm")
               return img
 
-          # states 0..N : title, then 1..N rows (last revealed row highlighted); N+1 : full table + CTA
           for k in range(N + 1):
               draw_state(k, highlight=(k >= 1), cta=False).save(f"/tmp/frames/state_{k}.png")
           draw_state(N, highlight=False, cta=True).save(f"/tmp/frames/state_{N + 1}.png")
