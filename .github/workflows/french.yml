@@ -53,7 +53,6 @@ jobs:
             echo "Piper voice model found in cache, skipping download."
           fi
 
-          # Verify piper actually works
           echo "test" | python3 -m piper --model fr_FR-siwis-medium.onnx --output_file /tmp/piper_test.wav
           test -s /tmp/piper_test.wav
           echo "piper_ready=true" >> "$GITHUB_OUTPUT"
@@ -65,7 +64,7 @@ jobs:
           PIXABAY_KEY: "50973339-3e27fd59ddfd9c68378e78753"
         run: |
           set -e
-          CLIP=18
+          CLIP=12
           SKIP_HEAD=5
           SKIP_TAIL=5
           MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
@@ -221,49 +220,71 @@ jobs:
         continue-on-error: true
         run: |
           WORD="${{ steps.content.outputs.word }}"
-          PHRASE="${WORD}. ${WORD}."
 
-          echo "Synthesizing speech for: $PHRASE"
+          echo "Synthesizing speech parts for: $WORD"
 
           SUCCESS=0
 
-          # Try Piper first (natural voice)
+          synth_piper() {
+            local text="$1"
+            local out="$2"
+            echo "$text" | timeout 20 python3 -m piper \
+              --model /home/runner/piper-voices/fr_FR-siwis-medium.onnx \
+              --output_file "$out" 2>/tmp/piper_err.log
+          }
+
+          synth_espeak() {
+            local text="$1"
+            local out="$2"
+            timeout 15 espeak-ng -v fr -s 150 -w "$out" "$text" 2>/tmp/espeak_err.log
+          }
+
+          # Three separate audio parts, generated individually so we control the silence between them precisely
+          PART_OK=1
           if [ "${{ steps.piper_setup.outputs.piper_ready }}" = "true" ]; then
-            echo "Attempting Piper TTS..."
-            if echo "$PHRASE" | timeout 30 python3 -m piper \
-                --model /home/runner/piper-voices/fr_FR-siwis-medium.onnx \
-                --output_file speech_raw.wav 2>/tmp/piper_err.log; then
-              if [ -s speech_raw.wav ]; then
-                echo "Piper succeeded."
-                SUCCESS=1
-              fi
+            echo "Attempting Piper TTS for all parts..."
+            synth_piper "Le mot est." intro_raw.wav || PART_OK=0
+            synth_piper "$WORD." word1_raw.wav || PART_OK=0
+            synth_piper "On répète." repeat_raw.wav || PART_OK=0
+            synth_piper "$WORD." word2_raw.wav || PART_OK=0
+            if [ -s intro_raw.wav ] && [ -s word1_raw.wav ] && [ -s repeat_raw.wav ] && [ -s word2_raw.wav ]; then
+              SUCCESS=1
+              echo "Piper succeeded for all parts."
+            else
+              PART_OK=0
             fi
-            if [ "$SUCCESS" -eq 0 ]; then
-              echo "Piper failed, see error:"
-              cat /tmp/piper_err.log || true
-            fi
-          else
-            echo "Piper not ready (setup failed earlier), skipping to fallback."
           fi
 
-          # Fallback to espeak-ng if Piper didn't work
           if [ "$SUCCESS" -eq 0 ]; then
-            echo "Attempting espeak-ng fallback..."
-            if timeout 20 espeak-ng -v fr -s 150 -w speech_raw.wav "$PHRASE" 2>/tmp/espeak_err.log; then
-              if [ -s speech_raw.wav ]; then
-                echo "espeak-ng succeeded."
-                SUCCESS=1
-              fi
-            fi
-            if [ "$SUCCESS" -eq 0 ]; then
-              echo "espeak-ng failed too, see error:"
-              cat /tmp/espeak_err.log || true
+            echo "Falling back to espeak-ng for all parts..."
+            synth_espeak "Le mot est." intro_raw.wav
+            synth_espeak "$WORD." word1_raw.wav
+            synth_espeak "On répète." repeat_raw.wav
+            synth_espeak "$WORD." word2_raw.wav
+            if [ -s intro_raw.wav ] && [ -s word1_raw.wav ] && [ -s repeat_raw.wav ] && [ -s word2_raw.wav ]; then
+              SUCCESS=1
+              echo "espeak-ng succeeded for all parts."
             fi
           fi
 
           if [ "$SUCCESS" -eq 1 ]; then
-            # Normalize to a predictable format for mixing downstream
-            timeout 15 ffmpeg -hide_banner -loglevel error -y -i speech_raw.wav -ac 2 -ar 44100 speech_final.wav
+            # Normalize each part, then stitch with precise silence gaps:
+            # intro -> 0.3s gap -> word1 -> 2.5s gap (long pause, "3x") -> repeat -> 0.3s gap -> word2
+            for f in intro_raw word1_raw repeat_raw word2_raw; do
+              timeout 10 ffmpeg -hide_banner -loglevel error -y -i "${f}.wav" -ac 2 -ar 44100 -filter:a "volume=2.5" "${f}_norm.wav"
+            done
+
+            timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 0.3 silence_short.wav
+            timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 2.5 silence_long.wav
+
+            timeout 15 ffmpeg -hide_banner -loglevel error -y \
+              -i intro_raw_norm.wav -i silence_short.wav \
+              -i word1_raw_norm.wav -i silence_long.wav \
+              -i repeat_raw_norm.wav -i silence_short.wav \
+              -i word2_raw_norm.wav \
+              -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a]concat=n=7:v=0:a=1[aout]" \
+              -map "[aout]" speech_final.wav
+
             echo "tts_available=true" >> "$GITHUB_OUTPUT"
           else
             echo "All TTS methods failed. Proceeding without spoken audio."
@@ -299,8 +320,8 @@ jobs:
           pron_en = os.environ.get("PRON_EN", "bohn-ZHOOR")
           pron_ar = os.environ.get("PRON_AR", "بونجور")
           meaning = os.environ.get("MEANING", "مرحبا")
-          dur = float(os.environ.get("DUR", "18"))
-          fadeout = float(os.environ.get("FADEOUT", "16.5"))
+          dur = float(os.environ.get("DUR", "12"))
+          fadeout = float(os.environ.get("FADEOUT", "10.5"))
 
           font_en_candidates = [
               "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
@@ -338,19 +359,18 @@ jobs:
           intro_text = random.choice(intros)
 
           filters = []
-          text_start = 1.8
-          line_interval = 1.1
 
           def fade_in(t):
-              return f"if(lt(t,{t:.2f}),0,min(1,(t-{t:.2f})/0.35))"
+              return f"if(lt(t,{t:.2f}),0,min(1,(t-{t:.2f})/0.3))"
 
+          # Timing matched to speech: intro text(0.3s) -> word appears+spoken(2.3s) -> long pause -> repeat+word2(5.8s-7.6s) -> rest of info
           y_intro = 160
-          t_intro = 0.4
+          t_intro = 0.3
           filters.append(
               f"drawtext=text='{esc(intro_text)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
               f":fontcolor=white@0.95"
-              f":fontsize=50"
+              f":fontsize=48"
               f":x=(w-text_w)/2"
               f":y={y_intro}"
               f":alpha='{fade_in(t_intro)}'"
@@ -358,7 +378,7 @@ jobs:
           )
 
           y_word = 460
-          t_word = text_start
+          t_word = 2.3
           filters.append(
               f"drawtext=text='{esc(word)}'"
               f":fontfile={font_en}"
@@ -371,51 +391,51 @@ jobs:
           )
 
           y_pron_en = 640
-          t_pron_en = text_start + line_interval
+          t_pron_en = 7.6
           filters.append(
               f"drawtext=text='{esc(pron_en)}'"
               f":fontfile={font_en}"
               f":fontcolor={accent_color}"
-              f":fontsize=58"
+              f":fontsize=54"
               f":x=(w-text_w)/2"
               f":y={y_pron_en}"
               f":alpha='{fade_in(t_pron_en)}'"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          y_pron_ar_label = 715
-          t_pron_ar_label = text_start + line_interval * 2 - 0.15
+          y_pron_ar_label = 710
+          t_pron_ar_label = 8.3
           filters.append(
               f"drawtext=text='{esc('طريقة النطق')}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
               f":fontcolor=white@0.75"
-              f":fontsize=34"
+              f":fontsize=32"
               f":x=(w-text_w)/2"
               f":y={y_pron_ar_label}"
               f":alpha='{fade_in(t_pron_ar_label)}'"
               f":shadowcolor=black@0.7:shadowx=2:shadowy=2"
           )
 
-          y_pron_ar = 765
-          t_pron_ar = text_start + line_interval * 2
+          y_pron_ar = 758
+          t_pron_ar = 8.5
           filters.append(
               f"drawtext=text='{esc(pron_ar)}'"
               f":fontfile={font_ar}"
               f":fontcolor={accent_color}"
-              f":fontsize=64"
+              f":fontsize=60"
               f":x=(w-text_w)/2"
               f":y={y_pron_ar}"
               f":alpha='{fade_in(t_pron_ar)}'"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          y_meaning = 900
-          t_meaning = text_start + line_interval * 3
+          y_meaning = 890
+          t_meaning = 9.2
           filters.append(
               f"drawtext=text='{esc('المعنى: ' + meaning)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
               f":fontcolor=white@0.9"
-              f":fontsize=52"
+              f":fontsize=48"
               f":x=(w-text_w)/2"
               f":y={y_meaning}"
               f":alpha='{fade_in(t_meaning)}'"
@@ -424,7 +444,7 @@ jobs:
 
           ctas = ["تابعنا", "اترك تعليق", "شارك مع صديق", "احفظ الفيديو", "تابعنا لمزيد"]
           cta_text = random.choice(ctas)
-          t_cta = text_start + line_interval * 4 + 0.3
+          t_cta = 9.8
           box_y_top = 1580
           box_y_bottom = 1680
           filters.append(
@@ -436,7 +456,7 @@ jobs:
               f"drawtext=text='{esc(cta_text)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
               f":fontcolor=lightyellow"
-              f":fontsize=56"
+              f":fontsize=52"
               f":x=(w-text_w)/2"
               f":y={box_y_top + 22}"
               f":alpha='{fade_in(t_cta)}'"
@@ -450,7 +470,7 @@ jobs:
               f"crop=1080:1920,"
               f"setsar=1,"
               f"gblur=sigma=25,"
-              f"fade=t=in:st=0:d=1,"
+              f"fade=t=in:st=0:d=0.5,"
               f"fade=t=out:st={fadeout:.2f}:d=1.5,"
               f"{all_dt}[vout]"
           )
@@ -466,10 +486,10 @@ jobs:
 
           VFILTER=$(cat /tmp/vfilter.txt)
 
-          # Build audio mix: music always present; if TTS succeeded, duck music and overlay speech near the start
+          # Audio mix: music quieter throughout, TTS louder and clearly audible, ducking music further during speech window (0.5s-7.8s)
           if [ "${{ steps.tts.outputs.tts_available }}" = "true" ]; then
             echo "Mixing with TTS speech overlay..."
-            AFILTER="[1:a]volume=1.0,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5,volume='if(between(t,1.5,4.5),0.25,1.0)':eval=frame[music];[2:a]adelay=1500|1500,volume=1.4[speech];[music][speech]amix=inputs=2:duration=first:dropout_transition=0[aout]"
+            AFILTER="[1:a]volume=0.5,afade=t=in:st=0:d=0.5,afade=t=out:st=${FADEOUT}:d=1.5,volume='if(between(t,0.5,7.8),0.15,0.5)':eval=frame[music];[2:a]adelay=500|500,volume=1.0[speech];[music][speech]amix=inputs=2:duration=first:dropout_transition=0,volume=1.6[aout]"
             timeout 240 ffmpeg -hide_banner -loglevel error -y \
               -i source.mp4 \
               -i music_clip.mp3 \
@@ -488,7 +508,7 @@ jobs:
             timeout 240 ffmpeg -hide_banner -loglevel error -y \
               -i source.mp4 \
               -i music_clip.mp3 \
-              -filter_complex "${VFILTER};[1:a]volume=1.0,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[aout]" \
+              -filter_complex "${VFILTER};[1:a]volume=0.8,afade=t=in:st=0:d=0.5,afade=t=out:st=${FADEOUT}:d=1.5[aout]" \
               -map "[vout]" \
               -map "[aout]" \
               -t "$DUR" \
@@ -505,8 +525,8 @@ jobs:
           PRON_EN: ${{ steps.content.outputs.pron_en }}
           PRON_AR: ${{ steps.content.outputs.pron_ar }}
           MEANING: ${{ steps.content.outputs.meaning }}
-          DUR: "18"
-          FADEOUT: "16.5"
+          DUR: "12"
+          FADEOUT: "10.5"
 
       - name: process-image
         timeout-minutes: 3
@@ -553,7 +573,7 @@ jobs:
           filters.append(
               f"drawtext=text='{esc(intro_text)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.95:fontsize=50:x=(w-text_w)/2:y=160"
+              f":fontcolor=white@0.95:fontsize=48:x=(w-text_w)/2:y=160"
               f":shadowcolor=black@0.85:shadowx=3:shadowy=3"
           )
           filters.append(
@@ -565,25 +585,25 @@ jobs:
           filters.append(
               f"drawtext=text='{esc(pron_en)}'"
               f":fontfile={font_en}"
-              f":fontcolor={accent_color}:fontsize=58:x=(w-text_w)/2:y=640"
+              f":fontcolor={accent_color}:fontsize=54:x=(w-text_w)/2:y=640"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
           filters.append(
               f"drawtext=text='{esc('طريقة النطق')}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.75:fontsize=34:x=(w-text_w)/2:y=715"
+              f":fontcolor=white@0.75:fontsize=32:x=(w-text_w)/2:y=710"
               f":shadowcolor=black@0.7:shadowx=2:shadowy=2"
           )
           filters.append(
               f"drawtext=text='{esc(pron_ar)}'"
               f":fontfile={font_ar}"
-              f":fontcolor={accent_color}:fontsize=64:x=(w-text_w)/2:y=765"
+              f":fontcolor={accent_color}:fontsize=60:x=(w-text_w)/2:y=758"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
           filters.append(
               f"drawtext=text='{esc('المعنى: ' + meaning)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.9:fontsize=52:x=(w-text_w)/2:y=900"
+              f":fontcolor=white@0.9:fontsize=48:x=(w-text_w)/2:y=890"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
@@ -595,7 +615,7 @@ jobs:
           filters.append(
               f"drawtext=text='{esc(cta_text)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=lightyellow:fontsize=56:x=(w-text_w)/2:y={box_y_top + 22}"
+              f":fontcolor=lightyellow:fontsize=52:x=(w-text_w)/2:y={box_y_top + 22}"
               f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
           )
 
