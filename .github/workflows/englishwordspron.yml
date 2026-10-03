@@ -8,7 +8,7 @@ name: english-words-post
         required: false
         default: ""
   schedule:
-    - cron: "0 18 * * *"  # 10 AM EST / 2 PM UTC daily
+    - cron: "0 14 * * *"  # 10 AM EST / 2 PM UTC daily
 
 jobs:
   post:
@@ -23,7 +23,39 @@ jobs:
         timeout-minutes: 3
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg bc jq python3 fonts-noto fonts-noto-color-emoji fonts-noto-cjk fonts-noto-core fonts-noto-ui-core
+          sudo apt-get install -y ffmpeg bc jq python3 python3-pip espeak-ng fonts-noto fonts-noto-extra fonts-noto-color-emoji fonts-noto-cjk fonts-noto-core fonts-noto-ui-core
+
+      - name: cache-piper-model
+        id: piper_cache
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/piper-voices
+          key: piper-en_US-voice-v1
+
+      - name: setup-piper
+        id: piper_setup
+        timeout-minutes: 3
+        continue-on-error: true
+        run: |
+          set -e
+          pip install --quiet piper-tts --break-system-packages || pip install --quiet piper-tts
+
+          mkdir -p /home/runner/piper-voices
+          cd /home/runner/piper-voices
+
+          if [ ! -f "en_US-amy-medium.onnx" ]; then
+            echo "Downloading Piper English voice model (first run, will be cached after)..."
+            timeout 60 curl -sfL -o en_US-amy-medium.onnx \
+              "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx" || exit 1
+            timeout 30 curl -sfL -o en_US-amy-medium.onnx.json \
+              "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx.json" || exit 1
+          else
+            echo "Piper voice model found in cache, skipping download."
+          fi
+
+          echo "test" | python3 -m piper --model en_US-amy-medium.onnx --output_file /tmp/piper_test.wav
+          test -s /tmp/piper_test.wav
+          echo "piper_ready=true" >> "$GITHUB_OUTPUT"
 
       - name: find-video
         id: vid
@@ -32,7 +64,7 @@ jobs:
           PIXABAY_KEY: "50973339-3e27fd59ddfd9c68378e78753"
         run: |
           set -e
-          CLIP=18
+          CLIP=11
           SKIP_HEAD=5
           SKIP_TAIL=5
           MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
@@ -107,38 +139,38 @@ jobs:
         id: content
         timeout-minutes: 1
         run: |
-          # 30 words — each: WORD|ENGLISH_PRONUNCIATION|ARABIC_PRONUNCIATION|ARABIC_MEANING
+          # 30 NEW English words — each: WORD|ENGLISH_PRONUNCIATION|ARABIC_PRONUNCIATION|ARABIC_MEANING
           CONTENT_RAW=(
-            "Beautiful|BYOO-tuh-fuhl|بـِيوتِفُل|جميل"
-            "Water|WAH-ter|ووتر|ماء"
-            "Friend|FREND|فْرِنْد|صديق"
-            "Happy|HA-pee|هابي|سعيد"
-            "Computer|kuhm-PYOO-ter|كَمْبيوتر|حاسوب"
-            "Journey|JER-nee|جِرْني|رحلة"
-            "Knowledge|NAH-lij|نالِدج|معرفة"
-            "Patience|PAY-shuhns|بيْشِنس|صبر"
-            "Success|suhk-SES|سَكْسِس|نجاح"
-            "Weather|WE-ther|وِذِر|طقس"
-            "Language|LANG-gwij|لانْغْوِدج|لغة"
-            "Airport|AIR-port|إيربورت|مطار"
-            "Delicious|dih-LI-shuhs|دِلِيشَس|لذيذ"
-            "Opportunity|ah-per-TOO-nih-tee|أوبورتيونِتي|فرصة"
-            "Health|HELTH|هِلْث|صحة"
-            "Schedule|SKE-jool|سْكِيدجول|جدول"
-            "Comfortable|KUHM-fter-buhl|كَمْفَرْتَبِل|مريح"
-            "Village|VI-lij|ڤِلِدج|قرية"
-            "Vegetable|VEJ-tuh-buhl|ڤِجْتَبِل|خضار"
-            "Environment|en-VY-run-muhnt|إِنْڤايرونمِنت|بيئة"
-            "Government|GUH-vern-muhnt|جَڤِرنمِنت|حكومة"
-            "Photograph|FOH-tuh-graf|فوتوغراف|صورة"
-            "Adventure|ad-VEN-cher|أَدْڤِنْتْشَر|مغامرة"
-            "Chocolate|CHAWK-lit|تشوكلِت|شوكولاتة"
-            "Bridge|BRIJ|بْرِدْج|جسر"
-            "Neighbor|NAY-ber|نِيْيْبَر|جار"
-            "Thought|THAWT|ثوت|فكرة"
-            "Through|THROO|ثْرو|عبر"
-            "Island|EYE-luhnd|آيلَنْد|جزيرة"
-            "Choice|CHOYS|تشويس|خيار"
+            "Sunrise|SUN-ryz|صانرايز|شروق الشمس"
+            "Ocean|OH-shun|أوشن|محيط"
+            "Freedom|FREE-duhm|فريدم|حرية"
+            "Journey|JER-nee|جيرني|رحلة"
+            "Wonder|WUHN-der|واندر|عجب"
+            "Harmony|HAR-muh-nee|هارموني|انسجام"
+            "Courage|KUR-ij|كاريج|شجاعة"
+            "Gratitude|GRAT-i-tood|غراتيتود|امتنان"
+            "Serenity|suh-REN-i-tee|سيرينيتي|هدوء"
+            "Discovery|dis-KUHV-ree|ديسكوفري|اكتشاف"
+            "Kindness|KYND-nes|كايندنس|لطف"
+            "Laughter|LAF-ter|لافتر|ضحك"
+            "Mystery|MIS-tuh-ree|ميستري|غموض"
+            "Horizon|huh-RY-zuhn|هورايزن|أفق"
+            "Butterfly|BUT-er-fly|باترفلاي|فراشة"
+            "Mountain|MOWN-tin|ماونتن|جبل"
+            "Whisper|WIS-per|ويسبر|همس"
+            "Sunset|SUN-set|صانسيت|غروب الشمس"
+            "Rainbow|RAYN-boh|رينبو|قوس قزح"
+            "Treasure|TREZH-er|تريجر|كنز"
+            "Wisdom|WIZ-duhm|ويزدم|حكمة"
+            "Memory|MEM-uh-ree|ميموري|ذاكرة"
+            "Diamond|DY-muhnd|دايموند|ماسة"
+            "Destiny|DES-ti-nee|ديستيني|قدر"
+            "Imagination|i-maj-i-NAY-shun|إيماجينيشن|خيال"
+            "Universe|YOO-ni-vers|يونيفيرس|كون"
+            "Reflection|ri-FLEK-shun|ريفليكشن|انعكاس"
+            "Balance|BAL-uhns|بالانس|توازن"
+            "Melody|MEL-uh-dee|ميلودي|لحن"
+            "Twilight|TWY-lyt|توايلايت|شفق"
           )
 
           IDX=$((RANDOM % ${#CONTENT_RAW[@]}))
@@ -152,7 +184,7 @@ jobs:
           echo "pron_en=$PRON_EN" >> "$GITHUB_OUTPUT"
           echo "pron_ar=$PRON_AR" >> "$GITHUB_OUTPUT"
           echo "meaning=$MEANING" >> "$GITHUB_OUTPUT"
-          echo "Selected word: $WORD"
+          echo "Selected word: $WORD | pron_en: $PRON_EN | pron_ar: $PRON_AR | meaning: $MEANING"
 
       - name: pick-caption
         id: caption
@@ -161,19 +193,97 @@ jobs:
           INPUT_CAPTION="${{ github.event.inputs.caption }}"
           if [ -n "$INPUT_CAPTION" ]; then
             echo "caption=$INPUT_CAPTION" >> "$GITHUB_OUTPUT"
+            echo "image_caption=$INPUT_CAPTION" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           WORD="${{ steps.content.outputs.word }}"
+          PRON_AR="${{ steps.content.outputs.pron_ar }}"
+          MEANING="${{ steps.content.outputs.meaning }}"
+
           CAPTIONS=(
-            "تعلم كلمة إنجليزية جديدة كل يوم. تابعنا لمزيد من الكلمات. #تعلم_الانجليزية #english #learnenglish #اللغة_الانجليزية #EFL #تعلم_اللغة_الانجليزية #englishwithme"
-            "كلمة اليوم: ${WORD}. احفظها وكررها. #تعلم_الانجليزية #english #learnenglish #اللغة_الانجليزية #EFL #englishvocabulary #تعلم_اللغة"
-            "هل تعرف كيف تنطق هذه الكلمة؟ شاركها مع صديقك. #تعلم_الانجليزية #english #learnenglish #اللغة_الانجليزية #EFL #englishlessons #تعلم_اللغة_الانجليزية"
-            "تعلم النطق الصحيح خطوة بخطوة. احفظ هذا الفيديو. #تعلم_الانجليزية #english #learnenglish #اللغة_الانجليزية #EFL #speakenglish #تعلم_اللغة"
-            "كل كلمة جديدة تقربك من إتقان الإنجليزية. تابعنا. #تعلم_الانجليزية #english #learnenglish #اللغة_الانجليزية #EFL #englishteacher #تعلم_اللغة_الانجليزية"
+            "كلمة اليوم بالإنجليزية 🇬🇧 #تعلم_الانجليزية #english #learnenglish"
+            "تعلم معنا 🇬🇧 #تعلم_الانجليزية #english #learnenglish"
+            "كلمة جديدة كل يوم 🇬🇧 #تعلم_الانجليزية #english #learnenglish"
+            "تابعنا لمزيد 🇬🇧 #تعلم_الانجليزية #english #learnenglish"
+            "تعلم الإنجليزية بسهولة 🇬🇧 #تعلم_الانجليزية #english #learnenglish"
           )
           IDX=$((RANDOM % ${#CAPTIONS[@]}))
           PICKED="${CAPTIONS[$IDX]}"
           echo "caption=$PICKED" >> "$GITHUB_OUTPUT"
+
+          IMAGE_CAPTION="${WORD} - ${PRON_AR} - ${MEANING} 🇬🇧 #تعلم_الانجليزية #english #learnenglish #اللغة_الانجليزية #EFL"
+          echo "image_caption=$IMAGE_CAPTION" >> "$GITHUB_OUTPUT"
+
+      - name: synthesize-speech
+        id: tts
+        timeout-minutes: 2
+        continue-on-error: true
+        run: |
+          WORD="${{ steps.content.outputs.word }}"
+
+          echo "Synthesizing speech parts for: $WORD"
+
+          SUCCESS=0
+
+          synth_piper() {
+            local text="$1"
+            local out="$2"
+            echo "$text" | timeout 20 python3 -m piper \
+              --model /home/runner/piper-voices/en_US-amy-medium.onnx \
+              --output_file "$out" 2>/tmp/piper_err.log
+          }
+
+          synth_espeak() {
+            local text="$1"
+            local out="$2"
+            timeout 15 espeak-ng -v en-us -s 150 -w "$out" "$text" 2>/tmp/espeak_err.log
+          }
+
+          if [ "${{ steps.piper_setup.outputs.piper_ready }}" = "true" ]; then
+            echo "Attempting Piper TTS for all parts..."
+            synth_piper "The word is." intro_raw.wav || true
+            synth_piper "$WORD." word1_raw.wav || true
+            synth_piper "Let's repeat." repeat_raw.wav || true
+            synth_piper "$WORD." word2_raw.wav || true
+            if [ -s intro_raw.wav ] && [ -s word1_raw.wav ] && [ -s repeat_raw.wav ] && [ -s word2_raw.wav ]; then
+              SUCCESS=1
+              echo "Piper succeeded for all parts."
+            fi
+          fi
+
+          if [ "$SUCCESS" -eq 0 ]; then
+            echo "Falling back to espeak-ng for all parts..."
+            synth_espeak "The word is." intro_raw.wav
+            synth_espeak "$WORD." word1_raw.wav
+            synth_espeak "Let's repeat." repeat_raw.wav
+            synth_espeak "$WORD." word2_raw.wav
+            if [ -s intro_raw.wav ] && [ -s word1_raw.wav ] && [ -s repeat_raw.wav ] && [ -s word2_raw.wav ]; then
+              SUCCESS=1
+              echo "espeak-ng succeeded for all parts."
+            fi
+          fi
+
+          if [ "$SUCCESS" -eq 1 ]; then
+            for f in intro_raw word1_raw repeat_raw word2_raw; do
+              timeout 10 ffmpeg -hide_banner -loglevel error -y -i "${f}.wav" -ac 2 -ar 44100 -filter:a "volume=1.8" "${f}_norm.wav"
+            done
+
+            timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 0.3 silence_short.wav
+            timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 1.2 silence_long.wav
+
+            timeout 15 ffmpeg -hide_banner -loglevel error -y \
+              -i intro_raw_norm.wav -i silence_short.wav \
+              -i word1_raw_norm.wav -i silence_long.wav \
+              -i repeat_raw_norm.wav -i silence_short.wav \
+              -i word2_raw_norm.wav \
+              -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a]concat=n=7:v=0:a=1[aout]" \
+              -map "[aout]" speech_final.wav
+
+            echo "tts_available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "All TTS methods failed. Proceeding without spoken audio."
+            echo "tts_available=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: process-video
         timeout-minutes: 8
@@ -182,10 +292,8 @@ jobs:
           START="${{ steps.vid.outputs.start }}"
           DUR="${{ steps.vid.outputs.clip }}"
           MUSIC_FILE="${{ steps.music.outputs.music_file }}"
-          WORD="${{ steps.content.outputs.word }}"
-          PRON_EN="${{ steps.content.outputs.pron_en }}"
-          PRON_AR="${{ steps.content.outputs.pron_ar }}"
-          MEANING="${{ steps.content.outputs.meaning }}"
+
+          echo "Video step word check: WORD=$WORD PRON_EN=$PRON_EN PRON_AR=$PRON_AR MEANING=$MEANING"
 
           FETCH=$(echo "$DUR + 5" | bc)
           FADEOUT=$(echo "$DUR - 1.5" | bc)
@@ -206,12 +314,15 @@ jobs:
           pron_en = os.environ.get("PRON_EN", "heh-LOH")
           pron_ar = os.environ.get("PRON_AR", "هيلو")
           meaning = os.environ.get("MEANING", "مرحبا")
-          dur = float(os.environ.get("DUR", "18"))
-          fadeout = float(os.environ.get("FADEOUT", "16.5"))
+          dur = float(os.environ.get("DUR", "11"))
+          fadeout = float(os.environ.get("FADEOUT", "9.5"))
 
-          # Fonts: Arabic needs a font that supports Arabic script; Noto Naskh Arabic covers it.
-          # English word uses a bold serif/sans for visual punch.
-          font_en = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+          font_en_candidates = [
+              "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+              "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+          ]
+          font_en = next((f for f in font_en_candidates if os.path.exists(f)), font_en_candidates[-1])
+
           font_ar_candidates = [
               "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf",
               "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
@@ -219,7 +330,6 @@ jobs:
           ]
           font_ar = next((f for f in font_ar_candidates if os.path.exists(f)), font_en)
 
-          # Random color each video for variety (word + accents share the same color family)
           color_palette = [
               "white", "gold", "lightyellow", "lightcyan",
               "lightpink", "peachpuff", "lavender", "palegreen",
@@ -227,108 +337,115 @@ jobs:
               "mistyrose", "honeydew", "aliceblue"
           ]
           main_color = random.choice(color_palette)
-          # secondary accent color, distinct from main, for meaning/pron lines
           accent_palette = [c for c in color_palette if c != main_color]
           accent_color = random.choice(accent_palette)
 
           def esc(t):
               return t.replace("'", "\u2019").replace(":", "\\:").replace(",", "\\,")
 
-          # Rotating Arabic intro/top prompt line
           intros = [
               "تعلم كلمة إنجليزية جديدة",
               "كلمة اليوم باللغة الإنجليزية",
               "تعلم النطق الصحيح",
               "وسّع مفرداتك الإنجليزية",
-              "كلمة جديدة كل يوم",
+              "كلمة إنجليزية جديدة كل يوم",
           ]
           intro_text = random.choice(intros)
 
           filters = []
-          text_start = 1.8
-          line_interval = 1.1
-          y = 0
 
           def fade_in(t):
-              return f"if(lt(t,{t:.2f}),0,min(1,(t-{t:.2f})/0.35))"
+              return f"if(lt(t,{t:.2f}),0,min(1,(t-{t:.2f})/0.25))"
 
-          # 1) Top: Arabic intro line
-          y_intro = 160
-          t_intro = 0.4
           filters.append(
               f"drawtext=text='{esc(intro_text)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.95"
-              f":fontsize=50"
-              f":x=(w-text_w)/2"
-              f":y={y_intro}"
-              f":alpha='{fade_in(t_intro)}'"
+              f":fontcolor=white@0.95:fontsize=46:x=(w-text_w)/2:y=140"
+              f":alpha='{fade_in(0.3)}'"
               f":shadowcolor=black@0.85:shadowx=3:shadowy=3"
           )
 
-          # 2) The English word (large, bold, center-upper)
-          y_word = 460
-          t_word = text_start
+          # Subtitle 1: "الكلمة هي" — bold text on solid colored box, synced to "The word is." (0.5s-1.6s)
+          sub1_box_top = 290
+          sub1_box_h = 90
+          filters.append(
+              f"drawbox=x=300:y={sub1_box_top}:w=480:h={sub1_box_h}"
+              f":color=black@0.75:t=fill"
+              f":enable='between(t,0.5,1.6)'"
+          )
+          filters.append(
+              f"drawtext=text='{esc('الكلمة هي')}'"
+              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
+              f":fontcolor=lightyellow:fontsize=52:x=(w-text_w)/2:y={sub1_box_top + 18}"
+              f":enable='between(t,0.5,1.6)'"
+              f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
+          )
+
+          # Subtitle 2: "لنكررها" — earlier timing (4.6s-5.6s)
+          sub2_box_top = 290
+          sub2_box_h = 90
+          filters.append(
+              f"drawbox=x=300:y={sub2_box_top}:w=480:h={sub2_box_h}"
+              f":color=black@0.75:t=fill"
+              f":enable='between(t,4.6,5.6)'"
+          )
+          filters.append(
+              f"drawtext=text='{esc('لنكررها')}'"
+              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
+              f":fontcolor=lightyellow:fontsize=52:x=(w-text_w)/2:y={sub2_box_top + 18}"
+              f":enable='between(t,4.6,5.6)'"
+              f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
+          )
+
+          # The English word (appears at 1.6s, when TTS says it)
           filters.append(
               f"drawtext=text='{esc(word)}'"
               f":fontfile={font_en}"
-              f":fontcolor={main_color}"
-              f":fontsize=100"
-              f":x=(w-text_w)/2"
-              f":y={y_word}"
-              f":alpha='{fade_in(t_word)}'"
+              f":fontcolor={main_color}:fontsize=100:x=(w-text_w)/2:y=460"
+              f":alpha='{fade_in(1.6)}'"
               f":shadowcolor=black@0.85:shadowx=4:shadowy=4"
           )
 
-          # 3) Pronunciation in English letters
-          y_pron_en = 640
-          t_pron_en = text_start + line_interval
+          # Phonetic (English-letter) pronunciation — appears right after word is spoken
           filters.append(
               f"drawtext=text='{esc(pron_en)}'"
               f":fontfile={font_en}"
-              f":fontcolor={accent_color}"
-              f":fontsize=58"
-              f":x=(w-text_w)/2"
-              f":y={y_pron_en}"
-              f":alpha='{fade_in(t_pron_en)}'"
+              f":fontcolor={accent_color}:fontsize=54:x=(w-text_w)/2:y=640"
+              f":alpha='{fade_in(2.6)}'"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # 4) Pronunciation in Arabic letters
-          y_pron_ar = 760
-          t_pron_ar = text_start + line_interval * 2
+          # Arabic pronunciation label + text
+          filters.append(
+              f"drawtext=text='{esc('طريقة النطق')}'"
+              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
+              f":fontcolor=white@0.75:fontsize=32:x=(w-text_w)/2:y=710"
+              f":alpha='{fade_in(3.0)}'"
+              f":shadowcolor=black@0.7:shadowx=2:shadowy=2"
+          )
           filters.append(
               f"drawtext=text='{esc(pron_ar)}'"
               f":fontfile={font_ar}"
-              f":fontcolor={accent_color}"
-              f":fontsize=64"
-              f":x=(w-text_w)/2"
-              f":y={y_pron_ar}"
-              f":alpha='{fade_in(t_pron_ar)}'"
+              f":fontcolor={accent_color}:fontsize=60:x=(w-text_w)/2:y=758"
+              f":alpha='{fade_in(3.2)}'"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # 5) Meaning in Arabic
-          y_meaning = 900
-          t_meaning = text_start + line_interval * 3
+          # Meaning
           filters.append(
               f"drawtext=text='{esc('المعنى: ' + meaning)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.9"
-              f":fontsize=52"
-              f":x=(w-text_w)/2"
-              f":y={y_meaning}"
-              f":alpha='{fade_in(t_meaning)}'"
+              f":fontcolor=white@0.9:fontsize=48:x=(w-text_w)/2:y=890"
+              f":alpha='{fade_in(6.5)}'"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # 6) CTA box near bottom — solid background box + simple Arabic CTA text
+          # CTA box
           ctas = ["تابعنا", "اترك تعليق", "شارك مع صديق", "احفظ الفيديو", "تابعنا لمزيد"]
           cta_text = random.choice(ctas)
-          t_cta = text_start + line_interval * 4 + 0.3
+          t_cta = 6.9
           box_y_top = 1580
           box_y_bottom = 1680
-          # semi-opaque box behind CTA text
           filters.append(
               f"drawbox=x=240:y={box_y_top}:w=600:h={box_y_bottom - box_y_top}"
               f":color=black@0.55:t=fill"
@@ -337,10 +454,7 @@ jobs:
           filters.append(
               f"drawtext=text='{esc(cta_text)}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=lightyellow"
-              f":fontsize=56"
-              f":x=(w-text_w)/2"
-              f":y={box_y_top + 22}"
+              f":fontcolor=lightyellow:fontsize=52:x=(w-text_w)/2:y={box_y_top + 22}"
               f":alpha='{fade_in(t_cta)}'"
               f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
           )
@@ -352,7 +466,7 @@ jobs:
               f"crop=1080:1920,"
               f"setsar=1,"
               f"gblur=sigma=25,"
-              f"fade=t=in:st=0:d=1,"
+              f"fade=t=in:st=0:d=0.5,"
               f"fade=t=out:st={fadeout:.2f}:d=1.5,"
               f"{all_dt}[vout]"
           )
@@ -360,23 +474,45 @@ jobs:
           with open("/tmp/vfilter.txt", "w") as f:
               f.write(vfilter)
 
+          with open("/tmp/shared_state.txt", "w") as f:
+              f.write(f"{word}\n{pron_en}\n{pron_ar}\n{meaning}\n{main_color}\n{accent_color}\n{intro_text}\n{cta_text}\n")
+
           print(f"Built filter | word: {word} | main_color: {main_color} | accent: {accent_color} | intro: {intro_text} | cta: {cta_text}")
           PYEOF
 
           VFILTER=$(cat /tmp/vfilter.txt)
 
-          timeout 240 ffmpeg -hide_banner -loglevel error -y \
-            -i source.mp4 \
-            -i music_clip.mp3 \
-            -filter_complex "${VFILTER};[1:a]volume=1.0,afade=t=in:st=0:d=1,afade=t=out:st=${FADEOUT}:d=1.5[aout]" \
-            -map "[vout]" \
-            -map "[aout]" \
-            -t "$DUR" \
-            -c:v libx264 -preset medium -crf 16 \
-            -c:a aac -b:a 192k \
-            -movflags +faststart \
-            -pix_fmt yuv420p \
-            final.mp4
+          if [ "${{ steps.tts.outputs.tts_available }}" = "true" ]; then
+            echo "Mixing with TTS speech overlay..."
+            AFILTER="[1:a]volume=0.7,afade=t=in:st=0:d=0.5,afade=t=out:st=${FADEOUT}:d=1.5,volume='if(between(t,0.5,6.5),0.25,0.7)':eval=frame[music];[2:a]adelay=500|500,volume=0.85[speech];[music][speech]amix=inputs=2:duration=first:dropout_transition=0,volume=1.4[aout]"
+            timeout 240 ffmpeg -hide_banner -loglevel error -y \
+              -i source.mp4 \
+              -i music_clip.mp3 \
+              -i speech_final.wav \
+              -filter_complex "${VFILTER};${AFILTER}" \
+              -map "[vout]" \
+              -map "[aout]" \
+              -t "$DUR" \
+              -c:v libx264 -preset medium -crf 16 \
+              -c:a aac -b:a 192k \
+              -movflags +faststart \
+              -pix_fmt yuv420p \
+              final.mp4
+          else
+            echo "No TTS available, music-only audio..."
+            timeout 240 ffmpeg -hide_banner -loglevel error -y \
+              -i source.mp4 \
+              -i music_clip.mp3 \
+              -filter_complex "${VFILTER};[1:a]volume=0.9,afade=t=in:st=0:d=0.5,afade=t=out:st=${FADEOUT}:d=1.5[aout]" \
+              -map "[vout]" \
+              -map "[aout]" \
+              -t "$DUR" \
+              -c:v libx264 -preset medium -crf 16 \
+              -c:a aac -b:a 192k \
+              -movflags +faststart \
+              -pix_fmt yuv420p \
+              final.mp4
+          fi
 
           ls -lh final.mp4
         env:
@@ -384,8 +520,122 @@ jobs:
           PRON_EN: ${{ steps.content.outputs.pron_en }}
           PRON_AR: ${{ steps.content.outputs.pron_ar }}
           MEANING: ${{ steps.content.outputs.meaning }}
-          DUR: "18"
-          FADEOUT: "16.5"
+          DUR: "11"
+          FADEOUT: "9.5"
+
+      - name: process-image
+        timeout-minutes: 3
+        run: |
+          URL="${{ steps.vid.outputs.video_url }}"
+          START="${{ steps.vid.outputs.start }}"
+
+          WORD=$(sed -n '1p' /tmp/shared_state.txt)
+          PRON_EN=$(sed -n '2p' /tmp/shared_state.txt)
+          PRON_AR=$(sed -n '3p' /tmp/shared_state.txt)
+          MEANING=$(sed -n '4p' /tmp/shared_state.txt)
+
+          echo "Image step word check (from shared_state.txt): WORD=$WORD PRON_EN=$PRON_EN PRON_AR=$PRON_AR MEANING=$MEANING"
+
+          timeout 60 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -frames:v 1 bg_frame.jpg
+
+          python3 << 'PYEOF'
+          import os
+
+          with open("/tmp/shared_state.txt") as f:
+              lines = [l.rstrip("\n") for l in f.readlines()]
+          word, pron_en, pron_ar, meaning, main_color, accent_color, intro_text, cta_text = lines[0:8]
+
+          print(f"process-image using shared_state: word={word} pron_en={pron_en} pron_ar={pron_ar} meaning={meaning}")
+
+          font_en_candidates = [
+              "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+              "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+          ]
+          font_en = next((f for f in font_en_candidates if os.path.exists(f)), font_en_candidates[-1])
+
+          font_ar_candidates = [
+              "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf",
+              "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+              "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+          ]
+          font_ar = next((f for f in font_ar_candidates if os.path.exists(f)), font_en)
+
+          def esc(t):
+              return t.replace("'", "\u2019").replace(":", "\\:").replace(",", "\\,")
+
+          filters = []
+
+          filters.append(
+              f"drawtext=text='{esc(intro_text)}'"
+              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
+              f":fontcolor=white@0.95:fontsize=46:x=(w-text_w)/2:y=140"
+              f":shadowcolor=black@0.85:shadowx=3:shadowy=3"
+          )
+          filters.append(
+              f"drawtext=text='{esc(word)}'"
+              f":fontfile={font_en}"
+              f":fontcolor={main_color}:fontsize=100:x=(w-text_w)/2:y=460"
+              f":shadowcolor=black@0.85:shadowx=4:shadowy=4"
+          )
+          filters.append(
+              f"drawtext=text='{esc(pron_en)}'"
+              f":fontfile={font_en}"
+              f":fontcolor={accent_color}:fontsize=54:x=(w-text_w)/2:y=640"
+              f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
+          )
+          filters.append(
+              f"drawtext=text='{esc('طريقة النطق')}'"
+              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
+              f":fontcolor=white@0.75:fontsize=32:x=(w-text_w)/2:y=710"
+              f":shadowcolor=black@0.7:shadowx=2:shadowy=2"
+          )
+          filters.append(
+              f"drawtext=text='{esc(pron_ar)}'"
+              f":fontfile={font_ar}"
+              f":fontcolor={accent_color}:fontsize=60:x=(w-text_w)/2:y=758"
+              f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
+          )
+          filters.append(
+              f"drawtext=text='{esc('المعنى: ' + meaning)}'"
+              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
+              f":fontcolor=white@0.9:fontsize=48:x=(w-text_w)/2:y=890"
+              f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
+          )
+
+          box_y_top = 1580
+          box_y_bottom = 1680
+          filters.append(
+              f"drawbox=x=240:y={box_y_top}:w=600:h={box_y_bottom - box_y_top}:color=black@0.55:t=fill"
+          )
+          filters.append(
+              f"drawtext=text='{esc(cta_text)}'"
+              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
+              f":fontcolor=lightyellow:fontsize=52:x=(w-text_w)/2:y={box_y_top + 22}"
+              f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
+          )
+
+          all_dt = ",".join(filters)
+          vfilter = (
+              f"[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
+              f"crop=1080:1920,"
+              f"setsar=1,"
+              f"gblur=sigma=25,"
+              f"{all_dt}"
+          )
+
+          with open("/tmp/ifilter.txt", "w") as f:
+              f.write(vfilter)
+          PYEOF
+
+          IFILTER=$(cat /tmp/ifilter.txt)
+
+          timeout 60 ffmpeg -hide_banner -loglevel error -y \
+            -i bg_frame.jpg \
+            -vf "$IFILTER" \
+            -frames:v 1 \
+            final_image.jpg
+
+          ls -lh final_image.jpg
 
       - name: post-to-facebook
         timeout-minutes: 3
@@ -400,7 +650,7 @@ jobs:
           API="https://graph.facebook.com/v19.0"
 
           for attempt in 1 2 3; do
-            echo "Facebook post attempt $attempt..."
+            echo "Facebook video post attempt $attempt..."
             INIT=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"start\",\"access_token\":\"${PAGE_TOKEN}\"}") || true
             SESSION=$(echo "$INIT" | jq -r '.upload_session_id' 2>/dev/null)
             VID_ID=$(echo "$INIT" | jq -r '.video_id' 2>/dev/null)
@@ -427,13 +677,44 @@ jobs:
 
             OK=$(echo "$FINISH" | jq -r '.success // .id // empty' 2>/dev/null)
             if [ -n "$OK" ]; then
-              echo "Posted! Video ID: $VID_ID"
+              echo "Video posted! Video ID: $VID_ID"
               exit 0
             fi
 
-            echo "Post failed attempt $attempt: $FINISH"
+            echo "Video post failed attempt $attempt: $FINISH"
             sleep 10
           done
 
-          echo "All post attempts failed"
+          echo "All video post attempts failed"
+          exit 1
+
+      - name: post-image-to-facebook
+        timeout-minutes: 3
+        env:
+          PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          IMAGE_CAPTION: ${{ steps.caption.outputs.image_caption }}
+        run: |
+          set -e
+          API="https://graph.facebook.com/v19.0"
+
+          for attempt in 1 2 3; do
+            echo "Facebook image post attempt $attempt..."
+            RESP=$(timeout 60 curl -sf -X POST "${API}/${PAGE_ID}/photos" \
+              -F "source=@final_image.jpg" \
+              -F "caption=${IMAGE_CAPTION}" \
+              -F "published=true" \
+              -F "access_token=${PAGE_TOKEN}") || true
+
+            OK=$(echo "$RESP" | jq -r '.id // empty' 2>/dev/null)
+            if [ -n "$OK" ]; then
+              echo "Image posted! Photo ID: $OK"
+              exit 0
+            fi
+
+            echo "Image post failed attempt $attempt: $RESP"
+            sleep 10
+          done
+
+          echo "All image post attempts failed"
           exit 1
