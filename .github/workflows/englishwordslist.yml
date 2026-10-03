@@ -1,0 +1,651 @@
+name: english-top10-post
+
+"on":
+  workflow_dispatch:
+    inputs:
+      caption:
+        description: "Post caption (leave empty for auto)"
+        required: false
+        default: ""
+      list_number:
+        description: "Force a lesson number (1-4). Leave empty for daily rotation"
+        required: false
+        default: ""
+  schedule:
+    - cron: "0 16 * * *"  # 12 PM EDT / 4 PM UTC daily
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: install-deps
+        timeout-minutes: 4
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg bc jq python3 python3-pip espeak-ng fonts-noto-core fonts-noto-ui-core fonts-dejavu-core
+          pip install --quiet pillow arabic-reshaper python-bidi --break-system-packages || pip install --quiet pillow arabic-reshaper python-bidi
+
+      - name: cache-piper-model
+        id: piper_cache
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/piper-voices
+          key: piper-en_US-voice-v1
+
+      - name: setup-piper
+        id: piper_setup
+        timeout-minutes: 3
+        continue-on-error: true
+        run: |
+          set -e
+          pip install --quiet piper-tts --break-system-packages || pip install --quiet piper-tts
+
+          mkdir -p /home/runner/piper-voices
+          cd /home/runner/piper-voices
+
+          if [ ! -f "en_US-amy-medium.onnx" ]; then
+            echo "Downloading Piper English voice model (first run, cached after)..."
+            timeout 60 curl -sfL -o en_US-amy-medium.onnx \
+              "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx" || exit 1
+            timeout 30 curl -sfL -o en_US-amy-medium.onnx.json \
+              "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx.json" || exit 1
+          else
+            echo "Piper voice model found in cache."
+          fi
+
+          echo "test" | python3 -m piper --model en_US-amy-medium.onnx --output_file /tmp/piper_test.wav
+          test -s /tmp/piper_test.wav
+          echo "piper_ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: find-video
+        id: vid
+        timeout-minutes: 3
+        env:
+          PIXABAY_KEY: ${{ secrets.PIXABAY_KEY }}
+        run: |
+          set -e
+          CLIP=12
+          SKIP_HEAD=3
+          SKIP_TAIL=3
+          MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
+          VIDEO_URL=""
+
+          TERMS=("sky" "clouds" "sunrise" "sunset" "nature" "mountains" "forest" "ocean" "river" "stars" "light rays" "fog" "meadow" "waterfall" "peaceful nature" "books" "writing")
+
+          for TERM in $(printf "%s\n" "${TERMS[@]}" | shuf | tr ' ' '+'); do
+            PAGE=$((RANDOM % 5 + 1))
+            OFFSET=$((RANDOM % 20))
+            URL="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=${TERM}&video_type=film&per_page=20&page=${PAGE}"
+            RESP=$(timeout 10 curl -sf --max-time 10 "$URL" 2>/dev/null) || continue
+            COUNT=$(echo "$RESP" | jq -r '.hits | length' 2>/dev/null) || continue
+            [ "$COUNT" -eq 0 ] && continue
+            for i in $(seq 0 $((COUNT - 1)) | shuf); do
+              IDX=$(( (i + OFFSET) % COUNT ))
+              DUR=$(echo "$RESP" | jq -r ".hits[$IDX].duration" 2>/dev/null)
+              [[ "$DUR" =~ ^[0-9]+$ ]] || continue
+              [ "$DUR" -lt "$MIN_DUR" ] && continue
+              VURL=$(echo "$RESP" | jq -r ".hits[$IDX].videos.large.url // .hits[$IDX].videos.medium.url // .hits[$IDX].videos.small.url" 2>/dev/null)
+              if [ -z "$VURL" ] || [ "$VURL" = "null" ]; then continue; fi
+              RANGE=$((DUR - SKIP_TAIL - CLIP - SKIP_HEAD))
+              [ "$RANGE" -le 0 ] && continue
+              START=$((SKIP_HEAD + RANDOM % RANGE))
+              echo "Testing video: $VURL"
+              timeout 30 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$VURL" -t 5 -c copy test_probe.mp4 2>/dev/null || true
+              TEST_STREAM=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_type -of csv=p=0 test_probe.mp4 2>/dev/null || echo "")
+              rm -f test_probe.mp4
+              if [ -z "$TEST_STREAM" ]; then
+                echo "Video failed probe, skipping..."
+                continue
+              fi
+              VIDEO_URL="$VURL"
+              echo "video_url=$VIDEO_URL" >> "$GITHUB_OUTPUT"
+              echo "start=$START" >> "$GITHUB_OUTPUT"
+              echo "clip=$CLIP" >> "$GITHUB_OUTPUT"
+              echo "Found valid video: start=${START}s dur=${DUR}s"
+              break 2
+            done
+          done
+
+          if [ -z "$VIDEO_URL" ]; then
+            echo "No valid video found"
+            exit 1
+          fi
+
+      - name: pick-music
+        id: music
+        timeout-minutes: 1
+        run: |
+          TRACKS=(bgmusic/*.mp3 bgmusic/*.wav bgmusic/*.m4a bgmusic/*.mp4 bgmusic/*.aac bgmusic/*.ogg bgmusic/*.flac)
+          VALID=()
+          for t in "${TRACKS[@]}"; do
+            [ -f "$t" ] && VALID+=("$t")
+          done
+          if [ ${#VALID[@]} -eq 0 ]; then
+            echo "No music files found"
+            exit 1
+          fi
+          IDX=$((RANDOM % ${#VALID[@]}))
+          PICKED="${VALID[$IDX]}"
+          echo "music_file=$PICKED" >> "$GITHUB_OUTPUT"
+          echo "Selected: $PICKED"
+
+      # ------------------------------------------------------------------
+      # CONTENT: each lesson = title + 10 rows of [English word, Arabic pronunciation, Arabic meaning]
+      # Rotates daily. Add more lessons by copying a block inside LESSONS.
+      # ------------------------------------------------------------------
+      - name: pick-content
+        id: content
+        timeout-minutes: 1
+        env:
+          INPUT_CAPTION: ${{ github.event.inputs.caption }}
+          INPUT_LIST: ${{ github.event.inputs.list_number }}
+        run: |
+          python3 << 'PYEOF'
+          import os, json, random, datetime
+
+          LESSONS = [
+              {
+                  "title_ar": "١٠ أفعال يومية مهمة",
+                  "label": "10 أفعال يومية بالإنجليزية",
+                  "intro_en": "Let's learn ten useful English verbs.",
+                  "words": [
+                      ["Eat", "إيت", "يأكل"],
+                      ["Drink", "درينك", "يشرب"],
+                      ["Walk", "ووك", "يمشي"],
+                      ["Run", "ران", "يركض"],
+                      ["Sleep", "سليب", "ينام"],
+                      ["Read", "ريد", "يقرأ"],
+                      ["Write", "رايت", "يكتب"],
+                      ["Listen", "ليسن", "يستمع"],
+                      ["Speak", "سبيك", "يتحدث"],
+                      ["Learn", "لِرن", "يتعلم"],
+                  ],
+              },
+              {
+                  "title_ar": "١٠ كلمات عن العائلة",
+                  "label": "10 كلمات عن العائلة بالإنجليزية",
+                  "intro_en": "Let's learn ten English words about family.",
+                  "words": [
+                      ["Mother", "ماذر", "أم"],
+                      ["Father", "فاذر", "أب"],
+                      ["Brother", "براذر", "أخ"],
+                      ["Sister", "سيستر", "أخت"],
+                      ["Son", "سان", "ابن"],
+                      ["Daughter", "دوتر", "ابنة"],
+                      ["Grandfather", "جراندفاذر", "جد"],
+                      ["Grandmother", "جراندماذر", "جدة"],
+                      ["Uncle", "أنكل", "عم / خال"],
+                      ["Aunt", "آنت", "عمة / خالة"],
+                  ],
+              },
+              {
+                  "title_ar": "١٠ كلمات عن الطعام",
+                  "label": "10 كلمات عن الطعام بالإنجليزية",
+                  "intro_en": "Let's learn ten English words about food.",
+                  "words": [
+                      ["Bread", "بريد", "خبز"],
+                      ["Water", "ووتر", "ماء"],
+                      ["Milk", "ميلك", "حليب"],
+                      ["Rice", "رايس", "أرز"],
+                      ["Chicken", "تشيكن", "دجاج"],
+                      ["Apple", "آبل", "تفاح"],
+                      ["Egg", "إيج", "بيضة"],
+                      ["Cheese", "تشيز", "جبن"],
+                      ["Sugar", "شوجر", "سكر"],
+                      ["Salt", "سولت", "ملح"],
+                  ],
+              },
+              {
+                  "title_ar": "١٠ كلمات عن الوقت",
+                  "label": "10 كلمات عن الوقت بالإنجليزية",
+                  "intro_en": "Let's learn ten English words about time.",
+                  "words": [
+                      ["Today", "تودي", "اليوم"],
+                      ["Tomorrow", "تومورو", "غدا"],
+                      ["Yesterday", "يستردي", "أمس"],
+                      ["Morning", "مورنينج", "الصباح"],
+                      ["Evening", "إيفنينج", "المساء"],
+                      ["Night", "نايت", "الليل"],
+                      ["Week", "ويك", "أسبوع"],
+                      ["Month", "مانث", "شهر"],
+                      ["Year", "يير", "سنة"],
+                      ["Hour", "أور", "ساعة"],
+                  ],
+              },
+          ]
+
+          n = len(LESSONS)
+          raw = os.environ.get("INPUT_LIST", "").strip()
+          if raw.isdigit() and 1 <= int(raw) <= n:
+              idx = int(raw) - 1
+          else:
+              idx = datetime.date.today().toordinal() % n
+          lesson = LESSONS[idx]
+          print(f"Selected lesson {idx + 1}/{n}: {lesson['label']}")
+
+          with open("/tmp/lesson.json", "w", encoding="utf-8") as f:
+              json.dump(lesson, f, ensure_ascii=False)
+
+          hashtags = "#تعلم_الانجليزية #english #learnenglish #اللغة_الانجليزية #EFL"
+          openers = ["تعلم معنا", "درس اليوم", "كلمات جديدة كل يوم", "تابعنا لمزيد"]
+          caption = f"{random.choice(openers)}: {lesson['label']} 🇬🇧\n{hashtags}"
+
+          lines = [f"{lesson['label']} 🇬🇧", ""]
+          for i, (w, p, m) in enumerate(lesson["words"], 1):
+              lines.append(f"{i}. {w} - {p} - {m}")
+          lines += ["", hashtags]
+          image_caption = "\n".join(lines)
+
+          override = os.environ.get("INPUT_CAPTION", "").strip()
+          if override:
+              caption = image_caption = override
+
+          with open("/tmp/caption.txt", "w", encoding="utf-8") as f:
+              f.write(caption)
+          with open("/tmp/image_caption.txt", "w", encoding="utf-8") as f:
+              f.write(image_caption)
+          PYEOF
+
+      - name: synthesize-speech
+        id: tts
+        timeout-minutes: 4
+        continue-on-error: true
+        env:
+          PIPER_READY: ${{ steps.piper_setup.outputs.piper_ready }}
+        run: |
+          python3 << 'PYEOF'
+          import json, os, subprocess, wave
+
+          L = json.load(open("/tmp/lesson.json", encoding="utf-8"))
+          words = [w[0] for w in L["words"]]
+          N = len(words)
+          SR = 44100
+          PIPER_MODEL = "/home/runner/piper-voices/en_US-amy-medium.onnx"
+          PIPER_READY = os.environ.get("PIPER_READY") == "true"
+
+          def synth(engine, text, out):
+              try:
+                  if engine == "piper":
+                      r = subprocess.run(
+                          ["python3", "-m", "piper", "--model", PIPER_MODEL, "--output_file", out],
+                          input=text, text=True, capture_output=True, timeout=40)
+                  else:
+                      r = subprocess.run(
+                          ["espeak-ng", "-v", "en-us", "-s", "140", "-w", out, text],
+                          capture_output=True, timeout=20)
+                  return r.returncode == 0 and os.path.exists(out) and os.path.getsize(out) > 0
+              except Exception as e:
+                  print(f"{engine} failed on '{text}': {e}")
+                  return False
+
+          def normalize(src, dst):
+              subprocess.run(
+                  ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", src,
+                   "-ac", "1", "-ar", str(SR), "-sample_fmt", "s16",
+                   "-filter:a", "volume=1.8", dst],
+                  check=True, timeout=30)
+
+          def read_pcm(path):
+              with wave.open(path, "rb") as w:
+                  return w.readframes(w.getnframes())
+
+          def build(engine):
+              texts = {"intro": L["intro_en"], "outro": "Follow us and leave a comment."}
+              for i, w in enumerate(words):
+                  texts[f"w{i}"] = w + "."
+              clips = {}
+              for k, t in texts.items():
+                  raw, norm = f"/tmp/tts_{k}_raw.wav", f"/tmp/tts_{k}.wav"
+                  if not synth(engine, t, raw):
+                      return None
+                  normalize(raw, norm)
+                  clips[k] = read_pcm(norm)
+              return clips
+
+          def silence(sec):
+              return b"\x00\x00" * int(SR * sec)
+
+          def seconds(buf):
+              return len(buf) / 2 / SR
+
+          clips = None
+          if PIPER_READY:
+              print("Trying Piper...")
+              clips = build("piper")
+          if clips is None:
+              print("Trying espeak-ng...")
+              try:
+                  clips = build("espeak")
+              except Exception as e:
+                  print("espeak failed:", e)
+                  clips = None
+
+          if clips:
+              audio = bytearray()
+              states = []
+              audio += silence(0.5)
+              audio += clips["intro"] + silence(0.7)
+              t = seconds(audio)
+              states.append([0.0, round(t, 3)])
+              for i in range(N):
+                  start = t
+                  audio += clips[f"w{i}"] + silence(0.9) + clips[f"w{i}"] + silence(0.7)
+                  t = seconds(audio)
+                  states.append([round(start, 3), round(t, 3)])
+              start = t
+              audio += clips["outro"] + silence(1.3)
+              t = seconds(audio)
+              states.append([round(start, 3), round(t, 3)])
+              with wave.open("speech_final.wav", "wb") as w:
+                  w.setnchannels(1)
+                  w.setsampwidth(2)
+                  w.setframerate(SR)
+                  w.writeframes(bytes(audio))
+              timing = {"states": states, "total": round(t, 3), "tts": True}
+          else:
+              print("All TTS failed. Using fixed timing, music only.")
+              states, t = [[0.0, 3.0]], 3.0
+              for i in range(N):
+                  states.append([t, t + 3.5])
+                  t += 3.5
+              states.append([t, t + 3.5])
+              timing = {"states": states, "total": t + 3.5, "tts": False}
+
+          json.dump(timing, open("/tmp/timing.json", "w"))
+          print(f"Total duration: {timing['total']}s | TTS: {timing['tts']}")
+          PYEOF
+
+      - name: render-frames
+        timeout-minutes: 3
+        run: |
+          mkdir -p /tmp/frames
+          python3 << 'PYEOF'
+          import glob, json
+          from PIL import Image, ImageDraw, ImageFont
+          import arabic_reshaper
+          from bidi.algorithm import get_display
+
+          L = json.load(open("/tmp/lesson.json", encoding="utf-8"))
+          T = json.load(open("/tmp/timing.json"))
+          rows = L["words"]
+          N = len(rows)
+          W, H = 1080, 1920
+
+          def find_font(names):
+              for n in names:
+                  hits = glob.glob(f"/usr/share/fonts/**/{n}", recursive=True)
+                  if hits:
+                      return hits[0]
+              raise SystemExit(f"No font found among {names}")
+
+          FONT_EN = find_font(["NotoSans-Bold.ttf", "DejaVuSans-Bold.ttf", "LiberationSans-Bold.ttf"])
+          FONT_AR = find_font(["NotoNaskhArabic-Bold.ttf", "NotoSansArabic-Bold.ttf", "NotoSansArabic-Regular.ttf", "DejaVuSans-Bold.ttf"])
+          print("Fonts:", FONT_EN, FONT_AR)
+
+          def ar(t):
+              return get_display(arabic_reshaper.reshape(t))
+
+          def mk(path, size):
+              return ImageFont.truetype(path, size, layout_engine=ImageFont.Layout.BASIC)
+
+          _m = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+
+          def fit(text, path, size, maxw):
+              f = mk(path, size)
+              while size > 18 and _m.textlength(text, font=f) > maxw:
+                  size -= 2
+                  f = mk(path, size)
+              return f
+
+          PALETTE = [(255,107,107),(255,159,67),(254,202,87),(29,209,161),(72,219,251),
+                     (84,160,255),(165,94,234),(255,121,198),(46,213,115),(255,177,66)]
+          GOLD = (255, 214, 102)
+
+          COL_WORD, COL_PRON, COL_MEAN = 800, 480, 195
+          Y0, RH = 410, 112
+
+          def txt(d, xy, text, font, fill, stroke=2):
+              d.text(xy, text, font=font, fill=fill, anchor="mm",
+                     stroke_width=stroke, stroke_fill=(0, 0, 0, 255))
+
+          def draw_state(shown, highlight, cta):
+              img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+              d = ImageDraw.Draw(img, "RGBA")
+
+              title = ar(L["title_ar"])
+              txt(d, (W / 2, 135), title, fit(title, FONT_AR, 84, 940), (255, 255, 255, 255), 3)
+              sub = ar("مع النطق والمعنى بالعربية")
+              d.rounded_rectangle((250, 205, 830, 275), radius=35, fill=GOLD + (240,))
+              d.text((W / 2, 240), sub, font=fit(sub, FONT_AR, 38, 540), fill=(40, 30, 10, 255), anchor="mm")
+
+              d.rounded_rectangle((40, 310, 1040, 1550), radius=40, fill=(8, 14, 30, 175))
+              d.rounded_rectangle((60, 330, 1020, 395), radius=20, fill=(255, 255, 255, 45))
+              for x, label in ((COL_WORD, "الكلمة"), (COL_PRON, "النطق"), (COL_MEAN, "المعنى")):
+                  t = ar(label)
+                  d.text((x, 362), t, font=mk(FONT_AR, 36), fill=GOLD + (255,), anchor="mm")
+
+              for i in range(shown):
+                  word, pron, mean = rows[i]
+                  top = Y0 + i * RH
+                  cy = top + RH / 2
+                  is_hl = highlight and i == shown - 1
+                  if is_hl:
+                      d.rounded_rectangle((60, top + 6, 1020, top + RH - 6), radius=24,
+                                          fill=GOLD + (80,), outline=GOLD + (255,), width=4)
+                  else:
+                      d.rounded_rectangle((60, top + 6, 1020, top + RH - 6), radius=24,
+                                          fill=(255, 255, 255, 28))
+                  d.ellipse((955, cy - 30, 1015, cy + 30), fill=PALETTE[i % len(PALETTE)] + (255,))
+                  d.text((985, cy), str(i + 1), font=mk(FONT_EN, 32), fill=(20, 20, 30, 255), anchor="mm")
+
+                  txt(d, (COL_WORD - 15, cy), word, fit(word, FONT_EN, 54, 280), (255, 255, 255, 255))
+                  p = ar(pron)
+                  txt(d, (COL_PRON, cy), p, fit(p, FONT_AR, 48, 300), (170, 240, 255, 255))
+                  m = ar(mean)
+                  txt(d, (COL_MEAN, cy), m, fit(m, FONT_AR, 46, 270), (255, 250, 190, 255))
+
+              if cta:
+                  d.rounded_rectangle((190, 1585, 890, 1685), radius=30, fill=(0, 0, 0, 190))
+                  c = ar("تابعونا واتركوا تعليقا")
+                  d.text((W / 2, 1635), c, font=fit(c, FONT_AR, 52, 640), fill=(255, 255, 200, 255), anchor="mm")
+              return img
+
+          # states 0..N : title, then 1..N rows (last revealed row highlighted); N+1 : full table + CTA
+          for k in range(N + 1):
+              draw_state(k, highlight=(k >= 1), cta=False).save(f"/tmp/frames/state_{k}.png")
+          draw_state(N, highlight=False, cta=True).save(f"/tmp/frames/state_{N + 1}.png")
+          print(f"Rendered {N + 2} frames")
+          PYEOF
+
+      - name: process-video
+        timeout-minutes: 12
+        env:
+          VIDEO_URL: ${{ steps.vid.outputs.video_url }}
+          START: ${{ steps.vid.outputs.start }}
+          CLIP: ${{ steps.vid.outputs.clip }}
+          MUSIC_FILE: ${{ steps.music.outputs.music_file }}
+        run: |
+          set -e
+          TOTAL=$(python3 -c "import json,math;print(math.ceil(json.load(open('/tmp/timing.json'))['total']))")
+
+          echo "Downloading background clip..."
+          timeout 90 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$VIDEO_URL" -t "$CLIP" -c copy source.mp4
+
+          MDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$MUSIC_FILE" 2>/dev/null | cut -d. -f1)
+          MDUR=${MDUR:-60}
+          MMAX=$((MDUR - TOTAL - 5))
+          if [ "$MMAX" -le 1 ]; then MMAX=1; fi
+          MSTART=$((RANDOM % MMAX))
+          timeout 60 ffmpeg -hide_banner -loglevel error -y -stream_loop -1 -i "$MUSIC_FILE" -ss "$MSTART" -t "$((TOTAL + 2))" -ac 2 -ar 44100 music_clip.mp3
+
+          python3 << 'PYEOF'
+          import json, subprocess, sys
+
+          T = json.load(open("/tmp/timing.json"))
+          states, total, tts = T["states"], T["total"], T["tts"]
+
+          cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                 "-stream_loop", "-1", "-i", "source.mp4",
+                 "-i", "music_clip.mp3"]
+          if tts:
+              cmd += ["-i", "speech_final.wav"]
+          first_png = 3 if tts else 2
+          for i in range(len(states)):
+              cmd += ["-i", f"/tmp/frames/state_{i}.png"]
+
+          # background: cover-crop, cheap blur (blur at low res, scale back up), slight darken
+          f = ("[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,"
+               "scale=270:480,gblur=sigma=6,scale=1080:1920:flags=bicubic,eq=brightness=-0.08[bg]")
+          prev = "bg"
+          for i, (s, e) in enumerate(states):
+              out = f"v{i}"
+              f += f";[{prev}][{first_png + i}:v]overlay=0:0:enable='between(t,{s},{e})'[{out}]"
+              prev = out
+          f += (f";[{prev}]fade=t=in:st=0:d=0.5,fade=t=out:st={total - 1.0:.2f}:d=1.0,format=yuv420p[vout]")
+
+          fade_a = total - 1.5
+          if tts:
+              f += (f";[1:a]volume=0.2,afade=t=in:st=0:d=0.5,afade=t=out:st={fade_a:.2f}:d=1.5[m]"
+                    ";[2:a]aformat=channel_layouts=stereo,volume=1.0[s]"
+                    ";[m][s]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0[aout]")
+          else:
+              f += f";[1:a]volume=0.9,afade=t=in:st=0:d=0.5,afade=t=out:st={fade_a:.2f}:d=1.5[aout]"
+
+          cmd += ["-filter_complex", f, "-map", "[vout]", "-map", "[aout]",
+                  "-t", f"{total:.2f}",
+                  "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                  "-c:a", "aac", "-b:a", "192k",
+                  "-movflags", "+faststart", "-pix_fmt", "yuv420p", "final.mp4"]
+
+          r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+          if r.returncode != 0:
+              print(r.stderr)
+              sys.exit(1)
+          print("final.mp4 rendered")
+          PYEOF
+
+          ls -lh final.mp4
+
+      - name: process-image
+        timeout-minutes: 3
+        env:
+          VIDEO_URL: ${{ steps.vid.outputs.video_url }}
+          START: ${{ steps.vid.outputs.start }}
+        run: |
+          set -e
+          timeout 60 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$VIDEO_URL" -frames:v 1 bg_frame.jpg
+
+          python3 << 'PYEOF'
+          import json
+          from PIL import Image, ImageFilter, ImageEnhance
+
+          L = json.load(open("/tmp/lesson.json", encoding="utf-8"))
+          final_idx = len(L["words"]) + 1
+          W, H = 1080, 1920
+
+          bg = Image.open("bg_frame.jpg").convert("RGB")
+          scale = max(W / bg.width, H / bg.height)
+          bg = bg.resize((int(bg.width * scale) + 1, int(bg.height * scale) + 1))
+          left, top = (bg.width - W) // 2, (bg.height - H) // 2
+          bg = bg.crop((left, top, left + W, top + H))
+          bg = bg.filter(ImageFilter.GaussianBlur(25))
+          bg = ImageEnhance.Brightness(bg).enhance(0.92).convert("RGBA")
+
+          overlay = Image.open(f"/tmp/frames/state_{final_idx}.png").convert("RGBA")
+          out = Image.alpha_composite(bg, overlay).convert("RGB")
+          out.save("final_image.jpg", quality=93)
+          print("final_image.jpg rendered")
+          PYEOF
+
+          ls -lh final_image.jpg
+
+      - name: post-to-facebook
+        timeout-minutes: 4
+        env:
+          PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+        run: |
+          set -e
+          CAPTION=$(cat /tmp/caption.txt)
+          FILE="final.mp4"
+          SIZE=$(stat -c%s "$FILE")
+          API="https://graph.facebook.com/v19.0"
+
+          for attempt in 1 2 3; do
+            echo "Facebook video post attempt $attempt..."
+            INIT=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" \
+              -d "$(jq -n --arg t "$PAGE_TOKEN" '{upload_phase:"start",access_token:$t}')") || true
+            SESSION=$(echo "$INIT" | jq -r '.upload_session_id' 2>/dev/null)
+            VID_ID=$(echo "$INIT" | jq -r '.video_id' 2>/dev/null)
+
+            if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
+              INIT=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/videos" -H "Content-Type: application/json" \
+                -d "$(jq -n --arg t "$PAGE_TOKEN" --argjson s "$SIZE" '{upload_phase:"start",file_size:$s,access_token:$t}')") || true
+              SESSION=$(echo "$INIT" | jq -r '.upload_session_id' 2>/dev/null)
+              VID_ID=$(echo "$INIT" | jq -r '.video_id' 2>/dev/null)
+              S_OFF=$(echo "$INIT" | jq -r '.start_offset' 2>/dev/null)
+
+              if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
+                echo "Session failed attempt $attempt: $INIT"
+                sleep 10
+                continue
+              fi
+
+              timeout 120 curl -sf -X POST "${API}/${PAGE_ID}/videos" -F "upload_phase=transfer" -F "upload_session_id=${SESSION}" -F "start_offset=${S_OFF}" -F "video_file_chunk=@${FILE};type=video/mp4" -F "access_token=${PAGE_TOKEN}" > /dev/null || true
+              FINISH=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/videos" -H "Content-Type: application/json" \
+                -d "$(jq -n --arg s "$SESSION" --arg d "$CAPTION" --arg t "$PAGE_TOKEN" '{upload_phase:"finish",upload_session_id:$s,description:$d,published:true,access_token:$t}')") || true
+            else
+              UPLOAD_URL=$(echo "$INIT" | jq -r '.upload_url' 2>/dev/null)
+              timeout 120 curl -sf -X POST "$UPLOAD_URL" -H "Authorization: OAuth ${PAGE_TOKEN}" -H "offset: 0" -H "file_size: ${SIZE}" --data-binary "@${FILE}" > /dev/null || true
+              FINISH=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" \
+                -d "$(jq -n --arg v "$VID_ID" --arg d "$CAPTION" --arg t "$PAGE_TOKEN" '{upload_phase:"finish",video_id:$v,video_state:"PUBLISHED",description:$d,published:true,access_token:$t}')") || true
+            fi
+
+            OK=$(echo "$FINISH" | jq -r '.success // .id // empty' 2>/dev/null)
+            if [ -n "$OK" ]; then
+              echo "Video posted! Video ID: $VID_ID"
+              exit 0
+            fi
+
+            echo "Video post failed attempt $attempt: $FINISH"
+            sleep 10
+          done
+
+          echo "All video post attempts failed"
+          exit 1
+
+      - name: post-image-to-facebook
+        timeout-minutes: 3
+        env:
+          PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+        run: |
+          set -e
+          IMAGE_CAPTION=$(cat /tmp/image_caption.txt)
+          API="https://graph.facebook.com/v19.0"
+
+          for attempt in 1 2 3; do
+            echo "Facebook image post attempt $attempt..."
+            RESP=$(timeout 60 curl -sf -X POST "${API}/${PAGE_ID}/photos" \
+              -F "source=@final_image.jpg" \
+              --form-string "caption=${IMAGE_CAPTION}" \
+              -F "published=true" \
+              -F "access_token=${PAGE_TOKEN}") || true
+
+            OK=$(echo "$RESP" | jq -r '.id // empty' 2>/dev/null)
+            if [ -n "$OK" ]; then
+              echo "Image posted! Photo ID: $OK"
+              exit 0
+            fi
+
+            echo "Image post failed attempt $attempt: $RESP"
+            sleep 10
+          done
+
+          echo "All image post attempts failed"
+          exit 1
