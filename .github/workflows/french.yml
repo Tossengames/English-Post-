@@ -364,7 +364,6 @@ jobs:
           def esc(t):
               return t.replace("'", "\u2019").replace(":", "\\:").replace(",", "\\,")
 
-          # ---- Timeline: info now reveals right after FIRST word read, not after repeat ----
           t_fade_in = 0.4
           t_opening_start = 0.5
           t_opening_end = t_opening_start + opening_dur
@@ -372,7 +371,7 @@ jobs:
           t_intro_end = t_intro_start + intro_dur
           t_word1_start = t_intro_end + 0.3
           t_word1_end = t_word1_start + word1_dur
-          t_info_reveal = t_word1_end + 0.2   # <-- moved up, right after first word read
+          t_info_reveal = t_word1_end + 0.2
           t_repeat_start = t_word1_end + 1.2
           t_repeat_end = t_repeat_start + repeat_dur
           t_word2_start = t_repeat_end + 0.3
@@ -389,16 +388,14 @@ jobs:
           }
           L = layouts.get(layout, layouts["A"])
 
-          # Labels get distinct bold/bigger treatment, different from content text
           LABEL_SIZE = 40
-          LABEL_COLOR = "#00e5ff"  # bright cyan, visually distinct from any content color used
+          LABEL_COLOR = "#00e5ff"
 
           filters = []
 
           def fade_in(t):
               return f"if(lt(t,{t:.2f}),0,min(1,(t-{t:.2f})/0.25))"
 
-          # ---- Generate rounded-rect subtitle PNGs (random color each) ----
           subtitle_colors = ["#FF6B6B", "#4ECDC4", "#FFD93D", "#A78BFA", "#FF9F68", "#6BCB77"]
 
           def make_subtitle_png(text, out_path):
@@ -423,7 +420,6 @@ jobs:
           sub3_w, sub3_h = make_subtitle_png("لنكررها", "/tmp/sub3.png")
           sub4_w, sub4_h = make_subtitle_png("تابعونا واتركوا تعليقا", "/tmp/sub4.png")
 
-          # ---- Text overlays (word, pronunciation, meaning) via drawtext ----
           filters.append(
               f"drawtext=text='{esc('الكلمة')}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
@@ -494,7 +490,6 @@ jobs:
               f"{dt_chain}[base]"
           )
 
-          # Overlay the 4 rounded subtitle PNGs at the right timestamps, centered horizontally, positioned above the FB-safe zone (y ~1180)
           sub_y = 1180
           overlay_chain = (
               f"[base][1:v]overlay=(W-w)/2:{sub_y}:enable='between(t,{t_opening_start:.2f},{t_opening_end + 0.1:.2f})'[s1];"
@@ -535,7 +530,8 @@ jobs:
 
           if [ "${{ steps.tts.outputs.tts_available }}" = "true" ]; then
             echo "Mixing with TTS speech overlay..."
-            AFILTER="[1:a]volume=0.7,afade=t=in:st=0:d=0.5,afade=t=out:st=${FADEOUT}:d=1.5,volume='if(lt(t,${SPEECH_DUCK_END}),0.25,0.7)':eval=frame[music];[2:a]adelay=500|500,volume=0.85[speech];[music][speech]amix=inputs=2:duration=first:dropout_transition=0,volume=1.4[aout]"
+            # NOTE: input order is 0=source.mp4, 1-4=subtitle PNGs, 5=music, 6=speech
+            AFILTER="[5:a]volume=0.7,afade=t=in:st=0:d=0.5,afade=t=out:st=${FADEOUT}:d=1.5,volume='if(lt(t,${SPEECH_DUCK_END}),0.25,0.7)':eval=frame[music];[6:a]adelay=500|500,volume=0.85[speech];[music][speech]amix=inputs=2:duration=first:dropout_transition=0,volume=1.4[aout]"
             timeout 240 ffmpeg -hide_banner -loglevel error -y \
               -i source.mp4 \
               -i /tmp/sub1.png -i /tmp/sub2.png -i /tmp/sub3.png -i /tmp/sub4.png \
@@ -552,6 +548,7 @@ jobs:
               final.mp4
           else
             echo "No TTS available, music-only audio..."
+            # NOTE: input order here is 0=source.mp4, 1-4=subtitle PNGs, 5=music (no speech input in this branch)
             timeout 240 ffmpeg -hide_banner -loglevel error -y \
               -i source.mp4 \
               -i /tmp/sub1.png -i /tmp/sub2.png -i /tmp/sub3.png -i /tmp/sub4.png \
