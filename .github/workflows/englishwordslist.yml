@@ -918,16 +918,20 @@ jobs:
               if len(chunks) > 1 and len(chunks[-1]) < 3:
                   chunks[-2] += chunks.pop()
               for part, chunk in enumerate(chunks, 1):
+                  first = (part - 1) * PER + 1
+                  last = first + len(chunk) - 1
                   title = les["title"]
+                  intro = les["intro"]
                   if title.startswith("١٠"):
                       title = str(len(chunk)).translate(AR_DIGITS) + title[2:]
-                  suffix = f" - الجزء {str(part).translate(AR_DIGITS)}" if len(chunks) > 1 else ""
-                  intro = les["intro"]
                   if "ten " in intro:
                       intro = intro.replace("ten ", EN_NUM[len(chunk)] + " ", 1)
+                  if title.startswith("الأرقام"):
+                      title = f"الأرقام من {first} إلى {last}".translate(AR_DIGITS)
+                      intro = f"Let's learn the numbers from {EN_NUM[first]} to {EN_NUM[last]}."
                   posts.append({
-                      "title_ar": title + suffix,
-                      "label": title + " بالإنجليزية" + suffix,
+                      "title_ar": title,
+                      "label": title + " بالإنجليزية",
                       "intro_en": intro,
                       "words": chunk,
                   })
@@ -942,6 +946,19 @@ jobs:
               idx = datetime.date.today().toordinal() % n
           lesson = posts[idx]
           print(f"Selected post {idx + 1}/{n}: {lesson['label']}")
+
+          CTAS = [
+              ("Follow us and leave a comment.", "تابعونا واتركوا تعليقا"),
+              ("Don't forget to follow us.", "لا تنسوا متابعتنا"),
+              ("Share this with a friend.", "شاركها مع صديق"),
+              ("Write your favorite word in the comments.", "اكتب كلمتك المفضلة"),
+              ("Save this video and practice.", "احفظ الفيديو وتدرب"),
+              ("Follow us for a new lesson every day.", "درس جديد كل يوم، تابعنا"),
+              ("Try making a sentence with these words.", "جرب كتابة جملة بها"),
+              ("Which word do you like most?", "أي كلمة أعجبتك أكثر؟"),
+          ]
+          lesson["cta_en"], lesson["cta_ar"] = random.choice(CTAS)
+          print(f"CTA: {lesson['cta_en']}")
 
           with open("/tmp/lesson.json", "w", encoding="utf-8") as f:
               json.dump(lesson, f, ensure_ascii=False)
@@ -1010,7 +1027,7 @@ jobs:
                   return w.readframes(w.getnframes())
 
           def build(engine):
-              texts = {"intro": L["intro_en"], "outro": "Follow us and leave a comment."}
+              texts = {"intro": L["intro_en"], "outro": L.get("cta_en", "Follow us and leave a comment.")}
               for i, w in enumerate(words):
                   texts[f"w{i}"] = w if w[-1] in ".?!" else w + "."
               clips = {}
@@ -1148,6 +1165,7 @@ jobs:
           if LAYOUT not in ("table", "cards", "stack"):
               LAYOUT = random.choice(["table", "table", "cards", "stack"])
           ROW_STYLE = random.choice(["filled", "outline", "line"])
+          CTA_STYLE = random.choice(["dark", "accent", "plain"])
           RAINBOW = random.random() < 0.6
           MIRROR = (LAYOUT == "table") and random.random() < 0.5
           PAL = list(DEEP if TH["light"] else BRIGHT)
@@ -1157,7 +1175,7 @@ jobs:
           BADGE_TXT = (20, 20, 30, 255)
           ACC = TH["accent"]
           STROKE = 0 if TH["light"] else 2
-          print(f"LOOK: theme={theme_name} layout={LAYOUT} rows={ROW_STYLE} rainbow={RAINBOW} mirror={MIRROR} words={N}")
+          print(f"LOOK: theme={theme_name} layout={LAYOUT} rows={ROW_STYLE} rainbow={RAINBOW} mirror={MIRROR} cta={CTA_STYLE} words={N}")
 
           def txt(d, xy, text, font, fill, stroke=None):
               s = STROKE if stroke is None else stroke
@@ -1261,9 +1279,16 @@ jobs:
                       d.ellipse((W / 2 - 5, sy - 5, W / 2 + 5, sy + 5), fill=ACC + (255,))
 
               if cta:
-                  d.rounded_rectangle((190, 1585, 890, 1685), radius=30, fill=(0, 0, 0, 205), outline=ACC + (255,), width=2)
-                  c = ar("تابعونا واتركوا تعليقا")
-                  d.text((W / 2, 1635), c, font=fit(c, FONT_AR, 52, 640), fill=(255, 255, 200, 255), anchor="mm")
+                  c = ar(L.get("cta_ar", "تابعونا واتركوا تعليقا"))
+                  cf = fit(c, FONT_AR, 52, 640)
+                  if CTA_STYLE == "dark":
+                      d.rounded_rectangle((190, 1585, 890, 1685), radius=30, fill=(0, 0, 0, 205), outline=ACC + (255,), width=2)
+                      d.text((W / 2, 1635), c, font=cf, fill=(255, 255, 200, 255), anchor="mm")
+                  elif CTA_STYLE == "accent":
+                      d.rounded_rectangle((190, 1585, 890, 1685), radius=50, fill=ACC + (245,))
+                      d.text((W / 2, 1635), c, font=cf, fill=TH["pill_txt"] + (255,), anchor="mm")
+                  else:
+                      txt(d, (W / 2, 1635), c, cf, (255, 255, 255, 255), 4)
               return img
 
           for k in range(N + 1):
