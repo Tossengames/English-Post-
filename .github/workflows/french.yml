@@ -23,7 +23,8 @@ jobs:
         timeout-minutes: 3
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg bc jq python3 python3-pip espeak-ng fonts-noto fonts-noto-extra fonts-noto-color-emoji fonts-noto-cjk fonts-noto-core fonts-noto-ui-core
+          sudo apt-get install -y ffmpeg bc jq python3 python3-pip python3-pil espeak-ng fonts-noto fonts-noto-extra fonts-noto-color-emoji fonts-noto-cjk fonts-noto-core fonts-noto-ui-core
+          pip install --quiet --break-system-packages Pillow || pip install --quiet Pillow
 
       - name: cache-piper-model
         id: piper_cache
@@ -56,66 +57,6 @@ jobs:
           echo "test" | python3 -m piper --model fr_FR-siwis-medium.onnx --output_file /tmp/piper_test.wav
           test -s /tmp/piper_test.wav
           echo "piper_ready=true" >> "$GITHUB_OUTPUT"
-
-      - name: find-video
-        id: vid
-        timeout-minutes: 3
-        env:
-          PIXABAY_KEY: "50973339-3e27fd59ddfd9c68378e78753"
-        run: |
-          set -e
-          CLIP=14
-          SKIP_HEAD=5
-          SKIP_TAIL=5
-          MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
-          VIDEO_URL=""
-          VALID_VIDEO=0
-
-          TERMS="sky| clouds| sunrise| sunset| nature| mountains| forest| ocean| river| stars| light rays| fog| meadow| waterfall| peaceful nature| paris| eiffel tower"
-          IFS='|' read -ra TERM_ARR <<< "$TERMS"
-
-          for TERM in $(printf "%s\n" "${TERM_ARR[@]}" | shuf); do
-            [ "$VALID_VIDEO" -eq 1 ] && break
-            PAGE=$((RANDOM % 10 + 1))
-            OFFSET=$((RANDOM % 20))
-            ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$TERM")
-            URL="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=${ENCODED}&video_type=film&per_page=20&page=${PAGE}"
-            RESP=$(timeout 10 curl -sf --max-time 10 "$URL" 2>/dev/null) || continue
-            COUNT=$(echo "$RESP" | jq -r '.hits | length' 2>/dev/null) || continue
-            [ "$COUNT" -eq 0 ] && continue
-            for i in $(seq 0 $((COUNT - 1)) | shuf); do
-              [ "$VALID_VIDEO" -eq 1 ] && break
-              IDX=$(( (i + OFFSET) % COUNT ))
-              DUR=$(echo "$RESP" | jq -r ".hits[$IDX].duration" 2>/dev/null)
-              [[ "$DUR" =~ ^[0-9]+$ ]] || continue
-              [ "$DUR" -lt "$MIN_DUR" ] && continue
-              VURL=$(echo "$RESP" | jq -r ".hits[$IDX].videos.large.url // .hits[$IDX].videos.medium.url // .hits[$IDX].videos.small.url" 2>/dev/null)
-              [ -z "$VURL" ] || [ "$VURL" = "null" ] && continue
-              ZONE_END=$((DUR - SKIP_TAIL - CLIP))
-              RANGE=$((ZONE_END - SKIP_HEAD))
-              [ "$RANGE" -le 0 ] && continue
-              START=$((SKIP_HEAD + RANDOM % RANGE))
-              echo "Testing video: $VURL"
-              timeout 30 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$VURL" -t 5 -c copy test_probe.mp4 2>/dev/null || true
-              TEST_STREAM=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_type -of csv=p=0 test_probe.mp4 2>/dev/null || echo "")
-              rm -f test_probe.mp4
-              if [ -z "$TEST_STREAM" ]; then
-                echo "Video failed probe, skipping..."
-                continue
-              fi
-              VIDEO_URL="$VURL"
-              VALID_VIDEO=1
-              echo "video_url=$VIDEO_URL" >> "$GITHUB_OUTPUT"
-              echo "start=$START" >> "$GITHUB_OUTPUT"
-              echo "clip=$CLIP" >> "$GITHUB_OUTPUT"
-              echo "Found valid video: start=${START}s dur=${DUR}s"
-            done
-          done
-
-          if [ -z "$VIDEO_URL" ]; then
-            echo "No valid video found"
-            exit 1
-          fi
 
       - name: pick-music
         id: music
@@ -267,53 +208,110 @@ jobs:
             fi
           fi
 
-          if [ "$SUCCESS" -eq 1 ]; then
-            for f in opening_raw intro_raw word1_raw repeat_raw word2_raw closing_raw; do
-              timeout 10 ffmpeg -hide_banner -loglevel error -y -i "${f}.wav" -ac 2 -ar 44100 -filter:a "volume=1.8" "${f}_norm.wav"
-            done
-
-            timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 0.3 silence_short.wav
-            timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 1.2 silence_long.wav
-            timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 0.6 silence_medium.wav
-
-            # opening -> pause -> intro -> short pause -> word1 -> long pause -> repeat -> short pause -> word2 -> medium pause -> closing
-            timeout 15 ffmpeg -hide_banner -loglevel error -y \
-              -i opening_raw_norm.wav -i silence_medium.wav \
-              -i intro_raw_norm.wav -i silence_short.wav \
-              -i word1_raw_norm.wav -i silence_long.wav \
-              -i repeat_raw_norm.wav -i silence_short.wav \
-              -i word2_raw_norm.wav -i silence_medium.wav \
-              -i closing_raw_norm.wav \
-              -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a][8:a][9:a][10:a]concat=n=11:v=0:a=1[aout]" \
-              -map "[aout]" speech_final.wav
-
-            echo "tts_available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "All TTS methods failed. Proceeding without spoken audio."
+          if [ "$SUCCESS" -eq 0 ]; then
+            echo "All TTS methods failed."
             echo "tts_available=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          # Normalize volume for each part
+          for f in opening_raw intro_raw word1_raw repeat_raw word2_raw closing_raw; do
+            timeout 10 ffmpeg -hide_banner -loglevel error -y -i "${f}.wav" -ac 2 -ar 44100 -filter:a "volume=1.8" "${f}_norm.wav"
+          done
+
+          # Measure REAL duration of each clip — this is what fixes the sync issue
+          get_dur() {
+            ffprobe -v error -show_entries format=duration -of csv=p=0 "$1" 2>/dev/null
+          }
+
+          OPENING_DUR=$(get_dur opening_raw_norm.wav)
+          INTRO_DUR=$(get_dur intro_raw_norm.wav)
+          WORD1_DUR=$(get_dur word1_raw_norm.wav)
+          REPEAT_DUR=$(get_dur repeat_raw_norm.wav)
+          WORD2_DUR=$(get_dur word2_raw_norm.wav)
+          CLOSING_DUR=$(get_dur closing_raw_norm.wav)
+
+          echo "opening_dur=$OPENING_DUR" >> "$GITHUB_OUTPUT"
+          echo "intro_dur=$INTRO_DUR" >> "$GITHUB_OUTPUT"
+          echo "word1_dur=$WORD1_DUR" >> "$GITHUB_OUTPUT"
+          echo "repeat_dur=$REPEAT_DUR" >> "$GITHUB_OUTPUT"
+          echo "word2_dur=$WORD2_DUR" >> "$GITHUB_OUTPUT"
+          echo "closing_dur=$CLOSING_DUR" >> "$GITHUB_OUTPUT"
+
+          echo "Durations: opening=$OPENING_DUR intro=$INTRO_DUR word1=$WORD1_DUR repeat=$REPEAT_DUR word2=$WORD2_DUR closing=$CLOSING_DUR"
+
+          # Build silence gaps
+          timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 0.3 silence_short.wav
+          timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 1.2 silence_long.wav
+          timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 0.6 silence_medium.wav
+
+          timeout 15 ffmpeg -hide_banner -loglevel error -y \
+            -i opening_raw_norm.wav -i silence_medium.wav \
+            -i intro_raw_norm.wav -i silence_short.wav \
+            -i word1_raw_norm.wav -i silence_long.wav \
+            -i repeat_raw_norm.wav -i silence_short.wav \
+            -i word2_raw_norm.wav -i silence_medium.wav \
+            -i closing_raw_norm.wav \
+            -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a][8:a][9:a][10:a]concat=n=11:v=0:a=1[aout]" \
+            -map "[aout]" speech_final.wav
+
+          echo "tts_available=true" >> "$GITHUB_OUTPUT"
+
+      - name: build-background
+        id: bg
+        timeout-minutes: 2
+        run: |
+          python3 << 'PYEOF'
+          from PIL import Image
+          import random, json
+
+          palettes = [
+              ("#4facfe", "#a855f7"),   # blue to purple
+              ("#fa709a", "#fee140"),   # pink to warm yellow
+              ("#43e97b", "#38f9d7"),   # mint to teal
+              ("#fbc2eb", "#fdcb6e"),   # soft pink to coral
+              ("#667eea", "#764ba2"),   # indigo to violet
+          ]
+          c1, c2 = random.choice(palettes)
+
+          def hex_to_rgb(h):
+              h = h.lstrip('#')
+              return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+          rgb1 = hex_to_rgb(c1)
+          rgb2 = hex_to_rgb(c2)
+
+          W, H = 1080, 1920
+          img = Image.new("RGB", (W, H), rgb1)
+          pixels = img.load()
+          for y in range(H):
+              t = y / H
+              r = int(rgb1[0] + (rgb2[0] - rgb1[0]) * t)
+              g = int(rgb1[1] + (rgb2[1] - rgb1[1]) * t)
+              b = int(rgb1[2] + (rgb2[2] - rgb1[2]) * t)
+              for x in range(0, W, 4):  # step by 4 for speed, fill blocks
+                  for dx in range(4):
+                      if x + dx < W:
+                          pixels[x + dx, y] = (r, g, b)
+
+          img.save("/tmp/bg.png")
+
+          layout_choice = random.choice(["A", "B", "C"])
+          with open("/tmp/layout_choice.txt", "w") as f:
+              f.write(layout_choice)
+
+          print(f"Background generated: {c1} -> {c2} | layout: {layout_choice}")
+          PYEOF
+
+          LAYOUT=$(cat /tmp/layout_choice.txt)
+          echo "layout=$LAYOUT" >> "$GITHUB_OUTPUT"
 
       - name: process-video
         timeout-minutes: 8
         run: |
-          URL="${{ steps.vid.outputs.video_url }}"
-          START="${{ steps.vid.outputs.start }}"
-          DUR="${{ steps.vid.outputs.clip }}"
           MUSIC_FILE="${{ steps.music.outputs.music_file }}"
 
-          echo "Video step word check: WORD=$WORD PRON_EN=$PRON_EN PRON_AR=$PRON_AR MEANING=$MEANING"
-
-          FETCH=$(echo "$DUR + 5" | bc)
-          FADEOUT=$(echo "$DUR - 1.5" | bc)
-
-          echo "Downloading video..."
-          timeout 90 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4
-
-          MDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$MUSIC_FILE" 2>/dev/null | cut -d. -f1)
-          MMAX=$((MDUR - 5))
-          [ "$MMAX" -le 5 ] && MMAX=5
-          MSTART=$((RANDOM % MMAX))
-          timeout 60 ffmpeg -hide_banner -loglevel error -y -stream_loop -1 -i "$MUSIC_FILE" -ss "$MSTART" -t "$FETCH" -ac 2 -ar 44100 music_clip.mp3
+          echo "Word check: WORD=$WORD PRON_EN=$PRON_EN PRON_AR=$PRON_AR MEANING=$MEANING"
 
           python3 << 'PYEOF'
           import os, random
@@ -322,8 +320,17 @@ jobs:
           pron_en = os.environ.get("PRON_EN", "bohn-ZHOOR")
           pron_ar = os.environ.get("PRON_AR", "بونجور")
           meaning = os.environ.get("MEANING", "مرحبا")
-          dur = float(os.environ.get("DUR", "14"))
-          fadeout = float(os.environ.get("FADEOUT", "12.5"))
+          layout = os.environ.get("LAYOUT", "A")
+
+          tts_available = os.environ.get("TTS_AVAILABLE", "false") == "true"
+
+          # Real measured durations (fallback estimates if TTS failed)
+          opening_dur = float(os.environ.get("OPENING_DUR", "2.5") or "2.5")
+          intro_dur = float(os.environ.get("INTRO_DUR", "0.9") or "0.9")
+          word1_dur = float(os.environ.get("WORD1_DUR", "0.8") or "0.8")
+          repeat_dur = float(os.environ.get("REPEAT_DUR", "0.9") or "0.9")
+          word2_dur = float(os.environ.get("WORD2_DUR", "0.8") or "0.8")
+          closing_dur = float(os.environ.get("CLOSING_DUR", "2.2") or "2.2")
 
           font_en_candidates = [
               "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
@@ -338,147 +345,207 @@ jobs:
           ]
           font_ar = next((f for f in font_ar_candidates if os.path.exists(f)), font_en)
 
-          color_palette = [
-              "white", "gold", "lightyellow", "lightcyan",
-              "lightpink", "peachpuff", "lavender", "palegreen",
-              "lightskyblue", "wheat", "khaki", "lightsalmon",
-              "mistyrose", "honeydew", "aliceblue"
-          ]
-          main_color = random.choice(color_palette)
-          accent_palette = [c for c in color_palette if c != main_color]
-          accent_color = random.choice(accent_palette)
-
           def esc(t):
               return t.replace("'", "\u2019").replace(":", "\\:").replace(",", "\\,")
 
-          intros = [
-              "تعلم كلمة فرنسية جديدة",
-              "كلمة اليوم باللغة الفرنسية",
-              "تعلم النطق الفرنسي الصحيح",
-              "وسّع مفرداتك الفرنسية",
-              "كلمة فرنسية جديدة كل يوم",
-          ]
-          intro_text = random.choice(intros)
+          # ---- Compute real timeline from measured durations ----
+          t_fade_in = 0.4
+          t_opening_start = 0.5
+          t_opening_end = t_opening_start + opening_dur
+          t_intro_start = t_opening_end + 0.35
+          t_intro_end = t_intro_start + intro_dur
+          t_word1_start = t_intro_end + 0.3
+          t_word1_end = t_word1_start + word1_dur
+          t_repeat_start = t_word1_end + 1.2
+          t_repeat_end = t_repeat_start + repeat_dur
+          t_word2_start = t_repeat_end + 0.3
+          t_word2_end = t_word2_start + word2_dur
+          t_info_reveal = t_word2_end + 0.3
+          t_closing_start = t_info_reveal + 2.2
+          t_closing_end = t_closing_start + closing_dur
+          total_dur = t_closing_end + 1.8
+          fadeout_start = total_dur - 1.5
+
+          # ---- Layout-specific text positions/colors/styles ----
+          layouts = {
+              "A": {
+                  "word_y": 420, "word_size": 110, "word_color": "white",
+                  "label_y_offset": -70, "label_size": 30, "label_color": "lightyellow@0.85",
+                  "pron_en_y": 620, "pron_en_size": 50, "pron_color": "#ffe066",
+                  "pron_ar_y": 740, "pron_ar_size": 58,
+                  "meaning_y": 870, "meaning_size": 46,
+                  "subtitle_box_top": 1180, "subtitle_box_h": 100, "subtitle_size": 46,
+                  "box_color": "black@0.6",
+              },
+              "B": {
+                  "word_y": 360, "word_size": 120, "word_color": "#fff3b0",
+                  "label_y_offset": -65, "label_size": 28, "label_color": "white@0.8",
+                  "pron_en_y": 570, "pron_en_size": 48, "pron_color": "white",
+                  "pron_ar_y": 690, "pron_ar_size": 56,
+                  "meaning_y": 830, "meaning_size": 44,
+                  "subtitle_box_top": 1200, "subtitle_box_h": 110, "subtitle_size": 48,
+                  "box_color": "black@0.65",
+              },
+              "C": {
+                  "word_y": 460, "word_size": 104, "word_color": "white",
+                  "label_y_offset": -60, "label_size": 30, "label_color": "#ffd6a5",
+                  "pron_en_y": 650, "pron_en_size": 52, "pron_color": "#ffd6a5",
+                  "pron_ar_y": 770, "pron_ar_size": 60,
+                  "meaning_y": 900, "meaning_size": 48,
+                  "subtitle_box_top": 1160, "subtitle_box_h": 100, "subtitle_size": 46,
+                  "box_color": "black@0.6",
+              },
+          }
+          L = layouts.get(layout, layouts["A"])
 
           filters = []
 
           def fade_in(t):
               return f"if(lt(t,{t:.2f}),0,min(1,(t-{t:.2f})/0.25))"
 
-          def subtitle(text, t_start, t_end, box_top=290, box_h=90):
+          def subtitle(text, t_start, t_end):
               out = []
+              box_top = L["subtitle_box_top"]
+              box_h = L["subtitle_box_h"]
               out.append(
-                  f"drawbox=x=220:y={box_top}:w=640:h={box_h}"
-                  f":color=black@0.75:t=fill"
-                  f":enable='between(t,{t_start},{t_end})'"
+                  f"drawbox=x=140:y={box_top}:w=800:h={box_h}"
+                  f":color={L['box_color']}:t=fill:enable='between(t,{t_start:.2f},{t_end:.2f})'"
               )
               out.append(
                   f"drawtext=text='{esc(text)}'"
                   f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-                  f":fontcolor=lightyellow:fontsize=48:x=(w-text_w)/2:y={box_top + 20}"
-                  f":enable='between(t,{t_start},{t_end})'"
+                  f":fontcolor=lightyellow:fontsize={L['subtitle_size']}:x=(w-text_w)/2:y={box_top + (box_h - L['subtitle_size'])//2 - 6}"
+                  f":enable='between(t,{t_start:.2f},{t_end:.2f})'"
                   f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
               )
               return out
 
-          # Top: rotating Arabic intro line (static)
+          # Opening subtitle — synced exactly to measured opening_dur
+          filters += subtitle("لنتعلم كيف ننطق الكلمات الفرنسية", t_opening_start, t_opening_end + 0.1)
+
+          # "الكلمة هي" synced to intro clip
+          filters += subtitle("الكلمة هي", t_intro_start, t_intro_end + 0.1)
+
+          # Label above word
           filters.append(
-              f"drawtext=text='{esc(intro_text)}'"
+              f"drawtext=text='{esc('الكلمة')}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.95:fontsize=44:x=(w-text_w)/2:y=120"
-              f":alpha='{fade_in(0.3)}'"
-              f":shadowcolor=black@0.85:shadowx=3:shadowy=3"
+              f":fontcolor={L['label_color']}:fontsize={L['label_size']}"
+              f":x=(w-text_w)/2:y={L['word_y'] + L['label_y_offset']}"
+              f":alpha='{fade_in(t_word1_start)}'"
+              f":shadowcolor=black@0.7:shadowx=2:shadowy=2"
           )
 
-          # Subtitle: opening line, synced to "Apprenons à prononcer..." (0.5s-1.9s)
-          filters += subtitle("لنتعلم كيف ننطق الكلمات الفرنسية", 0.5, 1.9)
-
-          # Subtitle: "الكلمة هي" synced to "Le mot est." (2.1s-2.7s)
-          filters += subtitle("الكلمة هي", 2.1, 2.7)
-
-          # The French word (appears at 2.7s, when TTS says it)
+          # The word itself — appears exactly when word1 audio starts
           filters.append(
               f"drawtext=text='{esc(word)}'"
               f":fontfile={font_en}"
-              f":fontcolor={main_color}:fontsize=100:x=(w-text_w)/2:y=460"
-              f":alpha='{fade_in(2.7)}'"
+              f":fontcolor={L['word_color']}:fontsize={L['word_size']}"
+              f":x=(w-text_w)/2:y={L['word_y']}"
+              f":alpha='{fade_in(t_word1_start)}'"
               f":shadowcolor=black@0.85:shadowx=4:shadowy=4"
           )
 
-          # Subtitle: "لنكررها" shown slightly before "On répète." (4.5s-5.5s)
-          filters += subtitle("لنكررها", 4.5, 5.5)
+          # "لنكررها" subtitle synced to repeat clip
+          filters += subtitle("لنكررها", t_repeat_start, t_repeat_end + 0.1)
 
-          # English pronunciation — appears after both word reads finish
-          filters.append(
-              f"drawtext=text='{esc(pron_en)}'"
-              f":fontfile={font_en}"
-              f":fontcolor={accent_color}:fontsize=52:x=(w-text_w)/2:y=640"
-              f":alpha='{fade_in(6.5)}'"
-              f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
-          )
-
-          # Arabic pronunciation label + text
+          # Pronunciation label
           filters.append(
               f"drawtext=text='{esc('طريقة النطق')}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.75:fontsize=30:x=(w-text_w)/2:y=708"
-              f":alpha='{fade_in(6.9)}'"
+              f":fontcolor={L['label_color']}:fontsize={L['label_size']}"
+              f":x=(w-text_w)/2:y={L['pron_en_y'] - 50}"
+              f":alpha='{fade_in(t_info_reveal)}'"
               f":shadowcolor=black@0.7:shadowx=2:shadowy=2"
           )
+
+          # English-letter pronunciation
+          filters.append(
+              f"drawtext=text='{esc(pron_en)}'"
+              f":fontfile={font_en}"
+              f":fontcolor={L['pron_color']}:fontsize={L['pron_en_size']}"
+              f":x=(w-text_w)/2:y={L['pron_en_y']}"
+              f":alpha='{fade_in(t_info_reveal)}'"
+              f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
+          )
+
+          # Arabic-letter pronunciation
           filters.append(
               f"drawtext=text='{esc(pron_ar)}'"
               f":fontfile={font_ar}"
-              f":fontcolor={accent_color}:fontsize=58:x=(w-text_w)/2:y=756"
-              f":alpha='{fade_in(7.1)}'"
+              f":fontcolor={L['pron_color']}:fontsize={L['pron_ar_size']}"
+              f":x=(w-text_w)/2:y={L['pron_ar_y']}"
+              f":alpha='{fade_in(t_info_reveal + 0.2)}'"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # Meaning
+          # Meaning label + text
           filters.append(
-              f"drawtext=text='{esc('المعنى: ' + meaning)}'"
+              f"drawtext=text='{esc('المعنى')}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.9:fontsize=46:x=(w-text_w)/2:y=880"
-              f":alpha='{fade_in(7.5)}'"
+              f":fontcolor={L['label_color']}:fontsize={L['label_size']}"
+              f":x=(w-text_w)/2:y={L['meaning_y'] - 50}"
+              f":alpha='{fade_in(t_info_reveal + 0.4)}'"
+              f":shadowcolor=black@0.7:shadowx=2:shadowy=2"
+          )
+          filters.append(
+              f"drawtext=text='{esc(meaning)}'"
+              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
+              f":fontcolor=white@0.95:fontsize={L['meaning_size']}"
+              f":x=(w-text_w)/2:y={L['meaning_y']}"
+              f":alpha='{fade_in(t_info_reveal + 0.5)}'"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
 
-          # Closing CTA — spoken + subtitle + on-screen box, synced to "Suivez-nous..." (8.0s-9.7s)
-          filters += subtitle("تابعونا واتركوا تعليقا", 8.0, 9.7, box_top=1560, box_h=100)
+          # Closing CTA subtitle — synced to closing clip
+          filters += subtitle("تابعونا واتركوا تعليقا", t_closing_start, t_closing_end + 0.1)
 
           all_dt = ",".join(filters)
 
           vfilter = (
-              f"[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
-              f"crop=1080:1920,"
-              f"setsar=1,"
-              f"gblur=sigma=25,"
-              f"fade=t=in:st=0:d=0.5,"
-              f"fade=t=out:st={fadeout:.2f}:d=1.5,"
+              f"[0:v]scale=1080:1920,"
+              f"fade=t=in:st=0:d={t_fade_in},"
+              f"fade=t=out:st={fadeout_start:.2f}:d=1.5,"
               f"{all_dt}[vout]"
           )
 
           with open("/tmp/vfilter.txt", "w") as f:
               f.write(vfilter)
 
-          with open("/tmp/shared_state.txt", "w") as f:
-              f.write(f"{word}\n{pron_en}\n{pron_ar}\n{meaning}\n{main_color}\n{accent_color}\n{intro_text}\ntabعونا واتركوا تعليقا\n")
+          with open("/tmp/total_dur.txt", "w") as f:
+              f.write(f"{total_dur:.2f}")
 
-          print(f"Built filter | word: {word} | main_color: {main_color} | accent: {accent_color} | intro: {intro_text}")
+          with open("/tmp/shared_state.txt", "w") as f:
+              f.write(f"{word}\n{pron_en}\n{pron_ar}\n{meaning}\n{layout}\n")
+
+          print(f"Timeline: opening={t_opening_start:.2f}-{t_opening_end:.2f} word1={t_word1_start:.2f}-{t_word1_end:.2f} repeat={t_repeat_start:.2f}-{t_repeat_end:.2f} word2={t_word2_start:.2f}-{t_word2_end:.2f} info={t_info_reveal:.2f} closing={t_closing_start:.2f}-{t_closing_end:.2f} total={total_dur:.2f}")
           PYEOF
 
           VFILTER=$(cat /tmp/vfilter.txt)
+          TOTAL_DUR=$(cat /tmp/total_dur.txt)
+
+          # Loop the generated background image for the full dynamic duration
+          timeout 15 ffmpeg -hide_banner -loglevel error -y -loop 1 -i /tmp/bg.png -t "$TOTAL_DUR" -pix_fmt yuv420p bg_video.mp4
+
+          MDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$MUSIC_FILE" 2>/dev/null | cut -d. -f1)
+          MMAX=$((MDUR - 5))
+          [ "$MMAX" -le 5 ] && MMAX=5
+          MSTART=$((RANDOM % MMAX))
+          timeout 60 ffmpeg -hide_banner -loglevel error -y -stream_loop -1 -i "$MUSIC_FILE" -ss "$MSTART" -t "$TOTAL_DUR" -ac 2 -ar 44100 music_clip.mp3
+
+          FADEOUT=$(echo "$TOTAL_DUR - 1.5" | bc)
 
           if [ "${{ steps.tts.outputs.tts_available }}" = "true" ]; then
             echo "Mixing with TTS speech overlay..."
-            AFILTER="[1:a]volume=0.7,afade=t=in:st=0:d=0.5,afade=t=out:st=${FADEOUT}:d=1.5,volume='if(between(t,0.5,9.7),0.25,0.7)':eval=frame[music];[2:a]adelay=500|500,volume=0.85[speech];[music][speech]amix=inputs=2:duration=first:dropout_transition=0,volume=1.4[aout]"
+            AFILTER="[1:a]volume=0.7,afade=t=in:st=0:d=0.5,afade=t=out:st=${FADEOUT}:d=1.5,volume='if(lt(t,10.5),0.25,0.7)':eval=frame[music];[2:a]adelay=500|500,volume=0.85[speech];[music][speech]amix=inputs=2:duration=first:dropout_transition=0,volume=1.4[aout]"
             timeout 240 ffmpeg -hide_banner -loglevel error -y \
-              -i source.mp4 \
+              -i bg_video.mp4 \
               -i music_clip.mp3 \
               -i speech_final.wav \
               -filter_complex "${VFILTER};${AFILTER}" \
               -map "[vout]" \
               -map "[aout]" \
-              -t "$DUR" \
+              -t "$TOTAL_DUR" \
               -c:v libx264 -preset medium -crf 16 \
               -c:a aac -b:a 192k \
               -movflags +faststart \
@@ -487,12 +554,12 @@ jobs:
           else
             echo "No TTS available, music-only audio..."
             timeout 240 ffmpeg -hide_banner -loglevel error -y \
-              -i source.mp4 \
+              -i bg_video.mp4 \
               -i music_clip.mp3 \
               -filter_complex "${VFILTER};[1:a]volume=0.9,afade=t=in:st=0:d=0.5,afade=t=out:st=${FADEOUT}:d=1.5[aout]" \
               -map "[vout]" \
               -map "[aout]" \
-              -t "$DUR" \
+              -t "$TOTAL_DUR" \
               -c:v libx264 -preset medium -crf 16 \
               -c:a aac -b:a 192k \
               -movflags +faststart \
@@ -506,32 +573,32 @@ jobs:
           PRON_EN: ${{ steps.content.outputs.pron_en }}
           PRON_AR: ${{ steps.content.outputs.pron_ar }}
           MEANING: ${{ steps.content.outputs.meaning }}
-          DUR: "14"
-          FADEOUT: "12.5"
+          LAYOUT: ${{ steps.bg.outputs.layout }}
+          TTS_AVAILABLE: ${{ steps.tts.outputs.tts_available }}
+          OPENING_DUR: ${{ steps.tts.outputs.opening_dur }}
+          INTRO_DUR: ${{ steps.tts.outputs.intro_dur }}
+          WORD1_DUR: ${{ steps.tts.outputs.word1_dur }}
+          REPEAT_DUR: ${{ steps.tts.outputs.repeat_dur }}
+          WORD2_DUR: ${{ steps.tts.outputs.word2_dur }}
+          CLOSING_DUR: ${{ steps.tts.outputs.closing_dur }}
 
       - name: process-image
         timeout-minutes: 3
         run: |
-          URL="${{ steps.vid.outputs.video_url }}"
-          START="${{ steps.vid.outputs.start }}"
-
           WORD=$(sed -n '1p' /tmp/shared_state.txt)
           PRON_EN=$(sed -n '2p' /tmp/shared_state.txt)
           PRON_AR=$(sed -n '3p' /tmp/shared_state.txt)
           MEANING=$(sed -n '4p' /tmp/shared_state.txt)
+          LAYOUT=$(sed -n '5p' /tmp/shared_state.txt)
 
-          echo "Image step word check (from shared_state.txt): WORD=$WORD PRON_EN=$PRON_EN PRON_AR=$PRON_AR MEANING=$MEANING"
-
-          timeout 60 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -frames:v 1 bg_frame.jpg
+          echo "Image step check: WORD=$WORD PRON_EN=$PRON_EN PRON_AR=$PRON_AR MEANING=$MEANING LAYOUT=$LAYOUT"
 
           python3 << 'PYEOF'
           import os
 
           with open("/tmp/shared_state.txt") as f:
               lines = [l.rstrip("\n") for l in f.readlines()]
-          word, pron_en, pron_ar, meaning, main_color, accent_color, intro_text, cta_text = lines[0:8]
-
-          print(f"process-image using shared_state: word={word} pron_en={pron_en} pron_ar={pron_ar} meaning={meaning}")
+          word, pron_en, pron_ar, meaning, layout = lines[0:5]
 
           font_en_candidates = [
               "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
@@ -549,65 +616,59 @@ jobs:
           def esc(t):
               return t.replace("'", "\u2019").replace(":", "\\:").replace(",", "\\,")
 
-          filters = []
+          layouts = {
+              "A": {"word_y": 420, "word_size": 110, "word_color": "white", "pron_en_y": 620, "pron_en_size": 50, "pron_color": "#ffe066", "pron_ar_y": 740, "pron_ar_size": 58, "meaning_y": 870, "meaning_size": 46},
+              "B": {"word_y": 360, "word_size": 120, "word_color": "#fff3b0", "pron_en_y": 570, "pron_en_size": 48, "pron_color": "white", "pron_ar_y": 690, "pron_ar_size": 56, "meaning_y": 830, "meaning_size": 44},
+              "C": {"word_y": 460, "word_size": 104, "word_color": "white", "pron_en_y": 650, "pron_en_size": 52, "pron_color": "#ffd6a5", "pron_ar_y": 770, "pron_ar_size": 60, "meaning_y": 900, "meaning_size": 48},
+          }
+          L = layouts.get(layout, layouts["A"])
 
+          filters = []
           filters.append(
-              f"drawtext=text='{esc(intro_text)}'"
+              f"drawtext=text='{esc('الكلمة')}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.95:fontsize=44:x=(w-text_w)/2:y=120"
-              f":shadowcolor=black@0.85:shadowx=3:shadowy=3"
+              f":fontcolor=lightyellow@0.85:fontsize=30:x=(w-text_w)/2:y={L['word_y'] - 70}"
+              f":shadowcolor=black@0.7:shadowx=2:shadowy=2"
           )
           filters.append(
               f"drawtext=text='{esc(word)}'"
               f":fontfile={font_en}"
-              f":fontcolor={main_color}:fontsize=100:x=(w-text_w)/2:y=460"
+              f":fontcolor={L['word_color']}:fontsize={L['word_size']}:x=(w-text_w)/2:y={L['word_y']}"
               f":shadowcolor=black@0.85:shadowx=4:shadowy=4"
-          )
-          filters.append(
-              f"drawtext=text='{esc(pron_en)}'"
-              f":fontfile={font_en}"
-              f":fontcolor={accent_color}:fontsize=52:x=(w-text_w)/2:y=640"
-              f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
           filters.append(
               f"drawtext=text='{esc('طريقة النطق')}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.75:fontsize=30:x=(w-text_w)/2:y=708"
+              f":fontcolor=lightyellow@0.85:fontsize=30:x=(w-text_w)/2:y={L['pron_en_y'] - 50}"
               f":shadowcolor=black@0.7:shadowx=2:shadowy=2"
+          )
+          filters.append(
+              f"drawtext=text='{esc(pron_en)}'"
+              f":fontfile={font_en}"
+              f":fontcolor={L['pron_color']}:fontsize={L['pron_en_size']}:x=(w-text_w)/2:y={L['pron_en_y']}"
+              f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
           filters.append(
               f"drawtext=text='{esc(pron_ar)}'"
               f":fontfile={font_ar}"
-              f":fontcolor={accent_color}:fontsize=58:x=(w-text_w)/2:y=756"
+              f":fontcolor={L['pron_color']}:fontsize={L['pron_ar_size']}:x=(w-text_w)/2:y={L['pron_ar_y']}"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
           )
           filters.append(
-              f"drawtext=text='{esc('المعنى: ' + meaning)}'"
+              f"drawtext=text='{esc('المعنى')}'"
               f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=white@0.9:fontsize=46:x=(w-text_w)/2:y=880"
+              f":fontcolor=lightyellow@0.85:fontsize=30:x=(w-text_w)/2:y={L['meaning_y'] - 50}"
+              f":shadowcolor=black@0.7:shadowx=2:shadowy=2"
+          )
+          filters.append(
+              f"drawtext=text='{esc(meaning)}'"
+              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
+              f":fontcolor=white@0.95:fontsize={L['meaning_size']}:x=(w-text_w)/2:y={L['meaning_y']}"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
-          )
-
-          box_y_top = 1560
-          box_y_bottom = 1660
-          filters.append(
-              f"drawbox=x=220:y={box_y_top}:w=640:h={box_y_bottom - box_y_top}:color=black@0.75:t=fill"
-          )
-          filters.append(
-              f"drawtext=text='{esc(cta_text)}'"
-              f":fontfile=/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf"
-              f":fontcolor=lightyellow:fontsize=48:x=(w-text_w)/2:y={box_y_top + 28}"
-              f":shadowcolor=black@0.8:shadowx=2:shadowy=2"
           )
 
           all_dt = ",".join(filters)
-          vfilter = (
-              f"[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
-              f"crop=1080:1920,"
-              f"setsar=1,"
-              f"gblur=sigma=25,"
-              f"{all_dt}"
-          )
+          vfilter = f"[0:v]scale=1080:1920,{all_dt}"
 
           with open("/tmp/ifilter.txt", "w") as f:
               f.write(vfilter)
@@ -615,8 +676,8 @@ jobs:
 
           IFILTER=$(cat /tmp/ifilter.txt)
 
-          timeout 60 ffmpeg -hide_banner -loglevel error -y \
-            -i bg_frame.jpg \
+          timeout 30 ffmpeg -hide_banner -loglevel error -y \
+            -i /tmp/bg.png \
             -vf "$IFILTER" \
             -frames:v 1 \
             final_image.jpg
