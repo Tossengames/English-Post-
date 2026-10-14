@@ -8,7 +8,9 @@ name: english-words-in-context-post
         required: false
         default: ""
   schedule:
-    - cron: "0 17 * * *"  # 1 PM EST / 5 PM UTC daily
+    - cron: "0 7 * * *"   # 9 AM Cairo/Levant time (UTC+2)
+    - cron: "0 13 * * *"  # 3 PM Cairo/Levant time
+    - cron: "0 19 * * *"  # 9 PM Cairo/Levant time
 
 jobs:
   post:
@@ -135,7 +137,6 @@ jobs:
             timeout 25 edge-tts --voice "$voice" --text "$text" --write-media "$out_mp3" 2>/tmp/edge_err.log
           }
 
-          # ALL instructional/connector phrases are Arabic; only the word and example sentences are English
           synth_edge "$AR_VOICE" "لنتعلم كلمات إنجليزية وكيفية نطقها." opening_raw.mp3 || true
           synth_edge "$EN_VOICE" "$WORD." word_raw.mp3 || true
           synth_edge "$AR_VOICE" "إليك مثالا." ex1_intro_raw.mp3 || true
@@ -325,18 +326,19 @@ jobs:
           font_ar_path = next((f for f in font_ar_candidates if os.path.exists(f)), font_en_path)
 
           layouts = {
-              "A": {"word_y": 160, "word_size": 90, "word_color": "white", "word_ar_y": 260, "sent1_top": 480, "sent2_top": 780, "accent": "#ffe066"},
-              "B": {"word_y": 140, "word_size": 96, "word_color": "#fff3b0", "word_ar_y": 250, "sent1_top": 460, "sent2_top": 770, "accent": "#6bcbff"},
-              "C": {"word_y": 170, "word_size": 86, "word_color": "white", "word_ar_y": 265, "sent1_top": 490, "sent2_top": 790, "accent": "#ffd6a5"},
+              "A": {"word_y": 150, "word_size": 90, "word_color": "white", "word_ar_y": 250, "sent1_top": 460, "sent2_top": 800, "accent": "#ffe066"},
+              "B": {"word_y": 130, "word_size": 96, "word_color": "#fff3b0", "word_ar_y": 240, "sent1_top": 440, "sent2_top": 790, "accent": "#6bcbff"},
+              "C": {"word_y": 160, "word_size": 86, "word_color": "white", "word_ar_y": 255, "sent1_top": 470, "sent2_top": 810, "accent": "#ffd6a5"},
           }
           L = layouts.get(layout, layouts["A"])
 
           subtitle_colors = ["#FF6B6B", "#4ECDC4", "#FFD93D", "#A78BFA", "#FF9F68", "#6BCB77"]
 
-          def render_sentence_block_png(sentence_en, sentence_ar, target_word, out_path, max_width=940, fontsize=44, ar_fontsize=36):
+          # ---- Sentence block: bigger text, stroke outline, AND a semi-opaque rounded background panel ----
+          def render_sentence_block_png(sentence_en, sentence_ar, target_word, out_path, max_width=900, fontsize=52, ar_fontsize=42, accent="#ffe066"):
               font_reg = ImageFont.truetype(font_en_regular_path, fontsize)
               font_bold = ImageFont.truetype(font_en_path, fontsize)
-              font_ar = ImageFont.truetype(font_ar_path, ar_fontsize)
+              font_ar_f = ImageFont.truetype(font_ar_path, ar_fontsize)
 
               tokens = sentence_en.split(" ")
               tmp_img = Image.new("RGBA", (10, 10))
@@ -344,7 +346,7 @@ jobs:
 
               def token_width(tok, bold):
                   f = font_bold if bold else font_reg
-                  bbox = draw_tmp.textbbox((0, 0), tok, font=f)
+                  bbox = draw_tmp.textbbox((0, 0), tok, font=f, stroke_width=3)
                   return bbox[2] - bbox[0]
 
               space_w = draw_tmp.textbbox((0, 0), " ", font=font_reg)[2]
@@ -363,33 +365,45 @@ jobs:
               if current_line:
                   lines.append(current_line)
 
-              # Arabic translation line(s)
-              ar_bbox = draw_tmp.textbbox((0, 0), sentence_ar, font=font_ar)
+              ar_bbox = draw_tmp.textbbox((0, 0), sentence_ar, font=font_ar_f, stroke_width=2)
               ar_w, ar_h = ar_bbox[2] - ar_bbox[0], ar_bbox[3] - ar_bbox[1]
 
-              line_height = fontsize + 16
+              line_height = fontsize + 20
               en_block_h = line_height * len(lines)
-              gap = 14
-              img_h = en_block_h + gap + ar_h + 30
-              img_w = max(max_width + 40, ar_w + 40)
-              img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
+              gap = 18
+              content_w = max(max_width, ar_w)
+              content_h = en_block_h + gap + ar_h
+
+              pad_x, pad_y = 50, 36
+              panel_w = content_w + pad_x * 2
+              panel_h = content_h + pad_y * 2
+
+              img = Image.new("RGBA", (panel_w, panel_h), (0, 0, 0, 0))
               draw = ImageDraw.Draw(img)
+
+              # Semi-opaque rounded background panel so text is readable over any video
+              draw.rounded_rectangle([(0, 0), (panel_w - 1, panel_h - 1)], radius=30, fill=(0, 0, 0, 165))
 
               for li, line in enumerate(lines):
                   total_w = sum(token_width(t, b) for t, b in line) + space_w * (len(line) - 1)
-                  x = (img_w - total_w) // 2
-                  y = 10 + li * line_height
+                  x = (panel_w - total_w) // 2
+                  y = pad_y + li * line_height
                   for tok, is_target in line:
                       f = font_bold if is_target else font_reg
-                      color = L["accent"] if is_target else "white"
-                      draw.text((x, y), tok, font=f, fill=color)
+                      color = accent if is_target else "white"
+                      # Stroke outline for strong contrast/readability
+                      draw.text((x, y), tok, font=f, fill=color, stroke_width=3, stroke_fill="black")
                       x += token_width(tok, is_target) + space_w
 
-              ar_y = 10 + en_block_h + gap
-              draw.text(((img_w - ar_w) // 2 - ar_bbox[0], ar_y - ar_bbox[1]), sentence_ar, font=font_ar, fill="#cfd8dc")
+              ar_y = pad_y + en_block_h + gap
+              draw.text(
+                  ((panel_w - ar_w) // 2 - ar_bbox[0], ar_y - ar_bbox[1]),
+                  sentence_ar, font=font_ar_f, fill="#e8eef0",
+                  stroke_width=2, stroke_fill="black"
+              )
 
               img.save(out_path)
-              return img_w, img_h
+              return panel_w, panel_h
 
           def make_box_png(text, out_path, fontsize=38, max_width=650):
               font = ImageFont.truetype(font_ar_path, fontsize)
@@ -410,15 +424,14 @@ jobs:
           make_box_png("إليك مثالا", "/tmp/sub_ex1.png")
           make_box_png("مثال آخر", "/tmp/sub_ex2.png")
           make_box_png("تابعونا واتركوا تعليقا", "/tmp/sub_closing.png")
-          sent1_w, sent1_h = render_sentence_block_png(sent1, sent1_ar, word, "/tmp/sent1.png")
-          sent2_w, sent2_h = render_sentence_block_png(sent2, sent2_ar, word, "/tmp/sent2.png")
+          sent1_w, sent1_h = render_sentence_block_png(sent1, sent1_ar, word, "/tmp/sent1.png", accent=L["accent"])
+          sent2_w, sent2_h = render_sentence_block_png(sent2, sent2_ar, word, "/tmp/sent2.png", accent=L["accent"])
 
           def esc(t):
               return t.replace("'", "\u2019").replace(":", "\\:").replace(",", "\\,")
 
-          # ---- Fully sequential timeline, all instructions in Arabic, word visible from start ----
           t_fade_in = 0.3
-          t_word_visible = 0.3  # word + its Arabic translation appear immediately and stay
+          t_word_visible = 0.3
           t_opening_start = 0.3
           t_opening_end = t_opening_start + opening_dur
           t_word_spoken_start = t_opening_end + 0.4
@@ -440,7 +453,6 @@ jobs:
               return f"if(lt(t,{t:.2f}),0,min(1,(t-{t:.2f})/0.2))"
 
           filters = []
-          # Word — visible from the very start, stays the whole video
           filters.append(
               f"drawtext=text='{esc(word)}'"
               f":fontfile={font_en_path}"
@@ -448,15 +460,16 @@ jobs:
               f":x=(w-text_w)/2:y={L['word_y']}"
               f":alpha='{fade_in(t_word_visible)}'"
               f":shadowcolor=black@0.85:shadowx=4:shadowy=4"
+              f":borderw=3:bordercolor=black@0.7"
           )
-          # Word's Arabic translation — also visible from the start, stays the whole video
           filters.append(
               f"drawtext=text='{esc(word_ar)}'"
               f":fontfile={font_ar_path}"
-              f":fontcolor=#cfd8dc:fontsize=46"
+              f":fontcolor=#e8eef0:fontsize=46"
               f":x=(w-text_w)/2:y={L['word_ar_y']}"
               f":alpha='{fade_in(t_word_visible)}'"
               f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
+              f":borderw=2:bordercolor=black@0.6"
           )
 
           dt_chain = ",".join(filters)
@@ -469,7 +482,7 @@ jobs:
               f"{dt_chain}[base]"
           )
 
-          small_box_y = 1750  # instructional badges shown briefly near bottom-safe area, not overlapping sentence blocks
+          small_box_y = 1750
           closing_y = 1700
 
           overlay_chain = (
@@ -615,9 +628,9 @@ jobs:
           font_ar = next((f for f in font_ar_candidates if os.path.exists(f)), font_en)
 
           layouts = {
-              "A": {"word_y": 160, "word_size": 90, "word_color": "white", "word_ar_y": 260, "sent1_top": 480, "sent2_top": 780, "accent": "#ffe066"},
-              "B": {"word_y": 140, "word_size": 96, "word_color": "#fff3b0", "word_ar_y": 250, "sent1_top": 460, "sent2_top": 770, "accent": "#6bcbff"},
-              "C": {"word_y": 170, "word_size": 86, "word_color": "white", "word_ar_y": 265, "sent1_top": 490, "sent2_top": 790, "accent": "#ffd6a5"},
+              "A": {"word_y": 150, "word_size": 90, "word_color": "white", "word_ar_y": 250, "sent1_top": 460, "sent2_top": 800, "accent": "#ffe066"},
+              "B": {"word_y": 130, "word_size": 96, "word_color": "#fff3b0", "word_ar_y": 240, "sent1_top": 440, "sent2_top": 790, "accent": "#6bcbff"},
+              "C": {"word_y": 160, "word_size": 86, "word_color": "white", "word_ar_y": 255, "sent1_top": 470, "sent2_top": 810, "accent": "#ffd6a5"},
           }
           L = layouts.get(layout, layouts["A"])
 
@@ -629,13 +642,13 @@ jobs:
               f"drawtext=text='{esc(word)}'"
               f":fontfile={font_en}"
               f":fontcolor={L['word_color']}:fontsize={L['word_size']}:x=(w-text_w)/2:y={L['word_y']}"
-              f":shadowcolor=black@0.85:shadowx=4:shadowy=4"
+              f":shadowcolor=black@0.85:shadowx=4:shadowy=4:borderw=3:bordercolor=black@0.7"
           )
           filters.append(
               f"drawtext=text='{esc(word_ar)}'"
               f":fontfile={font_ar}"
-              f":fontcolor=#cfd8dc:fontsize=46:x=(w-text_w)/2:y={L['word_ar_y']}"
-              f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
+              f":fontcolor=#e8eef0:fontsize=46:x=(w-text_w)/2:y={L['word_ar_y']}"
+              f":shadowcolor=black@0.8:shadowx=3:shadowy=3:borderw=2:bordercolor=black@0.6"
           )
 
           all_dt = ",".join(filters)
@@ -644,7 +657,7 @@ jobs:
               f"crop=1080:1920,setsar=1,gblur=sigma=25,{all_dt}[base]"
           )
 
-          def render_sentence_block_png(sentence_en, sentence_ar, target_word, out_path, max_width=940, fontsize=44, ar_fontsize=36, accent="#ffe066"):
+          def render_sentence_block_png(sentence_en, sentence_ar, target_word, out_path, max_width=900, fontsize=52, ar_fontsize=42, accent="#ffe066"):
               font_reg = ImageFont.truetype(font_en_regular, fontsize)
               font_bold = ImageFont.truetype(font_en, fontsize)
               font_ar_f = ImageFont.truetype(font_ar, ar_fontsize)
@@ -654,7 +667,7 @@ jobs:
 
               def token_width(tok, bold):
                   f = font_bold if bold else font_reg
-                  bbox = draw_tmp.textbbox((0, 0), tok, font=f)
+                  bbox = draw_tmp.textbbox((0, 0), tok, font=f, stroke_width=3)
                   return bbox[2] - bbox[0]
 
               space_w = draw_tmp.textbbox((0, 0), " ", font=font_reg)[2]
@@ -673,29 +686,38 @@ jobs:
               if current_line:
                   lines.append(current_line)
 
-              ar_bbox = draw_tmp.textbbox((0, 0), sentence_ar, font=font_ar_f)
+              ar_bbox = draw_tmp.textbbox((0, 0), sentence_ar, font=font_ar_f, stroke_width=2)
               ar_w, ar_h = ar_bbox[2] - ar_bbox[0], ar_bbox[3] - ar_bbox[1]
 
-              line_height = fontsize + 16
+              line_height = fontsize + 20
               en_block_h = line_height * len(lines)
-              gap = 14
-              img_h = en_block_h + gap + ar_h + 30
-              img_w = max(max_width + 40, ar_w + 40)
-              img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
+              gap = 18
+              content_w = max(max_width, ar_w)
+              content_h = en_block_h + gap + ar_h
+              pad_x, pad_y = 50, 36
+              panel_w = content_w + pad_x * 2
+              panel_h = content_h + pad_y * 2
+
+              img = Image.new("RGBA", (panel_w, panel_h), (0, 0, 0, 0))
               draw = ImageDraw.Draw(img)
+              draw.rounded_rectangle([(0, 0), (panel_w - 1, panel_h - 1)], radius=30, fill=(0, 0, 0, 165))
 
               for li, line in enumerate(lines):
                   total_w = sum(token_width(t, b) for t, b in line) + space_w * (len(line) - 1)
-                  x = (img_w - total_w) // 2
-                  y = 10 + li * line_height
+                  x = (panel_w - total_w) // 2
+                  y = pad_y + li * line_height
                   for tok, is_target in line:
                       f = font_bold if is_target else font_reg
                       color = accent if is_target else "white"
-                      draw.text((x, y), tok, font=f, fill=color)
+                      draw.text((x, y), tok, font=f, fill=color, stroke_width=3, stroke_fill="black")
                       x += token_width(tok, is_target) + space_w
 
-              ar_y = 10 + en_block_h + gap
-              draw.text(((img_w - ar_w) // 2 - ar_bbox[0], ar_y - ar_bbox[1]), sentence_ar, font=font_ar_f, fill="#cfd8dc")
+              ar_y = pad_y + en_block_h + gap
+              draw.text(
+                  ((panel_w - ar_w) // 2 - ar_bbox[0], ar_y - ar_bbox[1]),
+                  sentence_ar, font=font_ar_f, fill="#e8eef0",
+                  stroke_width=2, stroke_fill="black"
+              )
               img.save(out_path)
 
           render_sentence_block_png(sent1, sent1_ar, word, "/tmp/sent1_img.png", accent=L["accent"])
