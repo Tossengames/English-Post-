@@ -519,12 +519,14 @@ jobs:
                   prog = 1.0 if t < T_timer else max(0.0, 1 - (t - T_timer) / secs)
                   r = int(105 * s)
                   cx, cy = W // 2, 1420
-                  if r > 8:
+                  if r > 24:
                       d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(255, 255, 255))
                       col = (46, 196, 100) if prog > 0.5 else ((255, 160, 0) if prog > 0.25 else (235, 60, 60))
-                      d.arc([cx - r + 12, cy - r + 12, cx + r - 12, cy + r - 12], -90, -90 + 360 * prog, fill=col, width=max(2, int(16 * s)))
+                      inner = r - 12
+                      d.arc([cx - inner, cy - inner, cx + inner, cy + inner], -90, -90 + 360 * prog,
+                            fill=col, width=max(2, min(int(16 * s), inner)))
                       num = secs if t < T_timer else max(1, math.ceil(secs - (t - T_timer)))
-                      d.text((cx, cy), str(num), font=font(F_EN, int(100 * s)), fill=(50, 30, 90), anchor="mm")
+                      d.text((cx, cy), str(num), font=font(F_EN, max(10, int(100 * s))), fill=(50, 30, 90), anchor="mm")
               return img
 
           # ------------------------------------------------------------------ AUDIO
