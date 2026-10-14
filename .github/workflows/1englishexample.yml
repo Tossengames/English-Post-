@@ -1,0 +1,809 @@
+name: english-words-in-context-post
+
+"on":
+  workflow_dispatch:
+    inputs:
+      caption:
+        description: "Post caption (leave empty for random)"
+        required: false
+        default: ""
+  schedule:
+    - cron: "0 17 * * *"  # 1 PM EST / 5 PM UTC daily
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: install-deps
+        timeout-minutes: 3
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg bc jq python3 python3-pip python3-pil fonts-noto fonts-noto-extra fonts-noto-color-emoji fonts-noto-cjk fonts-noto-core fonts-noto-ui-core
+          pip install --quiet --break-system-packages Pillow edge-tts || pip install --quiet Pillow edge-tts
+
+      - name: pick-music
+        id: music
+        timeout-minutes: 1
+        run: |
+          TRACKS=(bgmusic/*.mp3 bgmusic/*.wav bgmusic/*.m4a bgmusic/*.mp4 bgmusic/*.aac bgmusic/*.ogg bgmusic/*.flac)
+          VALID=()
+          for t in "${TRACKS[@]}"; do
+            [ -f "$t" ] && VALID+=("$t")
+          done
+          if [ ${#VALID[@]} -eq 0 ]; then
+            echo "No music files found in bgmusic/ — continuing without background music."
+            echo "music_available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          IDX=$((RANDOM % ${#VALID[@]}))
+          PICKED="${VALID[$IDX]}"
+          echo "music_file=$PICKED" >> "$GITHUB_OUTPUT"
+          echo "music_available=true" >> "$GITHUB_OUTPUT"
+          echo "Selected: $PICKED"
+
+      - name: pick-content
+        id: content
+        timeout-minutes: 1
+        run: |
+          # 15 English words — each: WORD|WORD_AR|SENT1_EN|SENT1_AR|SENT2_EN|SENT2_AR
+          CONTENT_RAW=(
+            "Resilient|قادر على التحمل|She stayed resilient even after losing her job.|بقيت صامدة حتى بعد أن فقدت وظيفتها.|Plants in the desert are resilient to extreme heat.|النباتات في الصحراء قادرة على تحمل الحرارة الشديدة."
+            "Curious|فضولي|The curious child asked a hundred questions.|سأل الطفل الفضولي مئة سؤال.|I am curious about how the universe began.|أنا فضولي بشأن كيف بدأ الكون."
+            "Grateful|ممتن|He felt grateful for his friends' support.|شعر بالامتنان لدعم أصدقائه.|We should be grateful for small things in life.|يجب أن نكون ممتنين للأشياء الصغيرة في الحياة."
+            "Ambitious|طموح|Her ambitious plan impressed the whole team.|أعجبت خطتها الطموحة الفريق بأكمله.|He is ambitious and wants to start his own company.|إنه طموح ويريد أن يبدأ شركته الخاصة."
+            "Genuine|صادق|Her genuine smile made everyone feel welcome.|جعلت ابتسامتها الصادقة الجميع يشعرون بالترحيب.|It's hard to find genuine friends these days.|من الصعب إيجاد أصدقاء حقيقيين هذه الأيام."
+            "Flexible|مرن|The schedule is flexible, so come anytime.|الجدول مرن، لذا تعال في أي وقت.|A flexible mindset helps you adapt to change.|العقلية المرنة تساعدك على التكيف مع التغيير."
+            "Generous|كريم|He was generous with his time and money.|كان كريماً بوقته وماله.|Thank you for being so generous to us.|شكراً لك على كرمك الكبير معنا."
+            "Confident|واثق|She spoke with a confident and steady tone.|تحدثت بنبرة واثقة وثابتة.|Practice will make you more confident over time.|التمرين سيجعلك أكثر ثقة بمرور الوقت."
+            "Reliable|موثوق|My car has always been reliable in winter.|سيارتي كانت دائماً موثوقة في الشتاء.|A reliable friend is there when you need them.|الصديق الموثوق يكون موجوداً عندما تحتاج إليه."
+            "Creative|مبدع|The artist found a creative way to reuse old wood.|وجد الفنان طريقة مبدعة لإعادة استخدام الخشب القديم.|Children often have a very creative imagination.|غالباً ما يملك الأطفال خيالاً مبدعاً جداً."
+            "Patient|صبور|Be patient, the results will come with time.|كن صبوراً، النتائج ستأتي مع الوقت.|The nurse was patient with every single patient.|كانت الممرضة صبورة مع كل مريض."
+            "Honest|صادق|An honest answer is better than a convenient lie.|الإجابة الصادقة أفضل من كذبة مريحة.|She gave an honest opinion about my work.|أعطت رأياً صادقاً حول عملي."
+            "Humble|متواضع|Despite his success, he remained humble.|رغم نجاحه، ظل متواضعاً.|A humble leader listens more than they speak.|القائد المتواضع يستمع أكثر مما يتحدث."
+            "Determined|مصمم|She was determined to finish the marathon.|كانت مصممة على إنهاء الماراثون.|Determined students usually find a way to succeed.|الطلاب المصممون عادة ما يجدون طريقة للنجاح."
+            "Thoughtful|مراعٍ|It was thoughtful of you to remember my birthday.|كان من اللطف أن تتذكر عيد ميلادي.|He wrote a thoughtful letter to his grandmother.|كتب رسالة مراعية لجدته."
+          )
+
+          IDX=$((RANDOM % ${#CONTENT_RAW[@]}))
+          ENTRY="${CONTENT_RAW[$IDX]}"
+          WORD=$(echo "$ENTRY" | cut -d'|' -f1)
+          WORD_AR=$(echo "$ENTRY" | cut -d'|' -f2)
+          SENT1=$(echo "$ENTRY" | cut -d'|' -f3)
+          SENT1_AR=$(echo "$ENTRY" | cut -d'|' -f4)
+          SENT2=$(echo "$ENTRY" | cut -d'|' -f5)
+          SENT2_AR=$(echo "$ENTRY" | cut -d'|' -f6)
+
+          echo "word=$WORD" >> "$GITHUB_OUTPUT"
+          echo "word_ar=$WORD_AR" >> "$GITHUB_OUTPUT"
+          echo "sent1=$SENT1" >> "$GITHUB_OUTPUT"
+          echo "sent1_ar=$SENT1_AR" >> "$GITHUB_OUTPUT"
+          echo "sent2=$SENT2" >> "$GITHUB_OUTPUT"
+          echo "sent2_ar=$SENT2_AR" >> "$GITHUB_OUTPUT"
+          echo "Selected word: $WORD"
+
+      - name: pick-caption
+        id: caption
+        timeout-minutes: 1
+        run: |
+          INPUT_CAPTION="${{ github.event.inputs.caption }}"
+          if [ -n "$INPUT_CAPTION" ]; then
+            echo "caption=$INPUT_CAPTION" >> "$GITHUB_OUTPUT"
+            echo "image_caption=$INPUT_CAPTION" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          WORD="${{ steps.content.outputs.word }}"
+          WORD_AR="${{ steps.content.outputs.word_ar }}"
+
+          CAPTIONS=(
+            "تعلم كلمة إنجليزية بالأمثلة 📖 #تعلم_الانجليزية #learnenglish #english"
+            "كلمة اليوم مع أمثلة حقيقية 📖 #تعلم_الانجليزية #learnenglish #english"
+            "تعلم معنا 📖 #تعلم_الانجليزية #learnenglish #english"
+            "تابعنا لمزيد 📖 #تعلم_الانجليزية #learnenglish #english"
+            "الإنجليزية بسهولة 📖 #تعلم_الانجليزية #learnenglish #english"
+          )
+          IDX=$((RANDOM % ${#CAPTIONS[@]}))
+          PICKED="${CAPTIONS[$IDX]}"
+          echo "caption=$PICKED" >> "$GITHUB_OUTPUT"
+
+          IMAGE_CAPTION="${WORD} (${WORD_AR}) 📖 #تعلم_الانجليزية #learnenglish #english #englishlessons #EFL"
+          echo "image_caption=$IMAGE_CAPTION" >> "$GITHUB_OUTPUT"
+
+      - name: synthesize-speech
+        id: tts
+        timeout-minutes: 3
+        continue-on-error: true
+        run: |
+          WORD="${{ steps.content.outputs.word }}"
+          SENT1="${{ steps.content.outputs.sent1 }}"
+          SENT2="${{ steps.content.outputs.sent2 }}"
+
+          echo "Synthesizing speech parts for: $WORD"
+
+          EN_VOICE="en-US-AriaNeural"
+          AR_VOICE="ar-SA-HamedNeural"
+          SUCCESS=0
+
+          synth_edge() {
+            local voice="$1"
+            local text="$2"
+            local out_mp3="$3"
+            timeout 25 edge-tts --voice "$voice" --text "$text" --write-media "$out_mp3" 2>/tmp/edge_err.log
+          }
+
+          # ALL instructional/connector phrases are Arabic; only the word and example sentences are English
+          synth_edge "$AR_VOICE" "لنتعلم كلمات إنجليزية وكيفية نطقها." opening_raw.mp3 || true
+          synth_edge "$EN_VOICE" "$WORD." word_raw.mp3 || true
+          synth_edge "$AR_VOICE" "إليك مثالا." ex1_intro_raw.mp3 || true
+          synth_edge "$EN_VOICE" "$SENT1" sent1_raw.mp3 || true
+          synth_edge "$AR_VOICE" "مثال آخر." ex2_intro_raw.mp3 || true
+          synth_edge "$EN_VOICE" "$SENT2" sent2_raw.mp3 || true
+          synth_edge "$AR_VOICE" "تابعونا واتركوا تعليقا." closing_raw.mp3 || true
+
+          ALL_PARTS=(opening_raw word_raw ex1_intro_raw sent1_raw ex2_intro_raw sent2_raw closing_raw)
+          ALL_OK=1
+          for p in "${ALL_PARTS[@]}"; do
+            if [ ! -s "${p}.mp3" ]; then
+              ALL_OK=0
+            fi
+          done
+
+          if [ "$ALL_OK" -eq 1 ]; then
+            SUCCESS=1
+            echo "edge-tts succeeded for all parts."
+          else
+            echo "edge-tts failed, see error log:"
+            cat /tmp/edge_err.log || true
+          fi
+
+          if [ "$SUCCESS" -eq 0 ]; then
+            echo "TTS failed."
+            echo "tts_available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          for f in "${ALL_PARTS[@]}"; do
+            timeout 10 ffmpeg -hide_banner -loglevel error -y -i "${f}.mp3" -ac 2 -ar 44100 -filter:a "volume=1.6" "${f}_norm.wav"
+          done
+
+          get_dur() {
+            ffprobe -v error -show_entries format=duration -of csv=p=0 "$1" 2>/dev/null
+          }
+
+          OPENING_DUR=$(get_dur opening_raw_norm.wav)
+          WORD_DUR=$(get_dur word_raw_norm.wav)
+          EX1_INTRO_DUR=$(get_dur ex1_intro_raw_norm.wav)
+          SENT1_DUR=$(get_dur sent1_raw_norm.wav)
+          EX2_INTRO_DUR=$(get_dur ex2_intro_raw_norm.wav)
+          SENT2_DUR=$(get_dur sent2_raw_norm.wav)
+          CLOSING_DUR=$(get_dur closing_raw_norm.wav)
+
+          echo "opening_dur=$OPENING_DUR" >> "$GITHUB_OUTPUT"
+          echo "word_dur=$WORD_DUR" >> "$GITHUB_OUTPUT"
+          echo "ex1_intro_dur=$EX1_INTRO_DUR" >> "$GITHUB_OUTPUT"
+          echo "sent1_dur=$SENT1_DUR" >> "$GITHUB_OUTPUT"
+          echo "ex2_intro_dur=$EX2_INTRO_DUR" >> "$GITHUB_OUTPUT"
+          echo "sent2_dur=$SENT2_DUR" >> "$GITHUB_OUTPUT"
+          echo "closing_dur=$CLOSING_DUR" >> "$GITHUB_OUTPUT"
+
+          echo "Durations: opening=$OPENING_DUR word=$WORD_DUR ex1=$EX1_INTRO_DUR sent1=$SENT1_DUR ex2=$EX2_INTRO_DUR sent2=$SENT2_DUR closing=$CLOSING_DUR"
+
+          timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 0.3 silence_short.wav
+          timeout 10 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 0.5 silence_medium.wav
+
+          timeout 20 ffmpeg -hide_banner -loglevel error -y \
+            -i opening_raw_norm.wav -i silence_medium.wav \
+            -i word_raw_norm.wav -i silence_medium.wav \
+            -i ex1_intro_raw_norm.wav -i silence_short.wav \
+            -i sent1_raw_norm.wav -i silence_medium.wav \
+            -i ex2_intro_raw_norm.wav -i silence_short.wav \
+            -i sent2_raw_norm.wav -i silence_medium.wav \
+            -i closing_raw_norm.wav \
+            -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a][8:a][9:a][10:a][11:a][12:a]concat=n=13:v=0:a=1[aout]" \
+            -map "[aout]" speech_final.wav
+
+          echo "tts_available=true" >> "$GITHUB_OUTPUT"
+
+      - name: pick-layout
+        id: layout_pick
+        timeout-minutes: 1
+        run: |
+          LAYOUTS=("A" "B" "C")
+          IDX=$((RANDOM % 3))
+          echo "layout=${LAYOUTS[$IDX]}" >> "$GITHUB_OUTPUT"
+          echo "Picked layout: ${LAYOUTS[$IDX]}"
+
+      - name: find-video
+        id: vid
+        timeout-minutes: 3
+        env:
+          PIXABAY_KEY: "50973339-3e27fd59ddfd9c68378e78753"
+        run: |
+          set -e
+          CLIP=24
+          SKIP_HEAD=5
+          SKIP_TAIL=5
+          MIN_DUR=$((SKIP_HEAD + CLIP + SKIP_TAIL))
+          VIDEO_URL=""
+          VALID_VIDEO=0
+
+          TERMS="sky| clouds| sunrise| sunset| nature| mountains| forest| ocean| river| stars| light rays| fog| meadow| waterfall| peaceful nature"
+          IFS='|' read -ra TERM_ARR <<< "$TERMS"
+
+          for TERM in $(printf "%s\n" "${TERM_ARR[@]}" | shuf); do
+            [ "$VALID_VIDEO" -eq 1 ] && break
+            PAGE=$((RANDOM % 10 + 1))
+            OFFSET=$((RANDOM % 20))
+            ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$TERM")
+            URL="https://pixabay.com/api/videos/?key=${PIXABAY_KEY}&q=${ENCODED}&video_type=film&per_page=20&page=${PAGE}"
+            RESP=$(timeout 10 curl -sf --max-time 10 "$URL" 2>/dev/null) || continue
+            COUNT=$(echo "$RESP" | jq -r '.hits | length' 2>/dev/null) || continue
+            [ "$COUNT" -eq 0 ] && continue
+            for i in $(seq 0 $((COUNT - 1)) | shuf); do
+              [ "$VALID_VIDEO" -eq 1 ] && break
+              IDX=$(( (i + OFFSET) % COUNT ))
+              DUR=$(echo "$RESP" | jq -r ".hits[$IDX].duration" 2>/dev/null)
+              [[ "$DUR" =~ ^[0-9]+$ ]] || continue
+              [ "$DUR" -lt "$MIN_DUR" ] && continue
+              VURL=$(echo "$RESP" | jq -r ".hits[$IDX].videos.large.url // .hits[$IDX].videos.medium.url // .hits[$IDX].videos.small.url" 2>/dev/null)
+              [ -z "$VURL" ] || [ "$VURL" = "null" ] && continue
+              ZONE_END=$((DUR - SKIP_TAIL - CLIP))
+              RANGE=$((ZONE_END - SKIP_HEAD))
+              [ "$RANGE" -le 0 ] && continue
+              START=$((SKIP_HEAD + RANDOM % RANGE))
+              echo "Testing video: $VURL"
+              timeout 30 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$VURL" -t 5 -c copy test_probe.mp4 2>/dev/null || true
+              TEST_STREAM=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_type -of csv=p=0 test_probe.mp4 2>/dev/null || echo "")
+              rm -f test_probe.mp4
+              if [ -z "$TEST_STREAM" ]; then
+                echo "Video failed probe, skipping..."
+                continue
+              fi
+              VIDEO_URL="$VURL"
+              VALID_VIDEO=1
+              echo "video_url=$VIDEO_URL" >> "$GITHUB_OUTPUT"
+              echo "start=$START" >> "$GITHUB_OUTPUT"
+              echo "Found valid video: start=${START}s dur=${DUR}s"
+            done
+          done
+
+          if [ -z "$VIDEO_URL" ]; then
+            echo "No valid video found"
+            exit 1
+          fi
+
+      - name: process-video
+        timeout-minutes: 8
+        run: |
+          URL="${{ steps.vid.outputs.video_url }}"
+          START="${{ steps.vid.outputs.start }}"
+          MUSIC_AVAILABLE="${{ steps.music.outputs.music_available }}"
+          MUSIC_FILE="${{ steps.music.outputs.music_file }}"
+
+          echo "Word check: WORD=$WORD SENT1=$SENT1 SENT2=$SENT2"
+          echo "Music available: $MUSIC_AVAILABLE"
+
+          python3 << 'PYEOF'
+          import os, random, re
+          from PIL import Image, ImageDraw, ImageFont
+
+          word = os.environ.get("WORD", "Resilient")
+          word_ar = os.environ.get("WORD_AR", "")
+          sent1 = os.environ.get("SENT1", "")
+          sent1_ar = os.environ.get("SENT1_AR", "")
+          sent2 = os.environ.get("SENT2", "")
+          sent2_ar = os.environ.get("SENT2_AR", "")
+          layout = os.environ.get("LAYOUT", "A")
+
+          opening_dur = float(os.environ.get("OPENING_DUR", "2.0") or "2.0")
+          word_dur = float(os.environ.get("WORD_DUR", "0.8") or "0.8")
+          ex1_intro_dur = float(os.environ.get("EX1_INTRO_DUR", "0.9") or "0.9")
+          sent1_dur = float(os.environ.get("SENT1_DUR", "2.5") or "2.5")
+          ex2_intro_dur = float(os.environ.get("EX2_INTRO_DUR", "0.9") or "0.9")
+          sent2_dur = float(os.environ.get("SENT2_DUR", "2.5") or "2.5")
+          closing_dur = float(os.environ.get("CLOSING_DUR", "1.8") or "1.8")
+
+          font_en_candidates = [
+              "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+              "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+          ]
+          font_en_path = next((f for f in font_en_candidates if os.path.exists(f)), font_en_candidates[-1])
+          font_en_regular_candidates = [
+              "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+              "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          ]
+          font_en_regular_path = next((f for f in font_en_regular_candidates if os.path.exists(f)), font_en_path)
+
+          font_ar_candidates = [
+              "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf",
+              "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+          ]
+          font_ar_path = next((f for f in font_ar_candidates if os.path.exists(f)), font_en_path)
+
+          layouts = {
+              "A": {"word_y": 160, "word_size": 90, "word_color": "white", "word_ar_y": 260, "sent1_top": 480, "sent2_top": 780, "accent": "#ffe066"},
+              "B": {"word_y": 140, "word_size": 96, "word_color": "#fff3b0", "word_ar_y": 250, "sent1_top": 460, "sent2_top": 770, "accent": "#6bcbff"},
+              "C": {"word_y": 170, "word_size": 86, "word_color": "white", "word_ar_y": 265, "sent1_top": 490, "sent2_top": 790, "accent": "#ffd6a5"},
+          }
+          L = layouts.get(layout, layouts["A"])
+
+          subtitle_colors = ["#FF6B6B", "#4ECDC4", "#FFD93D", "#A78BFA", "#FF9F68", "#6BCB77"]
+
+          def render_sentence_block_png(sentence_en, sentence_ar, target_word, out_path, max_width=940, fontsize=44, ar_fontsize=36):
+              font_reg = ImageFont.truetype(font_en_regular_path, fontsize)
+              font_bold = ImageFont.truetype(font_en_path, fontsize)
+              font_ar = ImageFont.truetype(font_ar_path, ar_fontsize)
+
+              tokens = sentence_en.split(" ")
+              tmp_img = Image.new("RGBA", (10, 10))
+              draw_tmp = ImageDraw.Draw(tmp_img)
+
+              def token_width(tok, bold):
+                  f = font_bold if bold else font_reg
+                  bbox = draw_tmp.textbbox((0, 0), tok, font=f)
+                  return bbox[2] - bbox[0]
+
+              space_w = draw_tmp.textbbox((0, 0), " ", font=font_reg)[2]
+              lines, current_line, current_w = [], [], 0
+              for tok in tokens:
+                  is_target = re.sub(r'[^\w]', '', tok).lower() == target_word.lower()
+                  w = token_width(tok, is_target)
+                  add_w = w if not current_line else w + space_w
+                  if current_w + add_w > max_width and current_line:
+                      lines.append(current_line)
+                      current_line = [(tok, is_target)]
+                      current_w = w
+                  else:
+                      current_line.append((tok, is_target))
+                      current_w += add_w
+              if current_line:
+                  lines.append(current_line)
+
+              # Arabic translation line(s)
+              ar_bbox = draw_tmp.textbbox((0, 0), sentence_ar, font=font_ar)
+              ar_w, ar_h = ar_bbox[2] - ar_bbox[0], ar_bbox[3] - ar_bbox[1]
+
+              line_height = fontsize + 16
+              en_block_h = line_height * len(lines)
+              gap = 14
+              img_h = en_block_h + gap + ar_h + 30
+              img_w = max(max_width + 40, ar_w + 40)
+              img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
+              draw = ImageDraw.Draw(img)
+
+              for li, line in enumerate(lines):
+                  total_w = sum(token_width(t, b) for t, b in line) + space_w * (len(line) - 1)
+                  x = (img_w - total_w) // 2
+                  y = 10 + li * line_height
+                  for tok, is_target in line:
+                      f = font_bold if is_target else font_reg
+                      color = L["accent"] if is_target else "white"
+                      draw.text((x, y), tok, font=f, fill=color)
+                      x += token_width(tok, is_target) + space_w
+
+              ar_y = 10 + en_block_h + gap
+              draw.text(((img_w - ar_w) // 2 - ar_bbox[0], ar_y - ar_bbox[1]), sentence_ar, font=font_ar, fill="#cfd8dc")
+
+              img.save(out_path)
+              return img_w, img_h
+
+          def make_box_png(text, out_path, fontsize=38, max_width=650):
+              font = ImageFont.truetype(font_ar_path, fontsize)
+              tmp_img = Image.new("RGBA", (10, 10))
+              tmp_draw = ImageDraw.Draw(tmp_img)
+              bbox = tmp_draw.textbbox((0, 0), text, font=font)
+              tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+              pad_x, pad_y = 44, 26
+              box_w, box_h = min(tw + pad_x * 2, max_width), th + pad_y * 2
+              img = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+              draw = ImageDraw.Draw(img)
+              color = random.choice(subtitle_colors)
+              draw.rounded_rectangle([(0, 0), (box_w - 1, box_h - 1)], radius=26, fill=color)
+              draw.text(((box_w - tw) // 2 - bbox[0], pad_y - bbox[1]), text, font=font, fill="white")
+              img.save(out_path)
+              return box_w, box_h
+
+          make_box_png("إليك مثالا", "/tmp/sub_ex1.png")
+          make_box_png("مثال آخر", "/tmp/sub_ex2.png")
+          make_box_png("تابعونا واتركوا تعليقا", "/tmp/sub_closing.png")
+          sent1_w, sent1_h = render_sentence_block_png(sent1, sent1_ar, word, "/tmp/sent1.png")
+          sent2_w, sent2_h = render_sentence_block_png(sent2, sent2_ar, word, "/tmp/sent2.png")
+
+          def esc(t):
+              return t.replace("'", "\u2019").replace(":", "\\:").replace(",", "\\,")
+
+          # ---- Fully sequential timeline, all instructions in Arabic, word visible from start ----
+          t_fade_in = 0.3
+          t_word_visible = 0.3  # word + its Arabic translation appear immediately and stay
+          t_opening_start = 0.3
+          t_opening_end = t_opening_start + opening_dur
+          t_word_spoken_start = t_opening_end + 0.4
+          t_word_spoken_end = t_word_spoken_start + word_dur
+          t_ex1_intro_start = t_word_spoken_end + 0.5
+          t_ex1_intro_end = t_ex1_intro_start + ex1_intro_dur
+          t_sent1_start = t_ex1_intro_end + 0.3
+          t_sent1_end = t_sent1_start + sent1_dur
+          t_ex2_intro_start = t_sent1_end + 0.5
+          t_ex2_intro_end = t_ex2_intro_start + ex2_intro_dur
+          t_sent2_start = t_ex2_intro_end + 0.3
+          t_sent2_end = t_sent2_start + sent2_dur
+          t_closing_start = t_sent2_end + 0.5
+          t_closing_end = t_closing_start + closing_dur
+          total_dur = t_closing_end + 1.6
+          fadeout_start = total_dur - 1.4
+
+          def fade_in(t):
+              return f"if(lt(t,{t:.2f}),0,min(1,(t-{t:.2f})/0.2))"
+
+          filters = []
+          # Word — visible from the very start, stays the whole video
+          filters.append(
+              f"drawtext=text='{esc(word)}'"
+              f":fontfile={font_en_path}"
+              f":fontcolor={L['word_color']}:fontsize={L['word_size']}"
+              f":x=(w-text_w)/2:y={L['word_y']}"
+              f":alpha='{fade_in(t_word_visible)}'"
+              f":shadowcolor=black@0.85:shadowx=4:shadowy=4"
+          )
+          # Word's Arabic translation — also visible from the start, stays the whole video
+          filters.append(
+              f"drawtext=text='{esc(word_ar)}'"
+              f":fontfile={font_ar_path}"
+              f":fontcolor=#cfd8dc:fontsize=46"
+              f":x=(w-text_w)/2:y={L['word_ar_y']}"
+              f":alpha='{fade_in(t_word_visible)}'"
+              f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
+          )
+
+          dt_chain = ",".join(filters)
+
+          vfilter_base = (
+              f"[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
+              f"crop=1080:1920,setsar=1,gblur=sigma=25,"
+              f"fade=t=in:st=0:d={t_fade_in},"
+              f"fade=t=out:st={fadeout_start:.2f}:d=1.4,"
+              f"{dt_chain}[base]"
+          )
+
+          small_box_y = 1750  # instructional badges shown briefly near bottom-safe area, not overlapping sentence blocks
+          closing_y = 1700
+
+          overlay_chain = (
+              f"[base][1:v]overlay=(W-w)/2:{small_box_y}:enable='between(t,{t_ex1_intro_start:.2f},{t_ex1_intro_end + 0.15:.2f})'[s1];"
+              f"[s1][2:v]overlay=(W-w)/2:{L['sent1_top']}:enable='gte(t,{t_sent1_start:.2f})'[s2];"
+              f"[s2][3:v]overlay=(W-w)/2:{small_box_y}:enable='between(t,{t_ex2_intro_start:.2f},{t_ex2_intro_end + 0.15:.2f})'[s3];"
+              f"[s3][4:v]overlay=(W-w)/2:{L['sent2_top']}:enable='gte(t,{t_sent2_start:.2f})'[s4];"
+              f"[s4][5:v]overlay=(W-w)/2:{closing_y}:enable='between(t,{t_closing_start:.2f},{t_closing_end + 0.1:.2f})'[vout]"
+          )
+
+          full_filter = vfilter_base + ";" + overlay_chain
+
+          with open("/tmp/vfilter.txt", "w") as f:
+              f.write(full_filter)
+
+          with open("/tmp/total_dur.txt", "w") as f:
+              f.write(f"{total_dur:.2f}")
+
+          with open("/tmp/shared_state.txt", "w") as f:
+              f.write(f"{word}\n{word_ar}\n{sent1}\n{sent1_ar}\n{sent2}\n{sent2_ar}\n{layout}\n")
+
+          print(f"Timeline: opening={t_opening_start:.2f}-{t_opening_end:.2f} word={t_word_spoken_start:.2f}-{t_word_spoken_end:.2f} ex1={t_ex1_intro_start:.2f}-{t_ex1_intro_end:.2f} sent1={t_sent1_start:.2f}-{t_sent1_end:.2f} ex2={t_ex2_intro_start:.2f}-{t_ex2_intro_end:.2f} sent2={t_sent2_start:.2f}-{t_sent2_end:.2f} closing={t_closing_start:.2f}-{t_closing_end:.2f} total={total_dur:.2f}")
+          PYEOF
+
+          VFILTER=$(cat /tmp/vfilter.txt)
+          TOTAL_DUR=$(cat /tmp/total_dur.txt)
+          FETCH=$(echo "$TOTAL_DUR + 2" | bc)
+
+          echo "Downloading video (total_dur=$TOTAL_DUR, fetching $FETCH s)..."
+          timeout 90 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -t "$FETCH" -c copy source.mp4
+
+          FADEOUT=$(echo "$TOTAL_DUR - 1.4" | bc)
+          SPEECH_DUCK_END=$(echo "$TOTAL_DUR - 1.6" | bc)
+
+          HAVE_MUSIC=0
+          if [ "$MUSIC_AVAILABLE" = "true" ] && [ -n "$MUSIC_FILE" ]; then
+            MDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$MUSIC_FILE" 2>/dev/null | cut -d. -f1)
+            MMAX=$((MDUR - 5))
+            [ "$MMAX" -le 5 ] && MMAX=5
+            MSTART=$((RANDOM % MMAX))
+            if timeout 60 ffmpeg -hide_banner -loglevel error -y -stream_loop -1 -i "$MUSIC_FILE" -ss "$MSTART" -t "$TOTAL_DUR" -ac 2 -ar 44100 music_clip.mp3; then
+              HAVE_MUSIC=1
+            fi
+          fi
+
+          if [ "$HAVE_MUSIC" -eq 0 ]; then
+            echo "No music available — generating silent audio track as music substitute."
+            timeout 15 ffmpeg -hide_banner -loglevel error -y -f lavfi -i anullsrc=r=44100:cl=stereo -t "$TOTAL_DUR" music_clip.mp3
+          fi
+
+          if [ "${{ steps.tts.outputs.tts_available }}" = "true" ]; then
+            echo "Mixing with TTS speech overlay..."
+            # NOTE: input order is 0=source.mp4, 1=sub_ex1, 2=sent1, 3=sub_ex2, 4=sent2, 5=sub_closing, 6=music, 7=speech
+            AFILTER="[6:a]volume=0.7,afade=t=in:st=0:d=0.4,afade=t=out:st=${FADEOUT}:d=1.4,volume='if(lt(t,${SPEECH_DUCK_END}),0.25,0.7)':eval=frame[music];[7:a]adelay=300|300,volume=0.85[speech];[music][speech]amix=inputs=2:duration=first:dropout_transition=0,volume=1.4[aout]"
+            timeout 240 ffmpeg -hide_banner -loglevel error -y \
+              -i source.mp4 \
+              -i /tmp/sub_ex1.png -i /tmp/sent1.png -i /tmp/sub_ex2.png -i /tmp/sent2.png -i /tmp/sub_closing.png \
+              -i music_clip.mp3 \
+              -i speech_final.wav \
+              -filter_complex "${VFILTER};${AFILTER}" \
+              -map "[vout]" \
+              -map "[aout]" \
+              -t "$TOTAL_DUR" \
+              -c:v libx264 -preset medium -crf 16 \
+              -c:a aac -b:a 192k \
+              -movflags +faststart \
+              -pix_fmt yuv420p \
+              final.mp4
+          else
+            echo "No TTS available, using whatever audio track we have (music or silence)..."
+            timeout 240 ffmpeg -hide_banner -loglevel error -y \
+              -i source.mp4 \
+              -i /tmp/sub_ex1.png -i /tmp/sent1.png -i /tmp/sub_ex2.png -i /tmp/sent2.png -i /tmp/sub_closing.png \
+              -i music_clip.mp3 \
+              -filter_complex "${VFILTER};[6:a]volume=0.9,afade=t=in:st=0:d=0.4,afade=t=out:st=${FADEOUT}:d=1.4[aout]" \
+              -map "[vout]" \
+              -map "[aout]" \
+              -t "$TOTAL_DUR" \
+              -c:v libx264 -preset medium -crf 16 \
+              -c:a aac -b:a 192k \
+              -movflags +faststart \
+              -pix_fmt yuv420p \
+              final.mp4
+          fi
+
+          ls -lh final.mp4
+        env:
+          WORD: ${{ steps.content.outputs.word }}
+          WORD_AR: ${{ steps.content.outputs.word_ar }}
+          SENT1: ${{ steps.content.outputs.sent1 }}
+          SENT1_AR: ${{ steps.content.outputs.sent1_ar }}
+          SENT2: ${{ steps.content.outputs.sent2 }}
+          SENT2_AR: ${{ steps.content.outputs.sent2_ar }}
+          LAYOUT: ${{ steps.layout_pick.outputs.layout }}
+          OPENING_DUR: ${{ steps.tts.outputs.opening_dur }}
+          WORD_DUR: ${{ steps.tts.outputs.word_dur }}
+          EX1_INTRO_DUR: ${{ steps.tts.outputs.ex1_intro_dur }}
+          SENT1_DUR: ${{ steps.tts.outputs.sent1_dur }}
+          EX2_INTRO_DUR: ${{ steps.tts.outputs.ex2_intro_dur }}
+          SENT2_DUR: ${{ steps.tts.outputs.sent2_dur }}
+          CLOSING_DUR: ${{ steps.tts.outputs.closing_dur }}
+
+      - name: process-image
+        timeout-minutes: 3
+        run: |
+          URL="${{ steps.vid.outputs.video_url }}"
+          START="${{ steps.vid.outputs.start }}"
+
+          WORD=$(sed -n '1p' /tmp/shared_state.txt)
+          WORD_AR=$(sed -n '2p' /tmp/shared_state.txt)
+          SENT1=$(sed -n '3p' /tmp/shared_state.txt)
+          SENT1_AR=$(sed -n '4p' /tmp/shared_state.txt)
+          SENT2=$(sed -n '5p' /tmp/shared_state.txt)
+          SENT2_AR=$(sed -n '6p' /tmp/shared_state.txt)
+          LAYOUT=$(sed -n '7p' /tmp/shared_state.txt)
+
+          echo "Image step check: WORD=$WORD LAYOUT=$LAYOUT"
+
+          timeout 60 ffmpeg -hide_banner -loglevel error -y -ss "$START" -i "$URL" -frames:v 1 bg_frame.jpg
+
+          python3 << 'PYEOF'
+          import os, re
+          from PIL import Image, ImageDraw, ImageFont
+
+          with open("/tmp/shared_state.txt") as f:
+              lines = [l.rstrip("\n") for l in f.readlines()]
+          word, word_ar, sent1, sent1_ar, sent2, sent2_ar, layout = lines[0:7]
+
+          font_en_candidates = [
+              "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+              "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+          ]
+          font_en = next((f for f in font_en_candidates if os.path.exists(f)), font_en_candidates[-1])
+          font_en_regular_candidates = [
+              "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+              "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          ]
+          font_en_regular = next((f for f in font_en_regular_candidates if os.path.exists(f)), font_en)
+          font_ar_candidates = [
+              "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf",
+              "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+          ]
+          font_ar = next((f for f in font_ar_candidates if os.path.exists(f)), font_en)
+
+          layouts = {
+              "A": {"word_y": 160, "word_size": 90, "word_color": "white", "word_ar_y": 260, "sent1_top": 480, "sent2_top": 780, "accent": "#ffe066"},
+              "B": {"word_y": 140, "word_size": 96, "word_color": "#fff3b0", "word_ar_y": 250, "sent1_top": 460, "sent2_top": 770, "accent": "#6bcbff"},
+              "C": {"word_y": 170, "word_size": 86, "word_color": "white", "word_ar_y": 265, "sent1_top": 490, "sent2_top": 790, "accent": "#ffd6a5"},
+          }
+          L = layouts.get(layout, layouts["A"])
+
+          def esc(t):
+              return t.replace("'", "\u2019").replace(":", "\\:").replace(",", "\\,")
+
+          filters = []
+          filters.append(
+              f"drawtext=text='{esc(word)}'"
+              f":fontfile={font_en}"
+              f":fontcolor={L['word_color']}:fontsize={L['word_size']}:x=(w-text_w)/2:y={L['word_y']}"
+              f":shadowcolor=black@0.85:shadowx=4:shadowy=4"
+          )
+          filters.append(
+              f"drawtext=text='{esc(word_ar)}'"
+              f":fontfile={font_ar}"
+              f":fontcolor=#cfd8dc:fontsize=46:x=(w-text_w)/2:y={L['word_ar_y']}"
+              f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
+          )
+
+          all_dt = ",".join(filters)
+          vfilter = (
+              f"[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
+              f"crop=1080:1920,setsar=1,gblur=sigma=25,{all_dt}[base]"
+          )
+
+          def render_sentence_block_png(sentence_en, sentence_ar, target_word, out_path, max_width=940, fontsize=44, ar_fontsize=36, accent="#ffe066"):
+              font_reg = ImageFont.truetype(font_en_regular, fontsize)
+              font_bold = ImageFont.truetype(font_en, fontsize)
+              font_ar_f = ImageFont.truetype(font_ar, ar_fontsize)
+              tokens = sentence_en.split(" ")
+              tmp_img = Image.new("RGBA", (10, 10))
+              draw_tmp = ImageDraw.Draw(tmp_img)
+
+              def token_width(tok, bold):
+                  f = font_bold if bold else font_reg
+                  bbox = draw_tmp.textbbox((0, 0), tok, font=f)
+                  return bbox[2] - bbox[0]
+
+              space_w = draw_tmp.textbbox((0, 0), " ", font=font_reg)[2]
+              lines, current_line, current_w = [], [], 0
+              for tok in tokens:
+                  is_target = re.sub(r'[^\w]', '', tok).lower() == target_word.lower()
+                  w = token_width(tok, is_target)
+                  add_w = w if not current_line else w + space_w
+                  if current_w + add_w > max_width and current_line:
+                      lines.append(current_line)
+                      current_line = [(tok, is_target)]
+                      current_w = w
+                  else:
+                      current_line.append((tok, is_target))
+                      current_w += add_w
+              if current_line:
+                  lines.append(current_line)
+
+              ar_bbox = draw_tmp.textbbox((0, 0), sentence_ar, font=font_ar_f)
+              ar_w, ar_h = ar_bbox[2] - ar_bbox[0], ar_bbox[3] - ar_bbox[1]
+
+              line_height = fontsize + 16
+              en_block_h = line_height * len(lines)
+              gap = 14
+              img_h = en_block_h + gap + ar_h + 30
+              img_w = max(max_width + 40, ar_w + 40)
+              img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
+              draw = ImageDraw.Draw(img)
+
+              for li, line in enumerate(lines):
+                  total_w = sum(token_width(t, b) for t, b in line) + space_w * (len(line) - 1)
+                  x = (img_w - total_w) // 2
+                  y = 10 + li * line_height
+                  for tok, is_target in line:
+                      f = font_bold if is_target else font_reg
+                      color = accent if is_target else "white"
+                      draw.text((x, y), tok, font=f, fill=color)
+                      x += token_width(tok, is_target) + space_w
+
+              ar_y = 10 + en_block_h + gap
+              draw.text(((img_w - ar_w) // 2 - ar_bbox[0], ar_y - ar_bbox[1]), sentence_ar, font=font_ar_f, fill="#cfd8dc")
+              img.save(out_path)
+
+          render_sentence_block_png(sent1, sent1_ar, word, "/tmp/sent1_img.png", accent=L["accent"])
+          render_sentence_block_png(sent2, sent2_ar, word, "/tmp/sent2_img.png", accent=L["accent"])
+
+          with open("/tmp/ifilter.txt", "w") as f:
+              f.write(
+                  vfilter
+                  + f";[base][1:v]overlay=(W-w)/2:{L['sent1_top']}[mid];"
+                  + f"[mid][2:v]overlay=(W-w)/2:{L['sent2_top']}[iout]"
+              )
+          PYEOF
+
+          IFILTER=$(cat /tmp/ifilter.txt)
+
+          timeout 60 ffmpeg -hide_banner -loglevel error -y \
+            -i bg_frame.jpg \
+            -i /tmp/sent1_img.png \
+            -i /tmp/sent2_img.png \
+            -filter_complex "$IFILTER" \
+            -map "[iout]" \
+            -frames:v 1 \
+            final_image.jpg
+
+          ls -lh final_image.jpg
+
+      - name: post-to-facebook
+        timeout-minutes: 3
+        env:
+          PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          CAPTION: ${{ steps.caption.outputs.caption }}
+        run: |
+          set -e
+          FILE="final.mp4"
+          SIZE=$(stat -c%s "$FILE")
+          API="https://graph.facebook.com/v19.0"
+
+          for attempt in 1 2 3; do
+            echo "=== Attempt $attempt: trying Reel upload first ==="
+            INIT=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"start\",\"access_token\":\"${PAGE_TOKEN}\"}") || true
+            SESSION=$(echo "$INIT" | jq -r '.upload_session_id' 2>/dev/null)
+            VID_ID=$(echo "$INIT" | jq -r '.video_id' 2>/dev/null)
+
+            if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
+              echo "Reel session creation failed — falling back to regular video upload."
+              INIT=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/videos" -H "Content-Type: application/json" -d "{\"upload_phase\":\"start\",\"file_size\":${SIZE},\"access_token\":\"${PAGE_TOKEN}\"}") || true
+              SESSION=$(echo "$INIT" | jq -r '.upload_session_id' 2>/dev/null)
+              VID_ID=$(echo "$INIT" | jq -r '.video_id' 2>/dev/null)
+              S_OFF=$(echo "$INIT" | jq -r '.start_offset' 2>/dev/null)
+
+              if [ "$SESSION" = "null" ] || [ -z "$SESSION" ]; then
+                echo "Fallback video session also failed attempt $attempt: $INIT"
+                sleep 10
+                continue
+              fi
+
+              timeout 90 curl -sf -X POST "${API}/${PAGE_ID}/videos" -F "upload_phase=transfer" -F "upload_session_id=${SESSION}" -F "start_offset=${S_OFF}" -F "video_file_chunk=@${FILE};type=video/mp4" -F "access_token=${PAGE_TOKEN}" > /dev/null || true
+              FINISH=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/videos" -H "Content-Type: application/json" -d "{\"upload_phase\":\"finish\",\"upload_session_id\":\"${SESSION}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}") || true
+              UPLOAD_TYPE="regular video (fallback)"
+            else
+              echo "Reel session created successfully — uploading as Reel."
+              UPLOAD_URL=$(echo "$INIT" | jq -r '.upload_url' 2>/dev/null)
+              timeout 90 curl -sf -X POST "$UPLOAD_URL" -H "Authorization: OAuth ${PAGE_TOKEN}" -H "offset: 0" -H "file_size: ${SIZE}" --data-binary "@${FILE}" > /dev/null || true
+              FINISH=$(timeout 20 curl -sf -X POST "${API}/${PAGE_ID}/video_reels" -H "Content-Type: application/json" -d "{\"upload_phase\":\"finish\",\"video_id\":\"${VID_ID}\",\"description\":\"${CAPTION}\",\"published\":true,\"access_token\":\"${PAGE_TOKEN}\"}") || true
+              UPLOAD_TYPE="Reel"
+            fi
+
+            OK=$(echo "$FINISH" | jq -r '.success // .id // empty' 2>/dev/null)
+            if [ -n "$OK" ]; then
+              echo "Posted successfully as: $UPLOAD_TYPE | Video ID: $VID_ID"
+              exit 0
+            fi
+
+            echo "Post failed attempt $attempt ($UPLOAD_TYPE): $FINISH"
+            sleep 10
+          done
+
+          echo "All post attempts failed"
+          exit 1
+
+      - name: post-image-to-facebook
+        timeout-minutes: 3
+        env:
+          PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          IMAGE_CAPTION: ${{ steps.caption.outputs.image_caption }}
+        run: |
+          set -e
+          API="https://graph.facebook.com/v19.0"
+
+          for attempt in 1 2 3; do
+            echo "Facebook image post attempt $attempt..."
+            RESP=$(timeout 60 curl -sf -X POST "${API}/${PAGE_ID}/photos" \
+              -F "source=@final_image.jpg" \
+              -F "caption=${IMAGE_CAPTION}" \
+              -F "published=true" \
+              -F "access_token=${PAGE_TOKEN}") || true
+
+            OK=$(echo "$RESP" | jq -r '.id // empty' 2>/dev/null)
+            if [ -n "$OK" ]; then
+              echo "Image posted! Photo ID: $OK"
+              exit 0
+            fi
+
+            echo "Image post failed attempt $attempt: $RESP"
+            sleep 10
+          done
+
+          echo "All image post attempts failed"
+          exit 1
