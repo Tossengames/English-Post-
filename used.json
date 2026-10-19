@@ -11,7 +11,8 @@
   "WATER",
   "CHAIR",
   "TICKET",
-  "KEYBOARD"
+  "KEYBOARD",
+  "SCIENTIST"
  ],
  "sentence_builder": [
   "We go to school by bus",
