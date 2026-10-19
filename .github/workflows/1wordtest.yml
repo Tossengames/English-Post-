@@ -10,7 +10,7 @@ name: english-games-post
         type: choice
         options: [auto, word_maker, unscramble, sentence_builder, fill_blank]
   schedule:
-    - cron: "0 4,13 * * *"
+    - cron: "0 7,13,19 * * *"
 
 permissions:
   contents: write
@@ -452,6 +452,12 @@ jobs:
               return im
 
 
+          def arrow():
+              im = Image.new("RGBA", (140, 120), (0, 0, 0, 0))
+              ImageDraw.Draw(im).polygon([(30, 20), (110, 20), (70, 100)], fill=(255, 255, 255, 255))
+              return im
+
+
           # ================================================================== LAYOUTS
           PUZ_CY = 1000
 
@@ -509,8 +515,8 @@ jobs:
               hint = "كوّن أكبر عدد من الكلمات الإنجليزية من هذه الحروف"
               rules = ["كوّن كلمات إنجليزية", "من الحروف التالية فقط", "استخدم كل حرف مرة واحدة في الكلمة"]
               rules_s = "كوِّن أكبر عدد ممكن من الكلمات الإنجليزية باستخدام هذه الحروف فقط. يمكنك استخدام كل حرف مرة واحدة في الكلمة."
-              cap_line = "الإجابات في التعليقات"
-              secs = {"easy": 16, "medium": 20, "hard": 24}[level]
+              cta_d = "الإجابات في التعليقات"
+              cta_s = "الإجابات في التعليقات. اكتب كم كلمة وجدت."
               show = ans[:30]
               by = {}
               for a in show:
@@ -535,8 +541,8 @@ jobs:
               hint = "التلميح: " + puz["hint"]
               rules = ["رتّب الحروف لتكوين كلمة صحيحة", hint]
               rules_s = "رتب الحروف لتكوين كلمة إنجليزية صحيحة. التلميح: " + puz["hint"] + "."
-              cap_line = "الإجابة في التعليقات"
-              secs = {"easy": 10, "medium": 14, "hard": 18}[level]
+              cta_d = "الإجابة في التعليقات"
+              cta_s = "الإجابة في التعليقات."
               comment = f"✅ الإجابة: {w}\nالمعنى: {puz['hint']}\n\n✍️ هل نجحت؟ اكتب لنا 👇"
 
           elif game == "sentence_builder":
@@ -551,8 +557,8 @@ jobs:
               hint = "المعنى: " + puz["ar"]
               rules = ["رتّب الكلمات لتكوين جملة صحيحة", hint]
               rules_s = "رتب الكلمات لتكوين جملة إنجليزية صحيحة. المعنى بالعربية: " + puz["ar"] + "."
-              cap_line = "الإجابة في التعليقات"
-              secs = {"easy": 12, "medium": 16, "hard": 20}[level]
+              cta_d = "الإجابة في التعليقات"
+              cta_s = "الإجابة في التعليقات."
               comment = f"✅ الجملة الصحيحة:\n{puz['sentence']}.\nالمعنى: {puz['ar']}\n\n✍️ هل رتبتها صحيحة؟ اكتب لنا 👇"
 
           else:  # fill_blank
@@ -567,14 +573,14 @@ jobs:
               hint = "اختر الإجابة الصحيحة لإكمال الجملة"
               rules = ["اختر الكلمة الصحيحة", "لإكمال الجملة"]
               rules_s = "اختر الإجابة الصحيحة لإكمال الجملة."
-              cap_line = "الإجابة في التعليقات"
-              secs = {"easy": 8, "medium": 11, "hard": 14}[level]
+              cta_d = "الإجابة في التعليقات"
+              cta_s = "الإجابة الصحيحة في التعليقات. اكتب رمز الإجابة."
               full = puz["sentence"].replace("___", correct_txt)
               comment = (f"✅ الإجابة الصحيحة: {'ABC'[ci]}) {correct_txt}\n{puz['expl']}\n"
                          f"الجملة كاملة: {full}\n\n✍️ اكتب إجابتك قبل أن تقرأ الحل 👇")
 
 
-          # ================================================================== TTS (rules only)
+          # ================================================================== TTS (rules + final call to check comments)
           def tts(text, out):
               for _ in range(3):
                   try:
@@ -593,25 +599,30 @@ jobs:
               return np.frombuffer(raw, dtype=np.float32).copy()
 
 
-          clean = sanitize(rules_s)  # never lets emojis/symbols reach TTS
-          if tts(clean, "/tmp/rules.mp3"):
-              speech_rules = load("/tmp/rules.mp3")
-              pk = float(np.max(np.abs(speech_rules))) or 1.0
-              speech_rules = speech_rules / pk * 0.9
-          else:
-              print("TTS failed for rules")
-              speech_rules = np.zeros(int(SR * max(1.5, len(clean.split()) * 0.45)), dtype=np.float32)
-          rules_dur = len(speech_rules) / SR
+          speech = {}
+          for k, txt in dict(rules=rules_s, cta=cta_s).items():
+              clean = sanitize(txt)  # never lets emojis/symbols reach TTS
+              out = f"/tmp/{k}.mp3"
+              if tts(clean, out):
+                  arr = load(out)
+                  pk = float(np.max(np.abs(arr))) or 1.0
+                  arr = arr / pk * 0.9
+              else:
+                  print("TTS failed for", k)
+                  arr = np.zeros(int(SR * max(1.5, len(clean.split()) * 0.45)), dtype=np.float32)
+              speech[k] = arr
+          dur = {k: len(v) / SR for k, v in speech.items()}
 
-          # ================================================================== TIMELINE (straight to the point)
+          # ================================================================== TIMELINE (no waiting)
+          HOLD = 0.8                       # tiny pause after the last item appears
           T_rules = 0.25
-          rules_end = T_rules + rules_dur
+          rules_end = T_rules + dur["rules"]
           T_puz = rules_end + 0.4
           STEP = 0.32
-          puz_end = T_puz + len(items) * STEP + 0.4
-          hold_end = puz_end + secs          # puzzle stays on screen, music only
-          TOTAL = hold_end + 0.8
-          print(f"Timeline: total={TOTAL:.1f}s hold={secs}s")
+          puz_end = T_puz + len(items) * STEP + 0.2
+          T_cta = puz_end + HOLD
+          TOTAL = T_cta + dur["cta"] + 1.0
+          print(f"Timeline: total={TOTAL:.1f}s")
 
           # ================================================================== SCENE ELEMENTS
           els = []
@@ -625,7 +636,7 @@ jobs:
           add(stars({"easy": 1, "medium": 2, "hard": 3}[level]), W / 2, 370, 0.25)
 
           ry = 640
-          rstep = rules_dur / max(1, len(rules))
+          rstep = dur["rules"] / max(1, len(rules))
           for i, r in enumerate(rules):
               b = block(r, 58, "white", maxw=900)
               add(b, W / 2, ry + b.height / 2, T_rules + i * rstep, T_puz, bounce=False)
@@ -639,6 +650,9 @@ jobs:
               t0 = T_puz + i * STEP
               T_items.append(t0)
               add(im, cx, cy, t0, ph=i * 0.7)
+
+          add(pill(cta_d, 64, "#FF3D71", arabic=True), W / 2, 1420, T_cta, ph=0.0)
+          add(arrow(), W / 2, 1565, T_cta + 0.2, ph=1.2)
 
           # ================================================================== BACKGROUND / FX
           pal = [hexrgb(c) for c in random.choice(PALETTES)]
@@ -658,7 +672,7 @@ jobs:
               bokeh.append((im, rng.randint(0, W), rng.randint(0, H), rng.uniform(20, 60), rng.uniform(0, 6)))
           conf = [(rng.randint(0, W), rng.uniform(250, 600), rng.randint(10, 22), rng.choice(COLORS),
                    rng.uniform(0, 6), rng.uniform(0, 1.0)) for _ in range(70)]
-          conf_windows = [(0.0, 2.0)]
+          conf_windows = [(0.0, 2.0), (T_cta, TOTAL)]
 
 
           def ease_back(x):
@@ -721,6 +735,7 @@ jobs:
 
 
           snd_pop = tone(660, 0.12, 0.5, 25) + tone(990, 0.12, 0.25, 25)
+          snd_ding = tone(1320, 0.6, 0.4, 5) + tone(1760, 0.6, 0.25, 5)
           nz = int(SR * 0.35)
           snd_whoosh = (np.random.randn(nz) * (np.sin(np.linspace(0, np.pi, nz)) ** 2) * 0.12).astype(np.float32)
 
@@ -737,7 +752,9 @@ jobs:
               mix(snd_pop, T_rules + i * rstep)
           for t0 in T_items:
               mix(snd_pop, t0)
-          mix(speech_rules, T_rules)
+          mix(snd_ding, T_cta)
+          mix(speech["rules"], T_rules)
+          mix(speech["cta"], T_cta)
 
           tracks = [p for e in ("mp3", "wav", "m4a", "aac", "ogg", "flac", "mp4") for p in glob.glob(f"bgmusic/*.{e}")]
           if tracks:
@@ -768,8 +785,6 @@ jobs:
               wf.writeframes((buf * 32767).astype(np.int16).tobytes())
 
           # ================================================================== RENDER
-          render(puz_end + 0.3).save("final_image.jpg", quality=92)
-
           ff = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
                                  "-r", str(FPS), "-i", "-", "-i", "audio.wav", "-c:v", "libx264", "-preset", "veryfast",
                                  "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-ac", "2",
@@ -780,7 +795,7 @@ jobs:
           ff.wait()
 
           # ================================================================== TEXT OUTPUTS
-          caption = f"{title} 🧠\n{cap_line} 👇\n#تعلم_الانجليزية #learnenglish #english #تحدي"
+          caption = f"{title} 🧠\n{cta_d} 👇\n#تعلم_الانجليزية #learnenglish #english #تحدي"
           open("caption.txt", "w", encoding="utf-8").write(caption)
           open("comment.txt", "w", encoding="utf-8").write(comment)
           json.dump(used, open(USED_FILE, "w"), ensure_ascii=False, indent=1)
@@ -788,11 +803,10 @@ jobs:
           PYEOF
 
           python3 game.py
-          ls -lh final.mp4 final_image.jpg
+          ls -lh final.mp4
 
       - name: post-reel
         if: ${{ always() && steps.build.outcome == 'success' }}
-        continue-on-error: true
         timeout-minutes: 10
         env:
           PAGE_ID: ${{ secrets.FB_PAGE_ID }}
@@ -843,25 +857,6 @@ jobs:
             sleep 30
           done
           echo "Could not post comment"; exit 1
-
-      - name: post-image
-        if: ${{ always() && steps.build.outcome == 'success' }}
-        timeout-minutes: 5
-        env:
-          PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-          PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-        run: |
-          API="https://graph.facebook.com/v19.0"
-          RESP=$(curl -s -X POST "$API/$PAGE_ID/photos" -F "source=@final_image.jpg" \
-            -F "caption=<caption.txt" -F "published=true" -F "access_token=$PAGE_TOKEN")
-          PID=$(echo "$RESP" | jq -r '.id // empty'); PPOST=$(echo "$RESP" | jq -r '.post_id // empty')
-          [ -z "$PID" ] && { echo "Image post failed: $RESP"; exit 1; }
-          for ID in $PID $PPOST; do
-            R=$(curl -s -X POST "$API/$ID/comments" \
-              --data-urlencode "access_token=$PAGE_TOKEN" --data-urlencode "message@comment.txt")
-            if echo "$R" | jq -e '.id' > /dev/null 2>&1; then echo "Comment posted on $ID"; exit 0; fi
-          done
-          echo "Image comment failed: $R"; exit 1
 
       - name: save-used
         if: ${{ always() && steps.build.outcome == 'success' }}
