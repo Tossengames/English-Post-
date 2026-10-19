@@ -452,12 +452,6 @@ jobs:
               return im
 
 
-          def arrow():
-              im = Image.new("RGBA", (140, 120), (0, 0, 0, 0))
-              ImageDraw.Draw(im).polygon([(30, 20), (110, 20), (70, 100)], fill=(255, 255, 255, 255))
-              return im
-
-
           # ================================================================== LAYOUTS
           PUZ_CY = 1000
 
@@ -502,12 +496,6 @@ jobs:
 
 
           # ================================================================== GAME BUILD
-          HOOKS = [("تحدي جديد!", "تحدٍّ جديد! هل تستطيع حلَّه؟"),
-                   ("هل أنت مستعد؟", "هل أنت مستعدٌّ لهذا التحدّي؟"),
-                   ("اختبر نفسك!", "اختبر مستواك في اللغة الإنجليزية.")]
-          hook_d, hook_s = random.choice(HOOKS)
-          count_s = "لديك وقت محدد. ابدأ الآن!"
-
           if game == "word_maker":
               base = puz["letters"]
               ans = sorted({a for a in puz["answers"] if can(a, base.lower())}, key=lambda w: (-len(w), w))
@@ -521,8 +509,7 @@ jobs:
               hint = "كوّن أكبر عدد من الكلمات الإنجليزية من هذه الحروف"
               rules = ["كوّن كلمات إنجليزية", "من الحروف التالية فقط", "استخدم كل حرف مرة واحدة في الكلمة"]
               rules_s = "كوِّن أكبر عدد ممكن من الكلمات الإنجليزية باستخدام هذه الحروف فقط. يمكنك استخدام كل حرف مرة واحدة في الكلمة."
-              cta_d = "الإجابات في التعليقات"
-              cta_s = "الإجابات في التعليقات. اكتب كم كلمة وجدت."
+              cap_line = "الإجابات في التعليقات"
               secs = {"easy": 16, "medium": 20, "hard": 24}[level]
               show = ans[:30]
               by = {}
@@ -548,8 +535,7 @@ jobs:
               hint = "التلميح: " + puz["hint"]
               rules = ["رتّب الحروف لتكوين كلمة صحيحة", hint]
               rules_s = "رتب الحروف لتكوين كلمة إنجليزية صحيحة. التلميح: " + puz["hint"] + "."
-              cta_d = "الإجابة في التعليقات"
-              cta_s = "الإجابة في التعليقات."
+              cap_line = "الإجابة في التعليقات"
               secs = {"easy": 10, "medium": 14, "hard": 18}[level]
               comment = f"✅ الإجابة: {w}\nالمعنى: {puz['hint']}\n\n✍️ هل نجحت؟ اكتب لنا 👇"
 
@@ -565,8 +551,7 @@ jobs:
               hint = "المعنى: " + puz["ar"]
               rules = ["رتّب الكلمات لتكوين جملة صحيحة", hint]
               rules_s = "رتب الكلمات لتكوين جملة إنجليزية صحيحة. المعنى بالعربية: " + puz["ar"] + "."
-              cta_d = "الإجابة في التعليقات"
-              cta_s = "الإجابة في التعليقات."
+              cap_line = "الإجابة في التعليقات"
               secs = {"easy": 12, "medium": 16, "hard": 20}[level]
               comment = f"✅ الجملة الصحيحة:\n{puz['sentence']}.\nالمعنى: {puz['ar']}\n\n✍️ هل رتبتها صحيحة؟ اكتب لنا 👇"
 
@@ -582,15 +567,14 @@ jobs:
               hint = "اختر الإجابة الصحيحة لإكمال الجملة"
               rules = ["اختر الكلمة الصحيحة", "لإكمال الجملة"]
               rules_s = "اختر الإجابة الصحيحة لإكمال الجملة."
-              cta_d = "الإجابة في التعليقات"
-              cta_s = "الإجابة الصحيحة في التعليقات. اكتب رمز الإجابة."
+              cap_line = "الإجابة في التعليقات"
               secs = {"easy": 8, "medium": 11, "hard": 14}[level]
               full = puz["sentence"].replace("___", correct_txt)
               comment = (f"✅ الإجابة الصحيحة: {'ABC'[ci]}) {correct_txt}\n{puz['expl']}\n"
                          f"الجملة كاملة: {full}\n\n✍️ اكتب إجابتك قبل أن تقرأ الحل 👇")
 
 
-          # ================================================================== TTS
+          # ================================================================== TTS (rules only)
           def tts(text, out):
               for _ in range(3):
                   try:
@@ -609,34 +593,25 @@ jobs:
               return np.frombuffer(raw, dtype=np.float32).copy()
 
 
-          speech = {}
-          for k, txt in dict(hook=hook_s, rules=rules_s, count=count_s, cta=cta_s).items():
-              clean = sanitize(txt)  # never lets emojis/symbols reach TTS
-              out = f"/tmp/{k}.mp3"
-              if tts(clean, out):
-                  arr = load(out)
-                  pk = float(np.max(np.abs(arr))) or 1.0
-                  arr = arr / pk * 0.9
-              else:
-                  print("TTS failed for", k)
-                  arr = np.zeros(int(SR * max(1.5, len(clean.split()) * 0.45)), dtype=np.float32)
-              speech[k] = arr
-          dur = {k: len(v) / SR for k, v in speech.items()}
+          clean = sanitize(rules_s)  # never lets emojis/symbols reach TTS
+          if tts(clean, "/tmp/rules.mp3"):
+              speech_rules = load("/tmp/rules.mp3")
+              pk = float(np.max(np.abs(speech_rules))) or 1.0
+              speech_rules = speech_rules / pk * 0.9
+          else:
+              print("TTS failed for rules")
+              speech_rules = np.zeros(int(SR * max(1.5, len(clean.split()) * 0.45)), dtype=np.float32)
+          rules_dur = len(speech_rules) / SR
 
-          # ================================================================== TIMELINE
-          T_hook = 0.4
-          hook_end = T_hook + dur["hook"]
-          T_rules = hook_end + 0.5
-          rules_end = T_rules + dur["rules"]
-          T_puz = rules_end + 0.5
+          # ================================================================== TIMELINE (straight to the point)
+          T_rules = 0.25
+          rules_end = T_rules + rules_dur
+          T_puz = rules_end + 0.4
           STEP = 0.32
           puz_end = T_puz + len(items) * STEP + 0.4
-          T_count = puz_end
-          T_timer = T_count + dur["count"] + 0.2
-          T_timer_end = T_timer + secs
-          T_cta = T_timer_end + 0.3
-          TOTAL = T_cta + dur["cta"] + 1.3
-          print(f"Timeline: total={TOTAL:.1f}s timer={secs}s")
+          hold_end = puz_end + secs          # puzzle stays on screen, music only
+          TOTAL = hold_end + 0.8
+          print(f"Timeline: total={TOTAL:.1f}s hold={secs}s")
 
           # ================================================================== SCENE ELEMENTS
           els = []
@@ -646,12 +621,11 @@ jobs:
               els.append(dict(im=im, cx=cx, cy=cy, a=a, b=b, bounce=bounce, ph=ph))
 
 
-          add(block(title, 92, "white", maxw=900), W / 2, 250, 0.2)
-          add(stars({"easy": 1, "medium": 2, "hard": 3}[level]), W / 2, 370, 0.5)
-          add(block(hook_d, 130, "#FFF3B0", maxw=900), W / 2, 900, T_hook - 0.1, hook_end + 0.2)
+          add(block(title, 92, "white", maxw=900), W / 2, 250, 0.05)
+          add(stars({"easy": 1, "medium": 2, "hard": 3}[level]), W / 2, 370, 0.25)
 
           ry = 640
-          rstep = dur["rules"] / max(1, len(rules))
+          rstep = rules_dur / max(1, len(rules))
           for i, r in enumerate(rules):
               b = block(r, 58, "white", maxw=900)
               add(b, W / 2, ry + b.height / 2, T_rules + i * rstep, T_puz, bounce=False)
@@ -665,9 +639,6 @@ jobs:
               t0 = T_puz + i * STEP
               T_items.append(t0)
               add(im, cx, cy, t0, ph=i * 0.7)
-
-          add(pill(cta_d, 64, "#FF3D71", arabic=True), W / 2, 1390, T_cta, ph=0.0)
-          add(arrow(), W / 2, 1530, T_cta + 0.2, ph=1.2)
 
           # ================================================================== BACKGROUND / FX
           pal = [hexrgb(c) for c in random.choice(PALETTES)]
@@ -687,7 +658,7 @@ jobs:
               bokeh.append((im, rng.randint(0, W), rng.randint(0, H), rng.uniform(20, 60), rng.uniform(0, 6)))
           conf = [(rng.randint(0, W), rng.uniform(250, 600), rng.randint(10, 22), rng.choice(COLORS),
                    rng.uniform(0, 6), rng.uniform(0, 1.0)) for _ in range(70)]
-          conf_windows = [(0.2, 2.2), (T_cta, TOTAL)]
+          conf_windows = [(0.0, 2.0)]
 
 
           def ease_back(x):
@@ -737,22 +708,6 @@ jobs:
                           continue
                   dy = math.sin((t - e["a"]) * 4 + e["ph"]) * 6 if (e["bounce"] and active) else 0
                   put(img, e["im"], e["cx"], e["cy"] + dy, s)
-              # countdown ring
-              if T_count - 0.1 <= t < T_timer_end + 0.25:
-                  s = ease_back((t - T_count) / 0.35)
-                  if t > T_timer_end:
-                      s = max(0.0, 1 - (t - T_timer_end) / 0.25)
-                  prog = 1.0 if t < T_timer else max(0.0, 1 - (t - T_timer) / secs)
-                  r = int(105 * s)
-                  cx, cy = W // 2, 1420
-                  if r > 24:
-                      d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(255, 255, 255))
-                      col = (46, 196, 100) if prog > 0.5 else ((255, 160, 0) if prog > 0.25 else (235, 60, 60))
-                      inner = r - 12
-                      d.arc([cx - inner, cy - inner, cx + inner, cy + inner], -90, -90 + 360 * prog,
-                            fill=col, width=max(2, min(int(16 * s), inner)))
-                      num = secs if t < T_timer else max(1, math.ceil(secs - (t - T_timer)))
-                      d.text((cx, cy), str(num), font=font(F_EN, max(10, int(100 * s))), fill=(50, 30, 90), anchor="mm")
               return img
 
 
@@ -766,9 +721,6 @@ jobs:
 
 
           snd_pop = tone(660, 0.12, 0.5, 25) + tone(990, 0.12, 0.25, 25)
-          snd_tick = tone(1200, 0.05, 0.35, 60)
-          snd_tick2 = tone(1800, 0.09, 0.5, 40)
-          snd_ding = tone(1320, 0.6, 0.4, 5) + tone(1760, 0.6, 0.25, 5)
           nz = int(SR * 0.35)
           snd_whoosh = (np.random.randn(nz) * (np.sin(np.linspace(0, np.pi, nz)) ** 2) * 0.12).astype(np.float32)
 
@@ -780,19 +732,12 @@ jobs:
                   buf[i:i + n] += snd[:n] * gain
 
 
-          mix(snd_whoosh, 0.15)
-          mix(snd_whoosh, T_hook - 0.1)
+          mix(snd_whoosh, 0.0)
           for i in range(len(rules)):
               mix(snd_pop, T_rules + i * rstep)
           for t0 in T_items:
               mix(snd_pop, t0)
-          for i in range(secs):
-              mix(snd_tick2 if i >= secs - 3 else snd_tick, T_timer + i)
-          mix(snd_ding, T_cta)
-          mix(speech["hook"], T_hook)
-          mix(speech["rules"], T_rules)
-          mix(speech["count"], T_count)
-          mix(speech["cta"], T_cta)
+          mix(speech_rules, T_rules)
 
           tracks = [p for e in ("mp3", "wav", "m4a", "aac", "ogg", "flac", "mp4") for p in glob.glob(f"bgmusic/*.{e}")]
           if tracks:
@@ -807,11 +752,11 @@ jobs:
                   m = np.frombuffer(raw, dtype=np.float32)
                   n = min(len(m), len(buf))
                   env = np.ones(n, dtype=np.float32)
-                  fi, fo = int(SR * 0.5), int(SR * 1.2)
+                  fi, fo = int(SR * 0.3), int(SR * 0.8)
                   if n > fi + fo:
                       env[:fi] = np.linspace(0, 1, fi)
                       env[-fo:] = np.linspace(1, 0, fo)
-                  buf[:n] += m[:n] * env * 0.18
+                  buf[:n] += m[:n] * env * 0.22
               except Exception as ex:
                   print("music failed:", ex)
 
@@ -823,7 +768,7 @@ jobs:
               wf.writeframes((buf * 32767).astype(np.int16).tobytes())
 
           # ================================================================== RENDER
-          render(T_timer + 0.4).save("final_image.jpg", quality=92)
+          render(puz_end + 0.3).save("final_image.jpg", quality=92)
 
           ff = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
                                  "-r", str(FPS), "-i", "-", "-i", "audio.wav", "-c:v", "libx264", "-preset", "veryfast",
@@ -835,7 +780,7 @@ jobs:
           ff.wait()
 
           # ================================================================== TEXT OUTPUTS
-          caption = f"{title} | {hook_d} 🧠\nاكتب إجابتك في التعليقات 👇\n#تعلم_الانجليزية #learnenglish #english #تحدي"
+          caption = f"{title} 🧠\n{cap_line} 👇\n#تعلم_الانجليزية #learnenglish #english #تحدي"
           open("caption.txt", "w", encoding="utf-8").write(caption)
           open("comment.txt", "w", encoding="utf-8").write(comment)
           json.dump(used, open(USED_FILE, "w"), ensure_ascii=False, indent=1)
