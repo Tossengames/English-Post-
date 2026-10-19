@@ -10,7 +10,7 @@ name: english-games-post
         type: choice
         options: [auto, word_maker, unscramble, sentence_builder, fill_blank]
   schedule:
-    - cron: "0 7,13,19 * * *"
+    - cron: "0 4,13 * * *"
 
 permissions:
   contents: write
