@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Daily English: Whiteboard Reels (for Arabic speakers)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kalam:wght@700&family=Permanent+Marker&family=Cairo:wght@700&display=block">
+<style>
+  html, body { margin:0; height:100%; background:#10151d; color:#eef3f8; font:15px Kalam, "Comic Sans MS", cursive; }
+  #app { display:flex; flex-direction:column; height:100%; }
+  #stage { flex:1; min-height:0; position:relative; background:#10151d; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#10151d; }
+  #loading { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:24px; pointer-events:none; }
+  #bar { display:flex; align-items:center; gap:10px; padding:8px 12px; background:#1a212c; border-top:1px solid #2c3646; flex-wrap:wrap; }
+  #bar button, #bar select { background:#263142; color:#eef3f8; border:1px solid #3d4b61; border-radius:6px; padding:6px 12px; font:inherit; cursor:pointer; min-width:44px; }
+  #bar button:focus-visible, #bar select:focus-visible, #seek:focus-visible { outline:2px solid #ffb02e; outline-offset:2px; }
+  #bar button[aria-pressed="true"] { background:#3d4b61; }
+  #seek { flex:1; min-width:120px; accent-color:#ffb02e; }
+  #time { font-variant-numeric:tabular-nums; min-width:110px; text-align:right; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage"><canvas id="c" width="720" height="1280"></canvas><div id="loading">Warming up the markers...</div></div>
+  <div id="bar">
+    <button id="play" aria-label="Play">Play</button>
+    <select id="topic" aria-label="Lesson"></select>
+    <input id="seek" type="range" min="0" max="40" step="0.01" value="0" aria-label="Scrub">
+    <span id="time">0:00.0 / 0:00.0</span>
+    <button id="snd" aria-pressed="true" aria-label="Sound on or off">Sound</button>
+    <button id="loop" aria-pressed="true" aria-label="Loop on or off">Loop</button>
+  </div>
+</div>
+
+<script>
+// =====================================================================
+//  DAILY ENGLISH  -  whiteboard lessons with a talking, pointing teacher
+//  720x1280 vertical. Every frame is a pure function of T (no Math.random).
+//  Contract used by the GitHub workflow:
+//    window._ready, TOPIC_IDS, TOPIC_KINDS, loadTopic(id), setVoiceDurations(arr),
+//    frameJPEG(t), renderAudioBase64(withVoice)
+// =====================================================================
+(function () {
+'use strict';
+const W = 720, HH = 1280, TAU = Math.PI * 2;
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const sm = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+const eo = (x) => 1 - Math.pow(1 - clamp(x), 3);
+const ez = (x) => { x = clamp(x); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+function rng(seed) { let a = (seed >>> 0) || 1; return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+// ---------- palette & fonts ----------
+const INK = '#1b2333', BLU = '#1f5fd1', RED = '#d93a2f', GRN = '#14924f', ORG = '#e07b0a', PUR = '#7a3fc4';
+const SKIN = '#f1c7a1', OUT = '#2b2433', CARD = '#2f7d8c', HAIR = '#5a3420';
+const HAND = 'Kalam, "Segoe Print", "Comic Sans MS", cursive';
+const MARK = '"Permanent Marker", Kalam, "Comic Sans MS", cursive';
+const ARF = 'Cairo, "Noto Naskh Arabic", Tahoma, Arial, sans-serif';
+const fontStr = (it, sz) => (it.ar ? `700 ${sz}px ${ARF}` : it.f === 'm' ? `${sz}px ${MARK}` : `700 ${sz}px ${HAND}`);
+const MAXW = 590;                         // widest line on the board
+const BX = 40, BY = 100, BW = 640, BH = 852;   // whiteboard interior
+const TCX = 590;                          // teacher's centre x
+
+// ---------- lesson item helpers ----------
+const TX = (s, x, y, at, o = {}) => ({ k: 't', s, x, y, at, sz: o.sz || 50, c: o.c || INK, al: o.al || 'c', f: o.f || 'h', ar: !!o.ar });
+const UL = (x1, x2, y, at, c = RED) => ({ k: 'u', x1, x2, y, at, c });
+const CI = (x, y, rx, ry, at, c = RED) => ({ k: 'o', x, y, rx, ry, at, c });
+const AR = (x1, y1, x2, y2, at, c = INK) => ({ k: 'a', x1, y1, x2, y2, at, c });
+const OK = (x, y, at) => ({ k: 'ok', x, y, at, c: GRN });
+const NO = (x, y, at) => ({ k: 'no', x, y, at, c: RED });
+const HL = (x, y, w, h, at, c = '#ffe45c') => ({ k: 'r', x, y, w, h, at, c, np: true });
+const CD = (y, at) => [TX('3', 250, y, at, { sz: 84, c: ORG, f: 'm' }), TX('2', 360, y, at + 0.13, { sz: 84, c: ORG, f: 'm' }), TX('1', 470, y, at + 0.26, { sz: 84, c: ORG, f: 'm' })];
+const B = (vo, items, clear) => ({ vo, items: [].concat(...items), clear: !!clear, d: 6 });
+
+// =====================================================================
+//  LESSONS: English for Arabic speakers, in teaching order (A1 -> B1)
+//  Each lesson = intro, rule, 3 examples (with Arabic), common mistake, comment question.
+//  Add more by appending a row to LESSON_DATA (append at the END so the posting order stays correct).
+//  Row: [id, level, tag, title, arabicTitle, intro,
+//        [ruleHeading, [up to 3 lines], arabicNote, ruleVoiceover],
+//        [[english, arabic] x3],
+//        [wrongSentence, rightSentence, arabicNote],
+//        [[question lines (max 2)], [options (2-3)], answer]]
+// =====================================================================
+const LVN = { A1: 'Beginner', A2: 'Elementary', B1: 'Intermediate' };
+const spk = (s) => s.replace(/_+/g, 'blank');
+const LESSON_DATA = [
+[`greetings`,`A1`,`Speaking`,`Hello! How are you?`,`التحية والسؤال عن الحال`,`Let's learn the first words every English speaker uses.`,
+ [`Say hello`,[`Hello! / Hi!`,`How are you?`,`I am fine, thank you.`],`مرحباً! كيف حالك؟ أنا بخير، شكراً.`,`Say hello or hi to greet someone. Then ask, how are you? And answer, I am fine, thank you.`],
+ [[`Good morning!`,`صباح الخير!`],[`Good evening!`,`مساء الخير!`],[`Nice to meet you.`,`تشرفت بمعرفتك.`]],
+ [`Hello, how you?`,`Hello, how are you?`,`لا تنسَ الفعل are في السؤال`],
+ [[`Someone asks you:`,`"How are you?"`],[`A. I am fine, thank you.`,`B. My name is fine.`],`A`]],
+[`tobe`,`A1`,`Grammar`,`I am, You are, He is`,`الفعل يكون: am, is, are`,`In Arabic you can say, I a teacher. In English, you must add a verb.`,
+ [`Always use am, is or are`,[`I am`,`You are / We are / They are`,`He is / She is / It is`],`في الإنجليزية لا بد من وجود am أو is أو are`,`Use am with I. Use is with he, she, and it. Use are with you, we, and they. You cannot skip this verb in English.`],
+ [[`I am a student.`,`أنا طالب.`],[`She is a doctor.`,`هي طبيبة.`],[`They are happy.`,`هم سعداء.`]],
+ [`She a doctor.`,`She is a doctor.`,`لا تحذف is كما نفعل في العربية`],
+ [[`Choose the correct sentence:`],[`A. He is tall.`,`B. He tall.`,`C. He are tall.`],`A`]],
+[`aan`,`A1`,`Grammar`,`A or An?`,`استخدام a و an`,`Use a or an before one thing.`,
+ [`The sound decides`,[`a + consonant sound: a book`,`an + vowel sound: an apple`],`نستخدم an قبل أصوات الحروف المتحركة a e i o u`,`Use a before a consonant sound, like a book. Use an before a vowel sound, like an apple.`],
+ [[`an egg`,`بيضة`],[`a car`,`سيارة`],[`an hour`,`ساعة`]],
+ [`a apple`,`an apple`,`قبل الصوت المتحرك نستخدم an`],
+ [[`She has ___ umbrella.`],[`A. a`,`B. an`],`B`]],
+[`plurals`,`A1`,`Grammar`,`Plural Nouns`,`صيغة الجمع`,`One book, two books. Let us learn how to make plurals.`,
+ [`Add s or es`,[`book - books`,`box - boxes`,`man - men (irregular)`],`غالباً نضيف s، وبعض الكلمات تتغير مثل man و men`,`Most nouns just add the letter s. Nouns ending in x, s, ch or sh add e s. Some are irregular, like man and men, or child and children.`],
+ [[`two cats`,`قطتان`],[`three boxes`,`ثلاثة صناديق`],[`four children`,`أربعة أطفال`]],
+ [`two childs`,`two children`,`جمع child هو children وليس childs`],
+ [[`Many ___ are in the park.`],[`A. childs`,`B. children`],`B`]],
+[`thisthat`,`A1`,`Grammar`,`This, That, These, Those`,`هذا، ذلك، هذه، تلك`,`Point at things near you and far from you.`,
+ [`Near or far? One or many?`,[`this / these = near`,`that / those = far`,`this, that = one thing`],`this و these للقريب، that و those للبعيد`,`This and these are for things near you. That and those are for things far from you. This and that are for one thing. These and those are for many things.`],
+ [[`This is my phone.`,`هذا هاتفي.`],[`That is a big house.`,`ذلك بيت كبير.`],[`These are my books.`,`هذه كتبي.`]],
+ [`This are my keys.`,`These are my keys.`,`للجمع نستخدم these مع are`],
+ [[`The cars over there are fast.`,`___ cars are fast.`],[`A. That`,`B. Those`],`B`]],
+[`possessives`,`A1`,`Grammar`,`My, Your, His, Her`,`صفات الملكية`,`Say who something belongs to.`,
+ [`Match the owner`,[`I - my     you - your`,`he - his     she - her`,`we - our     they - their`],`his للمذكر و her للمؤنث`,`Use my for I, your for you, his for he, her for she, our for we, and their for they. His is for a man. Her is for a woman.`],
+ [[`This is my bag.`,`هذه حقيبتي.`],[`Her name is Sara.`,`اسمها سارة.`],[`His car is new.`,`سيارته جديدة.`]],
+ [`Sara loves his mother.`,`Sara loves her mother.`,`سارة أنثى، لذلك نقول her`],
+ [[`Ahmed has a car.`,`___ car is red.`],[`A. His`,`B. Her`],`A`]],
+[`numbersage`,`A1`,`Vocabulary`,`Numbers and Age`,`الأرقام والعمر`,`Learn the numbers and how to say your age.`,
+ [`Use am, not have`,[`1 one   2 two   3 three`,`4 four   5 five   10 ten`,`I am 20 years old.`],`نقول I am 20 وليس I have 20`,`Learn the numbers one to ten. To say your age, use am. I am twenty years old. Do not use have.`],
+ [[`How old are you?`,`كم عمرك؟`],[`I am 25 years old.`,`عمري خمسة وعشرون عاماً.`],[`She is seven.`,`عمرها سبع سنوات.`]],
+ [`I have 20 years.`,`I am 20 years old.`,`العمر في الإنجليزية مع am وليس have`],
+ [[`Choose the correct sentence:`],[`A. I have 30 years.`,`B. I am 30 years old.`],`B`]],
+[`days`,`A1`,`Vocabulary`,`Days of the Week`,`أيام الأسبوع`,`There are seven days in a week.`,
+ [`Always use a capital letter`,[`Monday   Tuesday   Wednesday`,`Thursday   Friday`,`Saturday   Sunday`],`أيام الأسبوع تبدأ دائماً بحرف كبير`,`The days are Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, and Sunday. They always start with a capital letter.`],
+ [[`Today is Monday.`,`اليوم هو الاثنين.`],[`See you on Friday.`,`أراك يوم الجمعة.`],[`I rest on Saturday.`,`أرتاح يوم السبت.`]],
+ [`I work in Monday.`,`I work on Monday.`,`مع الأيام نستخدم on`],
+ [[`I go to school ___ Sunday.`],[`A. in`,`B. on`,`C. at`],`B`]],
+[`questionwords`,`A1`,`Grammar`,`What, Where, Who, When, Why, How`,`أدوات الاستفهام`,`Ask better questions with these six words.`,
+ [`Six question words`,[`What = a thing   Where = a place`,`Who = a person   When = a time`,`Why = a reason   How = a way`],`ماذا، أين، من، متى، لماذا، كيف`,`What asks about a thing. Where asks about a place. Who asks about a person. When asks about time. Why asks for a reason. How asks about the way.`],
+ [[`Where are you from?`,`من أين أنت؟`],[`What is your name?`,`ما اسمك؟`],[`Why are you late?`,`لماذا تأخرت؟`]],
+ [`What your name?`,`What is your name?`,`لا تنسَ is في السؤال`],
+ [[`___ is your birthday?`,`(Think: a time)`],[`A. Where`,`B. When`],`B`]],
+[`presentsimple`,`A1`,`Grammar`,`Present Simple`,`المضارع البسيط`,`Talk about habits and daily life.`,
+ [`He, she, it + s`,[`I work     you work     they work`,`he works     she works     it works`],`مع he و she و it نضيف s للفعل`,`Use the present simple for habits and facts. With I, you, we, and they, use the base verb. With he, she, and it, add the letter s.`],
+ [[`I drink tea every day.`,`أشرب الشاي كل يوم.`],[`She works in a bank.`,`هي تعمل في بنك.`],[`The sun rises in the east.`,`تشرق الشمس من الشرق.`]],
+ [`He work in a shop.`,`He works in a shop.`,`مع he و she أضف s للفعل`],
+ [[`My brother ___ football.`],[`A. play`,`B. plays`],`B`]],
+[`dodoes`,`A1`,`Grammar`,`Do and Does`,`الأسئلة والنفي: do و does`,`Make questions and say no in the present simple.`,
+ [`Do / Does + base verb`,[`Do you like tea?`,`Does she like tea?`,`She does not like tea.`],`بعد does نستخدم الفعل بدون s`,`For questions, use do with I, you, we, and they. Use does with he, she, and it. After does, the verb has no s. To say no, use do not, or does not.`],
+ [[`Do you speak English?`,`هل تتكلم الإنجليزية؟`],[`Does he live here?`,`هل يسكن هنا؟`],[`I don't like coffee.`,`لا أحب القهوة.`]],
+ [`Does she likes tea?`,`Does she like tea?`,`بعد does لا نضيف s للفعل`],
+ [[`___ he work here?`],[`A. Do`,`B. Does`],`B`]],
+[`can`,`A1`,`Grammar`,`Can and Cannot`,`يستطيع ولا يستطيع`,`Say what you are able to do.`,
+ [`Can + base verb`,[`I can swim.`,`She cannot drive.`,`Can you help me?`],`بعد can نستخدم الفعل بدون to وبدون s`,`Use can to say you are able to do something. After can, use the base verb. No to, and no s.`],
+ [[`I can speak Arabic.`,`أستطيع التحدث بالعربية.`],[`He cannot swim.`,`لا يستطيع السباحة.`],[`Can you help me?`,`هل تستطيع مساعدتي؟`]],
+ [`She can to swim.`,`She can swim.`,`لا نضع to بعد can`],
+ [[`Which is correct?`],[`A. He cans swim.`,`B. He can swim.`],`B`]],
+[`thereisare`,`A1`,`Grammar`,`There Is and There Are`,`يوجد: there is و there are`,`Say what you can see in a place.`,
+ [`One or many?`,[`There is a book. (one)`,`There are two books. (many)`,`Is there a bank here?`],`there is للمفرد و there are للجمع`,`Use there is for one thing. Use there are for many things. For a question, say, is there, or, are there.`],
+ [[`There is a mosque near here.`,`يوجد مسجد قريب من هنا.`],[`There are three chairs.`,`يوجد ثلاثة كراسي.`],[`Is there a hotel here?`,`هل يوجد فندق هنا؟`]],
+ [`There are a car.`,`There is a car.`,`مع المفرد نقول there is`],
+ [[`___ five students in the class.`],[`A. There is`,`B. There are`],`B`]],
+[`placeprep`,`A1`,`Vocabulary`,`In, On, Under, Next To`,`حروف الجر للمكان`,`Say where things are.`,
+ [`Where is it?`,[`in = inside     on = on top`,`under = below`,`next to = beside`],`in داخل، on فوق، under تحت، next to بجانب`,`In means inside. On means on top of a surface. Under means below. Next to means beside.`],
+ [[`The phone is on the table.`,`الهاتف على الطاولة.`],[`The cat is under the chair.`,`القطة تحت الكرسي.`],[`The keys are in my bag.`,`المفاتيح في حقيبتي.`]],
+ [`The book is in the table.`,`The book is on the table.`,`للسطح نستخدم on وليس in`],
+ [[`The keys are inside the bag.`,`The keys are ___ the bag.`],[`A. on`,`B. in`],`B`]],
+[`havehas`,`A2`,`Grammar`,`Have and Has`,`لديه: have و has`,`Say what you own and who is in your family.`,
+ [`Have or has?`,[`I / you / we / they have`,`he / she / it has`],`نستخدم has مع he و she و it فقط`,`Use have with I, you, we, and they. Use has with he, she, and it.`],
+ [[`I have a brother.`,`لدي أخ.`],[`She has two sisters.`,`لديها أختان.`],[`They have a big house.`,`لديهم بيت كبير.`]],
+ [`He have a car.`,`He has a car.`,`مع he نقول has`],
+ [[`My mother ___ a new phone.`],[`A. have`,`B. has`],`B`]],
+[`presentcont`,`A2`,`Grammar`,`Present Continuous`,`المضارع المستمر`,`Talk about what is happening right now.`,
+ [`am / is / are + verb-ing`,[`I am eating.`,`She is reading.`,`They are playing.`],`نستخدمه لما يحدث الآن`,`Use the present continuous for things happening now. Use am, is, or are, plus the verb with ing.`],
+ [[`I am studying now.`,`أنا أدرس الآن.`],[`He is cooking dinner.`,`هو يطبخ العشاء.`],[`They are watching TV.`,`هم يشاهدون التلفاز.`]],
+ [`She reading now.`,`She is reading now.`,`لا تنسَ is قبل الفعل مع ing`],
+ [[`Look! The baby ___.`],[`A. sleeps`,`B. is sleeping`],`B`]],
+[`pastregular`,`A2`,`Grammar`,`Past Simple: Regular Verbs`,`الماضي البسيط`,`Talk about things that finished in the past.`,
+ [`Add ed`,[`walk - walked`,`play - played`,`study - studied`],`نضيف ed للفعل للتحدث عن الماضي`,`To talk about the past, add e d to most verbs. Walk becomes walked. If a verb ends in consonant plus y, change the y to i, like study and studied.`],
+ [[`I watched a movie.`,`شاهدت فيلماً.`],[`She called her mother.`,`اتصلت بوالدتها.`],[`We played football.`,`لعبنا كرة القدم.`]],
+ [`Yesterday I watch TV.`,`Yesterday I watched TV.`,`مع كلمة yesterday نستخدم الماضي`],
+ [[`Yesterday we ___ football.`],[`A. play`,`B. played`],`B`]],
+[`pastirregular`,`A2`,`Grammar`,`Past Simple: Irregular Verbs`,`الأفعال الشاذة في الماضي`,`Some very common verbs change completely.`,
+ [`Some verbs change`,[`go - went     eat - ate`,`see - saw     have - had`,`buy - bought`],`بعض الأفعال تتغير بالكامل ويجب حفظها`,`Some verbs do not take e d. Go becomes went. Eat becomes ate. See becomes saw. Have becomes had. Buy becomes bought.`],
+ [[`I went to Dubai.`,`ذهبت إلى دبي.`],[`She ate lunch.`,`تناولت الغداء.`],[`We saw a movie.`,`شاهدنا فيلماً.`]],
+ [`I goed to school.`,`I went to school.`,`ماضي go هو went وليس goed`],
+ [[`Last week I ___ to London.`],[`A. goed`,`B. went`,`C. gone`],`B`]],
+[`future`,`A2`,`Grammar`,`Will and Going To`,`المستقبل`,`Talk about the future.`,
+ [`Two ways to talk about later`,[`going to + verb = a plan`,`will + verb = a quick decision`],`will لقرار سريع و going to لخطة مسبقة`,`Use going to for a plan you already made. Use will for a quick decision, or a promise.`],
+ [[`I am going to visit Cairo.`,`سوف أزور القاهرة.`],[`I will help you.`,`سأساعدك.`],[`It will rain tomorrow.`,`ستمطر غداً.`]],
+ [`I will to call you.`,`I will call you.`,`بعد will لا نضع to`],
+ [[`The phone is ringing.`,`I ___ answer it.`],[`A. will`,`B. am going to`],`A`]],
+[`someany`,`A2`,`Grammar`,`Some and Any`,`some و any`,`Two small words that learners mix up.`,
+ [`Yes = some. No or ? = any`,[`I have some water.`,`I do not have any water.`,`Do you have any water?`],`some في الجملة المثبتة و any في النفي والسؤال`,`Use some in positive sentences. Use any in negative sentences and in questions.`],
+ [[`I have some bread.`,`عندي بعض الخبز.`],[`We don't have any milk.`,`ليس عندنا حليب.`],[`Do you have any questions?`,`هل لديك أي أسئلة؟`]],
+ [`I don't have some money.`,`I don't have any money.`,`في النفي نستخدم any`],
+ [[`Is there ___ sugar?`],[`A. some`,`B. any`],`B`]],
+[`muchmany`,`A2`,`Grammar`,`Much and Many`,`much و many`,`Ask about quantity in the right way.`,
+ [`Can you count it?`,[`many + things you can count`,`much + things you cannot count`,`many books     much water`],`many للمعدود و much لغير المعدود`,`Use many with things you can count, like books. Use much with things you cannot count, like water or money.`],
+ [[`How many books do you have?`,`كم كتاباً لديك؟`],[`How much water do you drink?`,`كم من الماء تشرب؟`],[`There are many people here.`,`يوجد كثير من الناس هنا.`]],
+ [`How many money?`,`How much money?`,`المال غير معدود، لذلك نقول much`],
+ [[`How ___ sugar do you want?`],[`A. many`,`B. much`],`B`]],
+[`comparatives`,`A2`,`Grammar`,`Comparatives`,`المقارنة`,`Compare two things.`,
+ [`Short = er. Long = more`,[`big - bigger than`,`fast - faster than`,`expensive - more expensive than`],`الكلمات القصيرة نضيف er والطويلة نستخدم more`,`For short words, add e r and use than. For long words, use more before the word.`],
+ [[`My car is faster than yours.`,`سيارتي أسرع من سيارتك.`],[`Cairo is bigger than Amman.`,`القاهرة أكبر من عمّان.`],[`This phone is more expensive.`,`هذا الهاتف أغلى.`]],
+ [`She is more tall than me.`,`She is taller than me.`,`الكلمة القصيرة تأخذ er وليس more`],
+ [[`A bus is ___ than a bike.`],[`A. more big`,`B. bigger`],`B`]],
+[`superlatives`,`A2`,`Grammar`,`Superlatives`,`صيغة التفضيل`,`Talk about the best, the biggest, the most.`,
+ [`The + est, or the most`,[`tall - the tallest`,`fast - the fastest`,`beautiful - the most beautiful`],`نستخدم the قبل صيغة التفضيل`,`For short words, use the, plus e s t. For long words, use the most. Always use the.`],
+ [[`She is the tallest girl.`,`هي أطول فتاة.`],[`This is the best day.`,`هذا أفضل يوم.`],[`It is the most beautiful city.`,`إنها أجمل مدينة.`]],
+ [`He is the most tall.`,`He is the tallest.`,`الكلمة القصيرة: the + est`],
+ [[`Mount Everest is the ___ mountain.`],[`A. high`,`B. highest`],`B`]],
+[`frequency`,`A2`,`Vocabulary`,`Always, Usually, Sometimes, Never`,`ظروف التكرار`,`Say how often you do things.`,
+ [`How often?`,[`always = 100%     usually = 80%`,`sometimes = 50%`,`never = 0%`],`تأتي قبل الفعل الرئيسي وبعد am / is / are`,`Put these words before the main verb. But after am, is, or are.`],
+ [[`I always drink coffee.`,`أشرب القهوة دائماً.`],[`She is never late.`,`هي لا تتأخر أبداً.`],[`We sometimes eat out.`,`نأكل خارج البيت أحياناً.`]],
+ [`I go always to work.`,`I always go to work.`,`نضع always قبل الفعل`],
+ [[`Choose the correct sentence:`],[`A. He never is late.`,`B. He is never late.`],`B`]],
+[`timeprep`,`A2`,`Grammar`,`In, On, At (Time)`,`حروف الجر للزمن`,`Three little words, three jobs.`,
+ [`Choose the time word`,[`at = exact time: at 5 pm`,`on = a day: on Monday`,`in = month, year: in July`],`at للساعة و on لليوم و in للشهر والسنة`,`Use at for exact times. Use on for days and dates. Use in for months, years, and seasons.`],
+ [[`I wake up at 6 am.`,`أستيقظ الساعة السادسة صباحاً.`],[`The meeting is on Tuesday.`,`الاجتماع يوم الثلاثاء.`],[`My birthday is in May.`,`عيد ميلادي في مايو.`]],
+ [`See you in Friday.`,`See you on Friday.`,`مع الأيام نستخدم on`],
+ [[`The class starts ___ nine o'clock.`],[`A. at`,`B. on`,`C. in`],`A`]],
+[`polite`,`A2`,`Speaking`,`Polite Requests`,`الطلب بلطف`,`Sound polite when you ask for something.`,
+ [`Could you...?`,[`Give me water. (too direct)`,`Could you give me water?`,`Can I have some water, please?`],`استخدم could و please لتبدو مهذباً`,`Do not say, give me. It sounds rude. Say, could you, or, can I have, and add please.`],
+ [[`Could you help me, please?`,`هل يمكنك مساعدتي من فضلك؟`],[`Can I sit here?`,`هل يمكنني الجلوس هنا؟`],[`Would you like some tea?`,`هل تود بعض الشاي؟`]],
+ [`Give me the menu.`,`Could I have the menu, please?`,`الأسلوب المهذب أفضل في المطاعم`],
+ [[`Which is more polite?`],[`A. Give me a pen.`,`B. Could you give me a pen?`],`B`]],
+[`linking`,`A2`,`Grammar`,`And, But, Because, So`,`أدوات الربط`,`Join your ideas to speak in longer sentences.`,
+ [`Join your ideas`,[`and = add     but = contrast`,`because = the reason`,`so = the result`],`because للسبب و so للنتيجة`,`And adds an idea. But shows a contrast. Because gives the reason. So gives the result.`],
+ [[`I like tea and coffee.`,`أحب الشاي والقهوة.`],[`I was tired, so I slept.`,`كنت متعباً، لذلك نمت.`],[`I stayed home because it rained.`,`بقيت في البيت لأنها أمطرت.`]],
+ [`I was sick, because I stayed home.`,`I was sick, so I stayed home.`,`so للنتيجة و because للسبب`],
+ [[`I was hungry, ___ I ate.`],[`A. because`,`B. so`],`B`]],
+[`makedo`,`A2`,`Vocabulary`,`Make or Do?`,`make أم do؟`,`Learners mix these two verbs all the time.`,
+ [`Create or complete?`,[`make = create: make a cake`,`do = actions: do homework`],`make للصنع والإنشاء و do للأعمال والمهام`,`Use make when you create something new. Use do for actions and tasks.`],
+ [[`I make breakfast.`,`أحضّر الفطور.`],[`She does her homework.`,`تقوم بواجبها.`],[`He made a mistake.`,`ارتكب خطأً.`]],
+ [`I did a mistake.`,`I made a mistake.`,`نقول make a mistake`],
+ [[`Please ___ your homework.`],[`A. make`,`B. do`],`B`]],
+[`presentperfect`,`B1`,`Grammar`,`Present Perfect`,`المضارع التام`,`Talk about life experiences.`,
+ [`have / has + past participle`,[`I have seen it.`,`She has visited Japan.`,`Have you ever eaten sushi?`],`نستخدمه للتجارب عندما لا نذكر الوقت`,`Build it with have or has, plus the past participle. Use it for experiences, when the exact time is not important.`],
+ [[`I have visited Dubai.`,`لقد زرت دبي.`],[`She has finished her work.`,`لقد أنهت عملها.`],[`Have you ever tried pizza?`,`هل جربت البيتزا من قبل؟`]],
+ [`I have seen it yesterday.`,`I saw it yesterday.`,`مع الوقت المحدد نستخدم الماضي البسيط`],
+ [[`___ you ever been to Turkey?`],[`A. Did`,`B. Have`],`B`]],
+[`arabicmistakes`,`B1`,`Mistakes`,`Mistakes Arabic Speakers Make`,`أخطاء شائعة`,`Three traps that almost every Arabic speaker falls into.`,
+ [`Three common traps`,[`I agree (not: I am agree)`,`He doesn't like (not: don't)`,`I am 20 (not: I have 20)`],`ثلاثة أخطاء يقع فيها كثيرون`,`First, agree is a verb, so do not say am agree. Second, with he and she, say doesn't. Third, for age, say I am, not I have.`],
+ [[`I agree with you.`,`أنا أوافقك.`],[`She doesn't know.`,`هي لا تعرف.`],[`I am twenty years old.`,`عمري عشرون سنة.`]],
+ [`I am agree with you.`,`I agree with you.`,`agree فعل، لا نضع am قبله`],
+ [[`Which is correct?`],[`A. I am agree.`,`B. I agree.`],`B`]],
+];
+
+function lesson(n, d) {
+  const [id, lv, tag, title, ar, intro, rule, ex, mis, qq] = d, [rh, rl, rar, rv] = rule, [ql, qo, ans] = qq;
+  let tl = [title];
+  if (title.length > 15) { const mid = title.length / 2; let best = -1, bd = 99; for (let i = 0; i < title.length; i++) if (title[i] === ' ' && Math.abs(i - mid) < bd) { bd = Math.abs(i - mid); best = i; } if (best > 0) tl = [title.slice(0, best), title.slice(best + 1)]; }
+  const ty = tl.length === 1 ? 340 : 300, last = ty + (tl.length - 1) * 90;
+  const b1 = B(`Lesson ${n}. ${title}. ${intro}`, [[TX(`Level ${lv}: ${LVN[lv]}`, 360, 200, 0.05, { sz: 38, c: BLU }), ...tl.map((s, i) => TX(s, 360, ty + i * 90, 0.15 + i * 0.1, { sz: 72, c: RED, f: 'm' })), UL(70, 650, last + 35, 0.5), TX(ar, 360, last + 150, 0.6, { sz: 60, c: ORG, ar: true }), TX('English for Arabic speakers', 360, last + 300, 0.8, { sz: 42, c: GRN })]], true);
+  const b2 = B(rv, [[TX('The rule', 360, 200, 0.05, { sz: 60, c: RED, f: 'm' }), UL(200, 520, 232, 0.3), TX(rh, 360, 330, 0.2, { sz: 46, c: BLU }), ...rl.map((s, i) => TX(s, 360, 430 + i * 85, 0.35 + i * 0.12, { sz: 42 })), TX(rar, 360, 430 + rl.length * 85 + 60, 0.8, { sz: 38, c: ORG, ar: true })]], true);
+  const b3 = B('Here are three examples. ' + ex.map((e) => e[0]).join(' '), [[TX('Examples', 360, 200, 0.05, { sz: 60, c: RED, f: 'm' }), UL(200, 520, 232, 0.3), ...[].concat(...ex.map((e, i) => [TX(e[0], 360, 330 + i * 170, 0.12 + i * 0.27, { sz: 48 }), TX(e[1], 360, 394 + i * 170, 0.2 + i * 0.27, { sz: 40, c: ORG, ar: true })]))]], true);
+  const b4 = B(`Careful! Many learners say: ${mis[0]} But the correct sentence is: ${mis[1]}`, [[TX('Careful!', 360, 200, 0.05, { sz: 60, c: RED, f: 'm' }), UL(200, 520, 232, 0.3), TX(mis[0], 360, 380, 0.1, { sz: 48 }), NO(360, 450, 0.3), TX(mis[1], 360, 620, 0.5, { sz: 48, c: GRN }), OK(360, 690, 0.75), TX(mis[2], 360, 790, 0.85, { sz: 38, c: ORG, ar: true })]], true);
+  const y0 = 330 + ql.length * 64 + 50, cols = [BLU, GRN, PUR];
+  const b5 = B(spk(`Your turn! ${ql.join(' ')} ${qo.join(' ')} Write your answer in the comments.`), [[TX('Your turn!', 360, 200, 0.05, { sz: 64, c: RED, f: 'm' }), UL(150, 570, 232, 0.3), ...ql.map((s, i) => TX(s, 360, 330 + i * 64, 0.15 + i * 0.1, { sz: 44 })), ...qo.map((s, i) => TX(s, 80, y0 + i * 86, 0.4 + i * 0.12, { sz: 46, c: cols[i], al: 'l' })), TX('Comment your answer!', 360, y0 + qo.length * 86 + 40, 0.85, { sz: 46, c: ORG })]], true);
+  return { id, kind: 'lesson', lv, title, tag: `${lv} ${tag}`,
+    caption: `${title} | ${ar}\n\n${intro} Can you answer the question at the end? Write your answer in the comments!`,
+    tags: `#LearnEnglish #EnglishForArabicSpeakers #تعلم_الانجليزية #EnglishLesson #ESL #${lv}English`,
+    note: `Answer: ${ans}`, beats: [b1, b2, b3, b4, b5] };
+}
+const LESSONS = LESSON_DATA.map((d, i) => lesson(i + 1, d));
+
+// =====================================================================
+//  TIMELINE (each beat = one voice line; its length stretches to fit the voice)
+// =====================================================================
+const VOICE_OFF = 0.5, VOICE_TAIL = 0.7, END_HOLD = 1.2, WIPE = 0.8;
+let STORY = LESSONS[0], TL = null;
+const mc = document.createElement('canvas').getContext('2d');
+
+function prep(it) {
+  it._d = { t: Math.min(1.7, Math.max(0.5, (it.s || '').length * 0.075)), u: 0.55, o: 0.8, a: 0.55, ok: 0.45, no: 0.45, r: 0.5 }[it.k];
+  if (it.k === 't') {
+    mc.direction = it.ar ? 'rtl' : 'ltr'; let sz = it.sz; mc.font = fontStr(it, sz); let w = mc.measureText(it.s).width;
+    if (w > MAXW) { sz = Math.floor(sz * MAXW / w); mc.font = fontStr(it, sz); w = mc.measureText(it.s).width; }
+    it._sz = sz; it._w = w; it._l = it.al === 'l' ? it.x : it.x - w / 2;
+    let h = 0; for (const ch of it.s) h = (h * 31 + ch.charCodeAt(0)) | 0;
+    it._rot = ((Math.abs(h) % 100) / 100 - 0.5) * 0.03;
+  }
+}
+function pointOf(it) {
+  if (it.np) return null;
+  if (it.k === 't') { const y = it.y - it._sz * 0.25; return it.ar ? [it._l + it._w, y, it._l, y] : [it._l, y, it._l + it._w, y]; }
+  if (it.k === 'u') return [it.x1, it.y, it.x2, it.y];
+  if (it.k === 'o') return [it.x - it.rx, it.y, it.x + it.rx, it.y];
+  if (it.k === 'a') return [it.x1, it.y1, it.x2, it.y2];
+  return [it.x, it.y, it.x, it.y];
+}
+function buildTL(v) {
+  const bs = STORY.beats, n = bs.length, E = [], R = [], starts = [], VD = [], ps = [], ev = []; let t = 0;
+  for (let i = 0; i < n; i++) {
+    const d = bs[i].d, words = bs[i].vo.split(/\s+/).length, has = v && v[i] > 0;
+    const est = Math.min(words * 0.36, d - VOICE_OFF - 0.3);
+    const r = has ? Math.max(d, VOICE_OFF + v[i] + VOICE_TAIL) : d;
+    E.push(t); R.push(r); starts.push(t + VOICE_OFF); VD.push(has ? v[i] : est); t += r;
+    ps.push(i === 0 || bs[i].clear ? i : ps[i - 1]);
+  }
+  for (let i = 0; i < n; i++) {
+    const lag = (bs[i].clear || i === 0) ? 0.95 : 0.35;
+    bs[i].items.forEach((it) => {
+      prep(it);
+      let t0 = E[i] + Math.max(lag, it.at * R[i]);
+      t0 = Math.min(t0, Math.max(E[i] + lag, E[i] + R[i] - it._d - 0.2));
+      it._t0 = t0;
+      const p = pointOf(it);
+      if (p) ev.push({ t0, t1: t0 + Math.max(0.3, it._d), x0: p[0], y0: p[1], x1: p[2], y1: p[3] });
+    });
+  }
+  ev.sort((a, b) => a.t0 - b.t0);
+  return { E, R, starts, VD, ps, ev, total: t + (v ? END_HOLD : 0.6) };
+}
+const beatAt = (T) => { let k = 0; for (let i = 0; i < TL.E.length; i++) if (T >= TL.E[i]) k = i; return k; };
+function speaking(T) { for (let i = 0; i < TL.starts.length; i++) if (T >= TL.starts[i] && T < TL.starts[i] + TL.VD[i]) return true; return false; }
+
+// =====================================================================
+//  DRAWING: board items
+// =====================================================================
+function polyPart(c, pts, pr) {
+  const seg = []; let tot = 0;
+  for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(d); tot += d; }
+  let rem = tot * pr; c.beginPath(); c.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) { if (rem <= 0) break; const f = Math.min(1, rem / (seg[i - 1] || 1)); c.lineTo(lerp(pts[i - 1][0], pts[i][0], f), lerp(pts[i - 1][1], pts[i][1], f)); rem -= seg[i - 1]; }
+  c.stroke();
+}
+function drawItem(c, it, pr) {
+  c.save(); c.lineCap = 'round'; c.lineJoin = 'round'; c.strokeStyle = it.c; c.fillStyle = it.c; const k = it.k;
+  if (k === 't') {
+    c.font = fontStr(it, it._sz); c.textBaseline = 'alphabetic'; c.textAlign = 'left'; c.direction = it.ar ? 'rtl' : 'ltr';
+    const rw = (it._w + 24) * pr; c.beginPath(); c.rect(it.ar ? it._l - 12 + (it._w + 24) - rw : it._l - 12, it.y - it._sz * 1.2, rw, it._sz * 1.7); c.clip();
+    c.translate(it._l, it.y); c.rotate(it._rot); c.fillText(it.s, 0, 0); c.lineWidth = 1.3; c.strokeText(it.s, 0, 0);
+  } else if (k === 'r') { c.globalAlpha = 0.5; c.fillRect(it.x, it.y, it.w * pr, it.h); }
+  else if (k === 'u') { const pts = []; for (let i = 0; i <= 26; i++) pts.push([lerp(it.x1, it.x2, i / 26), it.y + Math.sin(i * 0.8) * 2.4]); c.lineWidth = 7; polyPart(c, pts, pr); }
+  else if (k === 'o') { const pts = [], n = 60; for (let i = 0; i <= n; i++) { const a = -Math.PI / 2 + TAU * 1.08 * i / n, s = 1 + 0.05 * i / n; pts.push([it.x + Math.cos(a) * it.rx * s, it.y + Math.sin(a) * it.ry * s]); } c.lineWidth = 6; polyPart(c, pts, pr); }
+  else if (k === 'a') {
+    const dx = it.x2 - it.x1, dy = it.y2 - it.y1, sp = clamp(pr / 0.8); c.lineWidth = 7; c.beginPath(); c.moveTo(it.x1, it.y1); c.lineTo(it.x1 + dx * sp, it.y1 + dy * sp); c.stroke();
+    if (pr > 0.8) { const q = (pr - 0.8) / 0.2; for (const s of [-1, 1]) { const a = Math.atan2(dy, dx) + Math.PI + s * 0.5; c.beginPath(); c.moveTo(it.x2, it.y2); c.lineTo(it.x2 + Math.cos(a) * 28 * q, it.y2 + Math.sin(a) * 28 * q); c.stroke(); } }
+  } else if (k === 'ok') { c.lineWidth = 13; polyPart(c, [[it.x - 30, it.y], [it.x - 10, it.y + 24], [it.x + 34, it.y - 28]], pr); }
+  else if (k === 'no') { c.lineWidth = 13; polyPart(c, [[it.x - 24, it.y - 24], [it.x + 24, it.y + 24]], clamp(pr * 2)); if (pr > 0.5) polyPart(c, [[it.x + 24, it.y - 24], [it.x - 24, it.y + 24]], clamp(pr * 2 - 1)); }
+  c.restore();
+}
+function items(c, from, to, T) {
+  for (let j = from; j <= to; j++) STORY.beats[j].items.forEach((it) => { if (T < it._t0) return; drawItem(c, it, clamp((T - it._t0) / it._d)); });
+}
+function eraser(c, x, bt) {
+  const y = 470 + Math.sin(bt * 16) * 300; c.save(); c.translate(x - 40, y); c.rotate(-0.05);
+  c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.roundRect(-40, -70, 96, 166, 14); c.fill();
+  c.fillStyle = '#3b4252'; c.beginPath(); c.roundRect(-45, -80, 90, 160, 14); c.fill();
+  c.fillStyle = '#2d6cdf'; c.beginPath(); c.roundRect(-45, -80, 90, 46, 14); c.fill(); c.restore();
+}
+function page(c, T) {
+  const i = beatAt(T), bt = T - TL.E[i];
+  if (i > 0 && STORY.beats[i].clear && bt < WIPE) {
+    const sw = lerp(-70, W + 90, ez(bt / WIPE));
+    c.save(); c.beginPath(); c.rect(sw, 0, W, HH); c.clip(); items(c, TL.ps[i - 1], i - 1, T); c.restore(); eraser(c, sw, bt);
+  } else items(c, TL.ps[i], i, T);
+}
+
+// =====================================================================
+//  ROOM, BOARD, DESK
+// =====================================================================
+function room(c, T) {
+  const g = c.createLinearGradient(0, 0, 0, HH); g.addColorStop(0, '#bcd7e6'); g.addColorStop(1, '#e6eef2'); c.fillStyle = g; c.fillRect(0, 0, W, HH);
+  c.fillStyle = INK; c.beginPath(); c.roundRect(24, 18, 300, 54, 27); c.fill();
+  c.fillStyle = '#fff'; c.font = `700 30px ${HAND}`; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('DAILY ENGLISH', 50, 47);
+  c.fillStyle = { A1: GRN, A2: BLU, B1: PUR }[STORY.lv] || GRN; c.beginPath(); c.roundRect(W - 24 - 240, 18, 240, 54, 27); c.fill();
+  c.fillStyle = '#fff'; c.textAlign = 'center'; c.fillText(STORY.tag, W - 24 - 120, 47);
+  // board frame
+  c.fillStyle = 'rgba(0,0,0,.15)'; c.beginPath(); c.roundRect(30, 98, 660, 872, 18); c.fill();
+  const fg = c.createLinearGradient(0, 86, 0, 966); fg.addColorStop(0, '#c4ccd4'); fg.addColorStop(1, '#8c96a1'); c.fillStyle = fg; c.beginPath(); c.roundRect(26, 86, 668, 880, 18); c.fill();
+  // board surface
+  c.save(); c.beginPath(); c.rect(BX, BY, BW, BH); c.clip();
+  const bg = c.createLinearGradient(BX, BY, BX + BW, BY + BH); bg.addColorStop(0, '#ffffff'); bg.addColorStop(1, '#eef2f5'); c.fillStyle = bg; c.fillRect(BX, BY, BW, BH);
+  const r = rng(7); c.lineCap = 'round';
+  for (let i = 0; i < 16; i++) { c.strokeStyle = `rgba(120,130,140,${0.03 + r() * 0.03})`; c.lineWidth = 26 + r() * 26; c.beginPath(); const x = BX + r() * BW, y = BY + r() * BH; c.moveTo(x, y); c.lineTo(x + 60 + r() * 120, y + (r() - 0.5) * 60); c.stroke(); }
+  page(c, T);
+  c.fillStyle = 'rgba(255,255,255,.22)'; c.beginPath(); c.moveTo(BX + 380, BY); c.lineTo(BX + 520, BY); c.lineTo(BX + 180, BY + BH); c.lineTo(BX + 40, BY + BH); c.closePath(); c.fill();
+  c.restore();
+  // tray + markers
+  c.fillStyle = '#7d8793'; c.beginPath(); c.roundRect(60, 954, 600, 24, 6); c.fill();
+  [[110, RED], [160, BLU], [210, GRN], [260, INK]].forEach(([x, col]) => { c.fillStyle = '#f4f4f0'; c.beginPath(); c.roundRect(x, 944, 40, 14, 6); c.fill(); c.fillStyle = col; c.fillRect(x + 28, 944, 12, 14); });
+  // desk
+  c.fillStyle = '#a8744a'; c.fillRect(0, 1130, 440, 160); c.fillStyle = '#c58d5c'; c.fillRect(0, 1130, 440, 16);
+  [['#2f6db5', 30, 74], ['#d65a3a', 40, 52], ['#3f9a63', 20, 40]].forEach(([col, off, h], i) => { c.fillStyle = col; c.strokeStyle = OUT; c.lineWidth = 3; c.beginPath(); c.roundRect(40 + off, 1130 - 28 - i * 28, 130, 28, 4); c.fill(); c.stroke(); });
+  c.fillStyle = '#d93a2f'; c.strokeStyle = OUT; c.lineWidth = 3; c.beginPath(); c.arc(230, 1114, 17, 0, TAU); c.fill(); c.stroke(); c.strokeStyle = '#4b3524'; c.beginPath(); c.moveTo(230, 1098); c.lineTo(234, 1086); c.stroke();
+  c.fillStyle = '#fdfdf8'; c.beginPath(); c.roundRect(290, 1086, 52, 46, 8); c.fill(); c.stroke();
+  c.strokeStyle = 'rgba(120,130,140,.5)'; c.lineWidth = 5; c.lineCap = 'round'; for (let k = 0; k < 2; k++) { c.beginPath(); c.moveTo(308 + k * 16, 1074); c.quadraticCurveTo(300 + k * 16 + Math.sin(T * 2 + k) * 6, 1054, 310 + k * 16, 1038); c.stroke(); }
+  c.fillStyle = '#3f9a63'; c.strokeStyle = OUT; c.lineWidth = 3; for (let k = 0; k < 3; k++) { c.beginPath(); c.ellipse(388 + (k - 1) * 18, 1090 - Math.abs(k - 1) * 8, 11, 32, (k - 1) * 0.5, 0, TAU); c.fill(); c.stroke(); }
+  c.fillStyle = '#b9694a'; c.beginPath(); c.moveTo(366, 1104); c.lineTo(412, 1104); c.lineTo(404, 1132); c.lineTo(374, 1132); c.closePath(); c.fill(); c.stroke();
+}
+
+// =====================================================================
+//  THE TEACHER
+// =====================================================================
+function poly(c, pts, fill, lw = 4) { c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath(); c.fillStyle = fill; c.fill(); c.strokeStyle = OUT; c.lineWidth = lw; c.lineJoin = 'round'; c.stroke(); }
+function ell(c, x, y, rx, ry, fill, lw = 4) { c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, TAU); c.fillStyle = fill; c.fill(); if (lw) { c.strokeStyle = OUT; c.lineWidth = lw; c.stroke(); } }
+function limb(c, pts, col, lw) { c.save(); c.lineCap = 'round'; c.lineJoin = 'round'; for (const [s, w] of [[OUT, lw + 8], [col, lw]]) { c.strokeStyle = s; c.lineWidth = w; c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.stroke(); } c.restore(); }
+function hand(c, p) { ell(c, p[0], p[1], 16, 16, SKIN, 4); }
+function elbow(S, H, side) {
+  const L = 118, dx = H[0] - S[0], dy = H[1] - S[1], dd = Math.hypot(dx, dy) || 1, d = Math.min(dd, 2 * L - 2), h = Math.sqrt(L * L - d * d / 4);
+  let nx = -dy / dd, ny = dx / dd; if (-ny + 0.5 * -nx * side > ny + 0.5 * nx * side) { nx = -nx; ny = -ny; }
+  return [(S[0] + H[0]) / 2 + nx * h, (S[1] + H[1]) / 2 + ny * h];
+}
+function pointer(T) {
+  const ev = TL.ev; if (!ev.length) return null;
+  let k = -1; for (let i = 0; i < ev.length; i++) { if (ev[i].t0 - 0.3 <= T) k = i; else break; }
+  if (k < 0) k = 0;
+  const e = ev[k], prev = k > 0 ? ev[k - 1] : null; let x, y;
+  if (T >= e.t0) { const p = eo((T - e.t0) / (e.t1 - e.t0)); x = lerp(e.x0, e.x1, p); y = lerp(e.y0, e.y1, p); }
+  else { const q = ez((T - (e.t0 - 0.3)) / 0.3), sx = prev ? prev.x1 : e.x0, sy = prev ? prev.y1 : e.y0; x = lerp(sx, e.x0, q); y = lerp(sy, e.y0, q); }
+  let w = 1 - sm(e.t1 + 1.2, e.t1 + 1.8, T); if (k === 0) w *= sm(e.t0 - 0.9, e.t0 - 0.3, T);
+  return { x, y, w };
+}
+function teacher(c, T) {
+  const cx = TCX, sp = speaking(T), pt = pointer(T), w = pt ? pt.w : 0, S1 = [cx - 84, 1044], S2 = [cx + 84, 1044];
+  c.save(); c.translate(0, Math.sin(T * 2.1) * 3);
+  poly(c, [[cx - 112, 1300], [cx - 118, 1075], [cx - 76, 1010], [cx + 76, 1010], [cx + 118, 1075], [cx + 112, 1300]], CARD);
+  poly(c, [[cx - 34, 1008], [cx, 1080], [cx + 34, 1008]], '#fdfdf8', 3);
+  // waving arm (hello at the start)
+  const ww = T < 2.4 ? 1 - sm(1.9, 2.4, T) : 0, rest2 = [cx + 104, 1196 + Math.sin(T * 1.7) * 3], wave = [cx + 138, 938 + Math.sin(T * 10) * 16];
+  const H2 = [lerp(rest2[0], wave[0], ww), lerp(rest2[1], wave[1], ww)];
+  limb(c, [S2, elbow(S2, H2, 1), H2], CARD, 34); hand(c, H2);
+  // neck + head
+  poly(c, [[cx - 20, 975], [cx + 20, 975], [cx + 22, 1016], [cx - 22, 1016]], SKIN, 4);
+  const look = pt ? clamp((pt.x - cx) / 400, -1, 0) * w : 0;
+  c.save(); c.translate(cx, 985); c.rotate(Math.sin(T * 1.3) * 0.02 + look * 0.03); c.translate(-cx, -985);
+  ell(c, cx, 906, 72, 78, HAIR, 4); ell(c, cx, 836, 28, 26, HAIR, 4);
+  ell(c, cx - 62, 932, 10, 14, SKIN, 3); ell(c, cx + 62, 932, 10, 14, SKIN, 3);
+  ell(c, cx, 925, 62, 68, SKIN, 4);
+  poly(c, [[cx - 66, 915], [cx - 62, 870], [cx - 30, 848], [cx + 20, 846], [cx + 58, 868], [cx + 66, 915], [cx + 50, 890], [cx + 10, 876], [cx - 30, 884], [cx - 52, 905]], HAIR, 3);
+  const bl = (T % 3.6) < 0.12 ? 0.12 : 1, lx = (pt && w > 0.3) ? clamp((pt.x - cx) / 90, -1, 0) * 4 : 0, ly = (pt && w > 0.3) ? clamp((pt.y - 925) / 300, -1, 0) * 3 : 0;
+  const lift = sp ? 2 + 2 * Math.sin(T * 5) : 0;
+  for (const s of [-1, 1]) {
+    const ex = cx + s * 24;
+    ell(c, ex, 925, 11, 12 * bl, '#fff', 2.5); if (bl > 0.5) ell(c, ex + lx, 925 + ly, 5.5, 5.5, '#2b2433', 0);
+    c.strokeStyle = HAIR; c.lineWidth = 5; c.lineCap = 'round'; c.beginPath(); c.moveTo(ex - 13, 897 - lift); c.lineTo(ex + 13, 895 - lift - s * 1); c.stroke();
+    c.strokeStyle = '#b5651d'; c.lineWidth = 4; c.beginPath(); c.arc(ex, 925, 20, 0, TAU); c.stroke();
+    ell(c, cx + s * 40, 950, 11, 7, 'rgba(235,110,110,.35)', 0);
+  }
+  c.strokeStyle = '#b5651d'; c.lineWidth = 4; c.beginPath(); c.moveTo(cx - 5, 924); c.lineTo(cx + 5, 924); c.stroke();
+  c.strokeStyle = OUT; c.lineWidth = 3; c.beginPath(); c.arc(cx, 940, 7, 0.2, Math.PI - 0.2); c.stroke();
+  const open = sp ? (0.25 + 0.75 * Math.abs(Math.sin(T * 14) * Math.sin(T * 5.3 + 0.7))) * 15 : 0;
+  if (open > 2) { ell(c, cx, 962, 15, open / 2 + 2, '#5b1d2a', 3); ell(c, cx, 962 + open / 4, 9, open / 5 + 1, '#e88a9a', 0); }
+  else { c.strokeStyle = OUT; c.lineWidth = 4; c.beginPath(); c.arc(cx, 954, 16, 0.25, Math.PI - 0.25); c.stroke(); }
+  c.restore();
+  // pointing arm + stick (drawn last so it is in front of everything)
+  const rest1 = [cx - 104, 1196 + Math.sin(T * 1.7 + 1) * 3]; let H1 = rest1, stick = null;
+  if (pt && w > 0.001) {
+    const dx = pt.x - S1[0], dy = pt.y - S1[1], d = Math.hypot(dx, dy), reach = 205, kk = Math.min(d, reach) / d, hp = [S1[0] + dx * kk, S1[1] + dy * kk], e = ez(w);
+    H1 = [lerp(rest1[0], hp[0], e), lerp(rest1[1], hp[1], e)];
+    const tip = [lerp(rest1[0], pt.x, e), lerp(rest1[1], pt.y, e)], sl = Math.hypot(tip[0] - H1[0], tip[1] - H1[1]);
+    if (sl > 24) stick = { x0: H1[0], y0: H1[1], x1: tip[0], y1: tip[1], u: [(tip[0] - H1[0]) / sl, (tip[1] - H1[1]) / sl] };
+  }
+  limb(c, [S1, elbow(S1, H1, -1), H1], CARD, 34);
+  if (stick) {
+    c.save(); c.lineCap = 'round'; const u = stick.u;
+    c.strokeStyle = '#4b3524'; c.lineWidth = 7; c.beginPath(); c.moveTo(stick.x0 - u[0] * 16, stick.y0 - u[1] * 16); c.lineTo(stick.x1, stick.y1); c.stroke();
+    c.strokeStyle = RED; c.lineWidth = 9; c.beginPath(); c.moveTo(stick.x1 - u[0] * 26, stick.y1 - u[1] * 26); c.lineTo(stick.x1, stick.y1); c.stroke(); c.restore();
+  }
+  hand(c, H1);
+  c.restore();
+}
+
+// =====================================================================
+//  FRAME
+// =====================================================================
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+function draw(c, T) {
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; c.shadowBlur = 0;
+  c.clearRect(0, 0, W, HH); room(c, T); teacher(c, T);
+  const vg = c.createRadialGradient(W / 2, HH / 2, 420, W / 2, HH / 2, 900); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(10,20,40,.18)'); c.fillStyle = vg; c.fillRect(0, 0, W, HH);
+}
+window.frameJPEG = (t) => { draw(ctx, t); return cv.toDataURL('image/jpeg', 0.92).split(',')[1]; };
+
+// =====================================================================
+//  SOUND  (marker squeaks, ticks, dings, eraser, soft background loop)
+// =====================================================================
+const mhz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+function schedule(ctx2, base, from) {
+  const comp = ctx2.createDynamicsCompressor(), master = ctx2.createGain(); master.gain.value = 0.9; comp.connect(master); master.connect(ctx2.destination);
+  const sr = ctx2.sampleRate, nb = ctx2.createBuffer(1, sr * 2, sr), nd = nb.getChannelData(0), r0 = rng(99); for (let i = 0; i < nd.length; i++) nd[i] = r0() * 2 - 1;
+  const rr = rng(5), live = (t) => t >= from - 0.02;
+  function noiseB(t, dur, f, q, g, type) {
+    if (!live(t)) return; const tt = base + t, s = ctx2.createBufferSource(); s.buffer = nb; s.loop = true;
+    const fl = ctx2.createBiquadFilter(); fl.type = type || 'bandpass'; fl.frequency.value = f; fl.Q.value = q;
+    const gn = ctx2.createGain(); gn.gain.setValueAtTime(0, tt); gn.gain.linearRampToValueAtTime(g, tt + 0.006); gn.gain.exponentialRampToValueAtTime(0.0001, tt + dur);
+    s.connect(fl); fl.connect(gn); gn.connect(comp); s.start(tt, rr() * 1.5); s.stop(tt + dur + 0.02);
+  }
+  function tone(t, dur, f, g, type, att) {
+    if (!live(t)) return; const tt = base + t, o = ctx2.createOscillator(); o.type = type || 'sine'; o.frequency.value = f;
+    const gn = ctx2.createGain(); gn.gain.setValueAtTime(0, tt); gn.gain.linearRampToValueAtTime(g, tt + (att || 0.005)); gn.gain.exponentialRampToValueAtTime(0.0001, tt + dur);
+    o.connect(gn); gn.connect(comp); o.start(tt); o.stop(tt + dur + 0.02);
+  }
+  // soft music loop
+  const chords = [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]], bar = 60 / 84 * 4;
+  for (let k = 0, t = 0; t < TL.total; k++, t += bar) {
+    const ch = chords[k % 4];
+    ch.forEach((m) => tone(t, bar + 0.4, mhz(m), 0.012, 'triangle', 0.4));
+    tone(t, 0.9, mhz(ch[0] - 12), 0.05, 'sine'); tone(t + bar / 2, 0.8, mhz(ch[0] - 12), 0.04, 'sine');
+    for (let s = 0; s < 8; s++) tone(t + s * bar / 8, 0.4, mhz(ch[[0, 1, 2, 1, 0, 1, 2, 1][s]] + 12), 0.026, 'sine');
+  }
+  // board sounds
+  STORY.beats.forEach((b, i) => {
+    if (i > 0 && b.clear) for (let q = 0; q < 14; q++) noiseB(TL.E[i] + q * 0.05, 0.09, 700 + rr() * 400, 0.8, 0.08, 'lowpass');
+    b.items.forEach((it) => {
+      const t0 = it._t0;
+      if (it.k === 'ok') { tone(t0 + 0.3, 0.7, 1318.5, 0.12); tone(t0 + 0.4, 0.8, 1760, 0.1); }
+      else if (it.k === 'no') { tone(t0 + 0.3, 0.25, 140, 0.1, 'square'); }
+      else if (it.k !== 'r') for (let x = 0; x < it._d; x += 0.04) noiseB(t0 + x, 0.035, 2200 + rr() * 1800, 4, 0.045);
+      if (it.k === 't' && /^[123]$/.test(it.s)) tone(t0, 0.14, 880, 0.12);
+    });
+  });
+}
+window.renderAudioBase64 = async function (withVoice) {
+  const sr = 48000, len = Math.ceil(TL.total * sr), oc = new OfflineAudioContext(2, len, sr);
+  schedule(oc, 0, 0); const buf = await oc.startRendering(), L = buf.getChannelData(0), Rc = buf.getChannelData(1), out = new Int16Array(len * 2);
+  for (let i = 0; i < len; i++) { out[2 * i] = clamp(L[i], -1, 1) * 32767; out[2 * i + 1] = clamp(Rc[i], -1, 1) * 32767; }
+  const bytes = new Uint8Array(out.buffer); let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+
+// =====================================================================
+//  PUBLIC API (used by the workflow)
+// =====================================================================
+window.TOPIC_IDS = LESSONS.map((l) => l.id);
+window.TOPIC_KINDS = Object.fromEntries(LESSONS.map((l) => [l.id, l.kind]));
+window.loadTopic = function (id) {
+  STORY = LESSONS.find((x) => x.id === id) || LESSONS[0]; TL = buildTL(null);
+  return { id: STORY.id, title: STORY.title, vo: STORY.beats.map((b) => b.vo), caption: STORY.caption, tags: STORY.tags, note: STORY.note,
+    footer: 'Daily English: free lessons for Arabic speakers learning English. تعلم الإنجليزية خطوة بخطوة.', kind: STORY.kind };
+};
+window.setVoiceDurations = function (v) { TL = buildTL(v); return { starts: TL.starts, total: TL.total }; };
+
+// =====================================================================
+//  BROWSER PREVIEW PLAYER
+// =====================================================================
+const $ = (id) => document.getElementById(id);
+let playing = false, tNow = 0, lastTs = 0, soundOn = true, loopOn = true, actx = null, spoken = -1;
+const curSpoken = () => { let k = -1; for (let i = 0; i < TL.starts.length; i++) if (tNow >= TL.starts[i]) k = i; return k; };
+function stopAudio() { if (actx) { try { actx.close(); } catch (e) {} actx = null; } if (window.speechSynthesis) speechSynthesis.cancel(); }
+function startAudio() { stopAudio(); if (!soundOn) return; try { actx = new (window.AudioContext || window.webkitAudioContext)(); schedule(actx, actx.currentTime + 0.05 - tNow, tNow); } catch (e) {} }
+function setPlaying(p) { playing = p; $('play').textContent = p ? 'Pause' : 'Play'; if (p) { spoken = curSpoken(); startAudio(); } else stopAudio(); }
+const fmt = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
+function frame(ts) {
+  requestAnimationFrame(frame); const dt = lastTs ? (ts - lastTs) / 1000 : 0; lastTs = ts;
+  if (playing) {
+    tNow += Math.min(dt, 0.1);
+    if (tNow >= TL.total) { if (loopOn) { tNow = 0; spoken = -1; startAudio(); } else { tNow = TL.total - 0.01; setPlaying(false); } }
+    if (soundOn && window.speechSynthesis) { const k = curSpoken(); if (k > spoken) { spoken = k; speechSynthesis.speak(new SpeechSynthesisUtterance(STORY.beats[k].vo)); } }
+  }
+  draw(ctx, Math.min(tNow, TL.total - 0.01)); $('seek').value = tNow; $('time').textContent = `${fmt(tNow)} / ${fmt(TL.total)}`;
+}
+function selectTopic(id) { setPlaying(false); window.loadTopic(id); tNow = 0; $('seek').max = TL.total; }
+(async function init() {
+  LESSONS.forEach((l) => { const o = document.createElement('option'); o.value = l.id; o.textContent = l.title; $('topic').appendChild(o); });
+  try { await Promise.race([Promise.all(['700 40px Kalam', '40px "Permanent Marker"', '700 40px Cairo'].map((f) => document.fonts.load(f, 'AaBb123 مرحبا'))), new Promise((r) => setTimeout(r, 8000))]); await document.fonts.ready; } catch (e) {}
+  selectTopic(LESSONS[0].id);
+  $('topic').onchange = (e) => selectTopic(e.target.value);
+  $('play').onclick = () => setPlaying(!playing);
+  $('seek').oninput = (e) => { tNow = parseFloat(e.target.value); spoken = curSpoken(); if (playing) startAudio(); };
+  $('snd').onclick = (e) => { soundOn = !soundOn; e.target.setAttribute('aria-pressed', soundOn); if (playing) { soundOn ? startAudio() : stopAudio(); } };
+  $('loop').onclick = (e) => { loopOn = !loopOn; e.target.setAttribute('aria-pressed', loopOn); };
+  $('loading').style.display = 'none'; window._ready = true; requestAnimationFrame(frame);
+})();
+})();
+</script>
+</body>
+</html>
