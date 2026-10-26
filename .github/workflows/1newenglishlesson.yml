@@ -1,0 +1,416 @@
+name: 🧑‍🏫 Post English Lesson Reel to Facebook
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Force a lesson id (leave empty to post the next lesson in order). Example: tobe, aan, presentsimple"
+        required: false
+        default: ""
+      dry_run:
+        description: "Render only: do not post and do not remember the topic"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "0 14 * * *"   # once a day at 14:00 UTC
+
+permissions:
+  contents: write
+
+concurrency:
+  group: english-lesson
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-english-v1
+
+      - name: Cache Piper binary and voice
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/piper
+          key: piper-binary-jenny-dioco-v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Python deps
+        run: pip install selenium requests edge-tts
+
+      - name: Download Piper binary and voice (backup voice)
+        run: |
+          mkdir -p ~/.cache/piper
+          PIPER_BIN=~/.cache/piper/piper
+
+          if [ ! -f "$PIPER_BIN" ]; then
+            echo "Downloading Piper binary..."
+            curl -L -o /tmp/piper.tar.gz \
+              "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz" || {
+              echo "Piper download failed - will rely on Edge TTS"
+              exit 0
+            }
+            mkdir -p /tmp/piper_extract
+            tar -xzf /tmp/piper.tar.gz -C /tmp/piper_extract
+            FOUND=$(find /tmp/piper_extract -name "piper" -type f | head -1)
+            if [ -n "$FOUND" ]; then
+              cp "$FOUND" "$PIPER_BIN"
+              chmod +x "$PIPER_BIN"
+              find /tmp/piper_extract -name "*.so*" -exec cp {} ~/.cache/piper/ \;
+              echo "Piper binary ready."
+            else
+              echo "Piper binary not found in tarball - will rely on Edge TTS"
+            fi
+          else
+            echo "Piper binary already cached."
+          fi
+
+          VOICE_FILE=~/.cache/piper/en_US-jenny_dioco-medium.onnx
+          CONFIG_FILE=~/.cache/piper/en_US-jenny_dioco-medium.onnx.json
+          if [ ! -f "$VOICE_FILE" ]; then
+            echo "Downloading jenny_dioco voice..."
+            curl -L -o "$VOICE_FILE" \
+              "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/jenny_dioco/medium/en_US-jenny_dioco-medium.onnx" || true
+            curl -L -o "$CONFIG_FILE" \
+              "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/jenny_dioco/medium/en_US-jenny_dioco-medium.onnx.json" || true
+          else
+            echo "Voice model already cached."
+          fi
+
+      - name: Render and Post to Facebook
+        run: |
+          python3 << 'PYEOF'
+          import os, sys, json, math, time, random, subprocess, base64, re, glob, tempfile, asyncio, datetime
+          from pathlib import Path
+          import requests
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+
+          FPS              = 30
+          MAX_LEN          = 88.0                      # keep every reel under 90 s
+          TARGET_MB        = 40                        # aim for this file size
+          LIMIT_MB         = 48                        # hard limit: re-encode smaller if above this
+          AUDIO_BPS        = 128000
+          RATES            = ["-4%", "+4%", "+10%", "+16%"]   # teacher voice speed, tried in order until the video fits (slower = clearer for learners)
+          MUSIC_EXTENSIONS = ["mp3", "wav", "m4a", "mp4", "aac", "ogg", "flac", "wma", "opus"]
+          PIPER_BIN        = str(Path.home() / ".cache/piper/piper")
+          PIPER_VOICE      = str(Path.home() / ".cache/piper/en_US-jenny_dioco-medium.onnx")
+          EDGE_VOICE       = "en-US-JennyNeural"       # friendly teacher voice. Try en-GB-SoniaNeural for British
+          EDGE_RATE        = RATES[0]
+          HTML_FILE        = "english_lesson.html"
+          POSTED_FILE      = Path("posted.json")
+          OUT_DIR          = Path("out"); OUT_DIR.mkdir(exist_ok=True)
+
+          CTA_POOL = ["Follow for a new English lesson every day", "Follow for the next lesson", "Share this with an English learner",
+                      "Tag a friend who is learning English", "Save this lesson for later"]
+
+          # ── POSTED MEMORY ─────────────────────────────────────
+          def load_hist():
+            if POSTED_FILE.exists():
+              try: return json.loads(POSTED_FILE.read_text()).get("posted", [])
+              except Exception: return []
+            return []
+
+          def save_hist(hist):
+            POSTED_FILE.write_text(json.dumps({"posted": hist}, indent=2) + "\n")
+
+          def pick_topic(ids, kinds, hist):
+            # lessons are posted in curriculum order (beginner -> advanced), then the cycle starts again.
+            # add new lessons at the END of the HTML list so the order stays correct.
+            return ids[len(hist) % len(ids)]
+
+          # ── VOICE (Edge TTS first, Piper as backup) ───────────
+          def clean_for_tts(text):
+            text = text.replace('\u2014', ', ').replace('\u2013', ', ')
+            text = text.replace('*', '').replace('#', '').replace('_', '')
+            return re.sub(r'\s+', ' ', text).strip()
+
+          def make_silence(duration_s, out_path, sample_rate=24000):
+            subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"anullsrc=r={sample_rate}:cl=mono",
+                            "-t", f"{duration_s:.3f}", "-acodec", "pcm_s16le", out_path], capture_output=True)
+
+          async def edge_speak_async(text, out_mp3):
+            try:
+              import edge_tts
+              await edge_tts.Communicate(text, EDGE_VOICE, rate=EDGE_RATE).save(out_mp3)
+              return Path(out_mp3).exists() and Path(out_mp3).stat().st_size > 100
+            except Exception as e:
+              print(f"  Edge TTS error: {e}")
+              return False
+
+          def edge_speak(text, out_wav):
+            out_mp3 = out_wav.replace(".wav", "_edge.mp3")
+            if not asyncio.run(edge_speak_async(text, out_mp3)): return False
+            r = subprocess.run(["ffmpeg", "-y", "-i", out_mp3, "-acodec", "pcm_s16le", "-ar", "24000", "-ac", "1", out_wav], capture_output=True)
+            try: os.remove(out_mp3)
+            except Exception: pass
+            return r.returncode == 0 and Path(out_wav).exists() and Path(out_wav).stat().st_size > 100
+
+          def piper_speak(text, out_wav):
+            if not Path(PIPER_BIN).exists() or not Path(PIPER_VOICE).exists(): return False
+            try:
+              env = os.environ.copy()
+              env["LD_LIBRARY_PATH"] = str(Path.home() / ".cache/piper") + ":" + env.get("LD_LIBRARY_PATH", "")
+              res = subprocess.run([PIPER_BIN, "--model", PIPER_VOICE, "--output_file", out_wav],
+                                   input=text.encode("utf-8"), capture_output=True, timeout=60, env=env)
+              return res.returncode == 0 and Path(out_wav).exists() and Path(out_wav).stat().st_size > 100
+            except Exception as e:
+              print(f"  Piper exception: {e}")
+              return False
+
+          def synthesise(text, out_wav):
+            text = clean_for_tts(text)
+            if not text: return False
+            print(f"  Speaking ({EDGE_RATE}): '{text[:70]}{'...' if len(text) > 70 else ''}'")
+            if edge_speak(text, out_wav): return True
+            print("  -> Edge failed, trying Piper...")
+            return piper_speak(text, out_wav)
+
+          def norm_wav(src, dst):
+            r = subprocess.run(["ffmpeg", "-y", "-i", src, "-ar", "24000", "-ac", "1", "-acodec", "pcm_s16le", dst], capture_output=True)
+            return r.returncode == 0 and Path(dst).exists()
+
+          def duration_of(path):
+            p = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path], capture_output=True, text=True)
+            try: return float(p.stdout.strip())
+            except Exception: return 0.0
+
+          def concat_wavs(wavs, out_path):
+            lst = out_path + ".txt"
+            with open(lst, "w") as f:
+              for w in wavs: f.write(f"file '{w}'\n")
+            r = subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-acodec", "pcm_s16le", out_path], capture_output=True)
+            return r.returncode == 0 and Path(out_path).exists()
+
+          def size_mb(path):
+            return os.path.getsize(path) / 1048576
+
+          # ── MUSIC (optional: put licensed tracks in a folder named bgmusic) ──
+          def pick_music(base="."):
+            found = []
+            for entry in os.scandir(base):
+              if entry.is_dir() and entry.name.lower().startswith("bgmusic"):
+                for ext in MUSIC_EXTENSIONS:
+                  found += glob.glob(os.path.join(entry.path, f"*.{ext}")) + glob.glob(os.path.join(entry.path, f"*.{ext.upper()}"))
+            if found:
+              m = random.choice(found); print(f"Music: {m}"); return m
+            print("No bgmusic folder found (the page's built-in soft loop is used)."); return None
+
+          def music_start(path):
+            d = duration_of(path)
+            return random.uniform(0, max(0, d - 12)) if d > 15 else 0
+
+          # ── DECIDE WHETHER TO RUN ─────────────────────────────
+          today = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+          event = os.environ.get("GITHUB_EVENT_NAME", "")
+          dry   = os.environ.get("DRY_RUN", "false").lower() == "true"
+          hist  = load_hist()
+          if event == "schedule" and any(r.get("date") == today for r in hist):
+            print(f"Already posted today ({today}). Nothing to do.")
+            sys.exit(0)
+
+          fb_token   = os.environ.get("FB_PAGE_TOKEN")
+          fb_page_id = os.environ.get("FB_PAGE_ID")
+          if not dry and (not fb_token or not fb_page_id):
+            raise RuntimeError("FB_PAGE_TOKEN or FB_PAGE_ID secret is missing")
+
+          # ── OPEN THE PAGE, PICK THE LESSON ────────────────────
+          opts = Options()
+          for a in ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--window-size=1280,900",
+                    "--force-device-scale-factor=1", "--autoplay-policy=no-user-gesture-required",
+                    "--disable-background-timer-throttling", "--disable-renderer-backgrounding",
+                    "--disable-backgrounding-occluded-windows", "--no-first-run", "--allow-file-access-from-files"]:
+            opts.add_argument(a)
+          print("Starting Chrome...")
+          driver = webdriver.Chrome(options=opts)
+          driver.set_script_timeout(900)
+          driver.get("file://" + os.path.abspath(HTML_FILE))
+          for _ in range(120):
+            if driver.execute_script("return window._ready === true;"): break
+            time.sleep(1)
+          else:
+            driver.quit(); raise RuntimeError("Page never became ready")
+
+          ids   = driver.execute_script("return window.TOPIC_IDS;")
+          kinds = driver.execute_script("return window.TOPIC_KINDS;")
+          forced = os.environ.get("FORCE_TOPIC", "").strip()
+          topic_id = forced if forced in ids else pick_topic(ids, kinds, hist)
+          info = driver.execute_script("return window.loadTopic(arguments[0]);", topic_id)
+          print(f"Topic: {info['id']} ({info['kind']}) | {info['title']}")
+          print(f"ANSWER KEY for the comments: {info['note']}")
+
+          # ── VOICE: one line per beat; speed up automatically if the reel would pass 90 s ──
+          vo = info["vo"]
+          cta_text = random.choice(CTA_POOL) if random.random() < 0.40 else None
+          voice_wav = None
+          with tempfile.TemporaryDirectory() as tmp:
+            for attempt, rate in enumerate(RATES):
+              EDGE_RATE = rate
+              seg_wavs = [None] * len(vo)
+              for i, line in enumerate(vo):
+                raw = os.path.join(tmp, f"raw{attempt}_{i}.wav"); wav = os.path.join(tmp, f"seg{attempt}_{i}.wav")
+                if synthesise(line, raw) and norm_wav(raw, wav):
+                  seg_wavs[i] = wav
+              if seg_wavs[-1] and cta_text:
+                craw = os.path.join(tmp, f"cta_raw{attempt}.wav"); cwav = os.path.join(tmp, f"cta{attempt}.wav"); sil = os.path.join(tmp, f"cta_sil{attempt}.wav")
+                if synthesise(cta_text, craw) and norm_wav(craw, cwav):
+                  make_silence(0.6, sil)
+                  joined = os.path.join(tmp, f"seg_last{attempt}.wav")
+                  if concat_wavs([seg_wavs[-1], sil, cwav], joined): seg_wavs[-1] = joined
+              durs = [duration_of(w) if w else 0.0 for w in seg_wavs]
+              tl = driver.execute_script("return window.setVoiceDurations(arguments[0]);", durs)
+              starts, total = tl["starts"], float(tl["total"])
+              print(f"Voice rate {rate}: video would be {total:.1f}s")
+              if total <= MAX_LEN: break
+            print("Voice durations:", [round(d, 2) for d in durs])
+            print(f"Video length: {total:.1f}s")
+
+            if any(seg_wavs):
+              parts, cursor, n = [], 0.0, 0
+              for i, w in enumerate(seg_wavs):
+                if not w: continue
+                gap = max(0.0, starts[i] - cursor)
+                if gap > 0.005:
+                  s = os.path.join(tmp, f"gap{n}.wav"); make_silence(gap, s); parts.append(s); n += 1
+                parts.append(w); cursor = starts[i] + durs[i]
+              voice_wav = os.path.join(OUT_DIR, "voice.wav")
+              if not concat_wavs(parts, voice_wav): voice_wav = None
+
+            # ── SOUND EFFECTS (marker squeaks, ticks, dings: rendered offline from the page) ──
+            print("Rendering sound effects...")
+            b64a = driver.execute_async_script("""
+              var done = arguments[0];
+              window.renderAudioBase64(%s).then(done).catch(function(e){ done(null); });
+            """ % ("true" if voice_wav else "false"))
+            sfx_raw = os.path.join(OUT_DIR, "sfx.raw")
+            if b64a:
+              with open(sfx_raw, "wb") as f: f.write(base64.b64decode(b64a))
+            else:
+              print("SFX render failed - using silence")
+              subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", f"{total:.3f}", "-f", "s16le", sfx_raw], capture_output=True)
+
+            # ── ENCODE: 720x1280 frames -> 1080x1920 reel at a fixed bitrate so the file stays small ──
+            vbr = int(max(900000, min(6000000, (TARGET_MB * 8 * 1048576) / total - AUDIO_BPS)))
+            print(f"Video bitrate target: {vbr/1000:.0f} kbps")
+            music = pick_music()
+            cmd = ["ffmpeg", "-y", "-f", "image2pipe", "-framerate", str(FPS), "-c:v", "mjpeg", "-i", "-",
+                   "-f", "s16le", "-ar", "48000", "-ac", "2", "-i", sfx_raw]
+            nxt = 2; vi = mi = None
+            if voice_wav: cmd += ["-i", voice_wav]; vi = nxt; nxt += 1
+            if music:     cmd += ["-stream_loop", "-1", "-ss", f"{music_start(music):.2f}", "-t", f"{total:.3f}", "-i", music]; mi = nxt; nxt += 1
+            vf = "[0:v]scale=1080:1920:flags=lanczos,format=yuv420p[v]"
+            af = [f"[1:a]volume=0.7,apad=whole_dur={total:.3f}[sfx]"]; mix = ["[sfx]"]
+            if vi is not None:
+              af.append(f"[{vi}:a]aresample=48000,aformat=channel_layouts=stereo,volume=1.0,apad=whole_dur={total:.3f}[voice]"); mix.append("[voice]")
+            if mi is not None:
+              af.append(f"[{mi}:a]aresample=48000,aformat=channel_layouts=stereo,volume=0.18,afade=t=in:st=0:d=2,"
+                        f"afade=t=out:st={max(0.0, total - 2):.3f}:d=2,apad=whole_dur={total:.3f}[music]"); mix.append("[music]")
+            af.append("".join(mix) + f"amix=inputs={len(mix)}:duration=longest:dropout_transition=0,volume={len(mix)},alimiter=limit=0.95[a]")
+            final_mp4 = str(OUT_DIR / "reel.mp4")
+            cmd += ["-filter_complex", vf + ";" + ";".join(af), "-map", "[v]", "-map", "[a]", "-t", f"{total:.3f}",
+                    "-r", str(FPS), "-c:v", "libx264", "-preset", "medium",
+                    "-b:v", str(vbr), "-maxrate", str(int(vbr * 1.3)), "-bufsize", str(vbr * 2), "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", final_mp4]
+            log = open(OUT_DIR / "ffmpeg.log", "wb")
+            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=log)
+            nframes = int(math.ceil(total * FPS))
+            print(f"Capturing {nframes} frames...")
+            try:
+              for i in range(nframes):
+                b64 = driver.execute_script("return window.frameJPEG(arguments[0]);", i / FPS)
+                proc.stdin.write(base64.b64decode(b64))
+                if i % 100 == 0: print(f"  frame {i}/{nframes}")
+              proc.stdin.close()
+            except BrokenPipeError:
+              print("ffmpeg closed the pipe early")
+            proc.wait()
+            driver.quit()
+            log.close()
+            if proc.returncode != 0 or not os.path.exists(final_mp4) or os.path.getsize(final_mp4) < 10000:
+              print(open(OUT_DIR / "ffmpeg.log", errors="ignore").read()[-1500:])
+              raise RuntimeError("Encoding failed")
+            print(f"Reel: {size_mb(final_mp4):.1f} MB")
+
+            # ── SAFETY NET: if it is still too big, squeeze it until it fits ──
+            tries = 0
+            while size_mb(final_mp4) > LIMIT_MB and tries < 5:
+              vbr = int(vbr * 0.7); tries += 1
+              small = str(OUT_DIR / "reel_small.mp4")
+              print(f"Too big ({size_mb(final_mp4):.1f} MB), re-encoding at {vbr/1000:.0f} kbps...")
+              subprocess.run(["ffmpeg", "-y", "-i", final_mp4, "-c:v", "libx264", "-preset", "medium",
+                              "-b:v", str(vbr), "-maxrate", str(int(vbr * 1.3)), "-bufsize", str(vbr * 2),
+                              "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", small], capture_output=True)
+              if os.path.exists(small): os.replace(small, final_mp4)
+            print(f"Final reel: {size_mb(final_mp4):.1f} MB")
+            if size_mb(final_mp4) > LIMIT_MB:
+              raise RuntimeError(f"Reel is still {size_mb(final_mp4):.1f} MB, refusing to post")
+
+          for junk in ["sfx.raw", "voice.wav"]:
+            try: os.remove(OUT_DIR / junk)
+            except Exception: pass
+
+          if dry:
+            print("Dry run: not posting.")
+            sys.exit(0)
+
+          # ── POST ──────────────────────────────────────────────
+          description = f"{info['caption']}\n\n{info['tags']}\n\n{info['footer']}"
+          print("Posting to Facebook...")
+          with open(final_mp4, "rb") as f:
+            response = requests.post(
+              f"https://graph-video.facebook.com/v18.0/{fb_page_id}/videos",
+              data={"description": description, "access_token": fb_token},
+              files={"source": ("reel.mp4", f, "video/mp4")})
+          print(f"Response: {response.status_code}")
+          if response.status_code != 200:
+            raise RuntimeError(f"Post failed: {response.text}")
+          fb_id = response.json().get("id")
+          print(f"Posted! ID: {fb_id}")
+
+          hist.append({"id": info["id"], "kind": info["kind"], "date": today, "fb_id": fb_id})
+          save_hist(hist)
+          print("Remembered topic in posted.json. Done!")
+          PYEOF
+        env:
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          FB_PAGE_ID:    ${{ secrets.FB_PAGE_ID }}
+          FORCE_TOPIC:   ${{ inputs.topic }}
+          DRY_RUN:       ${{ inputs.dry_run }}
+
+      - name: Remember the posted topic (commit posted.json)
+        if: ${{ success() && inputs.dry_run != true }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add posted.json || true
+          if git diff --cached --quiet; then
+            echo "Nothing new to remember."
+          else
+            git commit -m "Remember posted topic"
+            git pull --rebase origin "${GITHUB_REF_NAME}" || true
+            git push
+          fi
+
+      - name: Keep the preview video (dry runs only)
+        if: ${{ always() && inputs.dry_run == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-preview
+          path: out/reel.mp4
