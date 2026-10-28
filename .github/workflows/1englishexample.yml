@@ -8,7 +8,7 @@ name: english-words-in-context-post
         required: false
         default: ""
   schedule:
-    - cron: "0 7 * * *"   # 9 AM Cairo/Levant time (UTC+2)
+ #   - cron: "0 7 * * *"   # 9 AM Cairo/Levant time (UTC+2)
   #  - cron: "0 13 * * *"  # 3 PM Cairo/Levant time
  #   - cron: "0 19 * * *"  # 9 PM Cairo/Levant time
 
