@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mind Tricks</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@700;800;900&family=Cairo:wght@700&display=block">
+<style>
+  html, body { margin:0; height:100%; background:#0b1226; color:#eef3f8; font:15px Montserrat, Arial, sans-serif; }
+  #app { display:flex; flex-direction:column; height:100%; }
+  #stage { flex:1; min-height:0; position:relative; background:#0b1226; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#0b1226; }
+  #loading { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:22px; pointer-events:none; }
+  #bar { display:flex; align-items:center; gap:10px; padding:8px 12px; background:#10162b; border-top:1px solid #243055; flex-wrap:wrap; }
+  #bar button, #bar select { background:#1b2444; color:#eef3f8; border:1px solid #34437a; border-radius:6px; padding:6px 12px; font:inherit; cursor:pointer; min-width:44px; }
+  #bar button:focus-visible, #bar select:focus-visible, #seek:focus-visible { outline:2px solid #ffc83d; outline-offset:2px; }
+  #bar button[aria-pressed="true"] { background:#34437a; }
+  #seek { flex:1; min-width:120px; accent-color:#ffc83d; }
+  #time { font-variant-numeric:tabular-nums; min-width:110px; text-align:right; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage"><canvas id="c" width="720" height="1280"></canvas><div id="loading">Loading...</div></div>
+  <div id="bar">
+    <button id="play" aria-label="Play">Play</button>
+    <select id="topic" aria-label="Topic"></select>
+    <input id="seek" type="range" min="0" max="40" step="0.01" value="0" aria-label="Scrub">
+    <span id="time">0:00.0 / 0:00.0</span>
+    <button id="snd" aria-pressed="true" aria-label="Sound on or off">Sound</button>
+    <button id="loop" aria-pressed="true" aria-label="Loop on or off">Loop</button>
+  </div>
+</div>
+<script>
+(function () {
+'use strict';
+// =====================================================================
+//  MIND TRICKS - cinematic psychology explainers, 720x1280. Every frame is a pure function of T.
+//  Workflow contract: window._ready, TOPIC_IDS, TOPIC_KINDS, loadTopic(id),
+//  setVoiceDurations(arr), frameJPEG(t), renderAudioBase64(withVoice)
+// =====================================================================
+const W = 720, HH = 1280, TAU = Math.PI * 2;
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const sm = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+const eo = (x) => 1 - Math.pow(1 - clamp(x), 3);
+const ez = (x) => { x = clamp(x); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+const eb = (x) => { x = clamp(x); const c = 1.70158; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+function rng(seed) { let a = (seed >>> 0) || 1; return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+const GOLD = '#ffc83d', CYAN = '#39e5ff', PINK = '#ff4d8d', WHT = '#f5f7ff', NAVY = '#0a0f24';
+const ANT = 'Anton, Impact, "Arial Narrow", sans-serif', MON = 'Montserrat, "Segoe UI", Arial, sans-serif';
+const ARF = 'Cairo, "Noto Naskh Arabic", Tahoma, Arial, sans-serif';
+const SCENE_H = 790, VSC = 0.89, SCR_H = 715, CAP_Y = 772, AR_Y = 890;
+const mc = document.createElement('canvas').getContext('2d');
+
+// color worlds: every video gets its own palette, background pattern and host outfit
+const PALS = [
+  { top: '#16286b', mid: '#2f55c4', acc: '#ffd23d', acc2: '#5cecff', card: 'rgba(22,44,120,.93)', bub: '#3c63d6', suit: '#27346b', suit2: '#34458a', tie: '#ff3d5a' },
+  { top: '#2a1366', mid: '#6a35c9', acc: '#ffd94d', acc2: '#ff8fe0', card: 'rgba(60,28,130,.93)', bub: '#7f4bdc', suit: '#2f2260', suit2: '#40308a', tie: '#ffd94d' },
+  { top: '#0b4a42', mid: '#16967f', acc: '#fff04d', acc2: '#7dffd9', card: 'rgba(10,84,72,.93)', bub: '#25b79a', suit: '#1f4f58', suit2: '#2c6975', tie: '#ff6b4a' },
+  { top: '#5a1230', mid: '#c2305a', acc: '#ffe66d', acc2: '#ffb3c7', card: 'rgba(110,22,56,.93)', bub: '#e0527a', suit: '#3a2540', suit2: '#503358', tie: '#ffe66d' },
+  { top: '#0b4f86', mid: '#1fa0e0', acc: '#ffe24d', acc2: '#ffffff', card: 'rgba(8,80,140,.93)', bub: '#3db4ee', suit: '#183e66', suit2: '#245485', tie: '#ff6b6b' },
+  { top: '#7a2a08', mid: '#e6701c', acc: '#fff04d', acc2: '#6beaff', card: 'rgba(130,52,10,.93)', bub: '#f08a3c', suit: '#3a2a58', suit2: '#4c3a74', tie: '#6beaff' },
+  { top: '#244d12', mid: '#5fb82a', acc: '#fff04d', acc2: '#ff7ae0', card: 'rgba(36,88,20,.93)', bub: '#79cf3d', suit: '#264a40', suit2: '#356455', tie: '#ff7ae0' },
+  { top: '#6a1060', mid: '#d44bb4', acc: '#ffee55', acc2: '#7affea', card: 'rgba(110,20,100,.93)', bub: '#e86cc8', suit: '#37285c', suit2: '#4a3a7a', tie: '#7affea' },
+];
+let PAL = PALS[0];
+function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+const vr = (i, k) => hash((STORY ? STORY.id : '') + '|' + i + '|' + k) / 4294967296;   // deterministic per-video, per-beat variation
+
+// =====================================================================
+//  TOPICS (all well-known, well-documented findings; numbers are rounded the way the studies report them)
+//  Row: [id, accentColor, title, captionTeaser, commentQuestion, beats]
+//  Beat: [spokenLine, scene, gesture?]  gestures: present, presentL, up, think, both, point, rest
+//  Scenes: B(big text) TERM STAT BARS VS STEPS BUB ICON ASK
+//  Structure of every video: HOOK > name it > how it works > proof/example > twist > what to do > comment question
+// =====================================================================
+const B = (t, hl = []) => ({ k: 'big', t, hl });
+const TERM = (n, d) => ({ k: 'term', n, d });
+const STAT = (v, suf, t) => ({ k: 'stat', v, suf, t });
+const BARS = (rows, unit, t) => ({ k: 'bars', rows, unit, t });
+const VS = (a, b) => ({ k: 'vs', a, b });
+const STEPS = (items, t) => ({ k: 'steps', items, t: t || 'TRY THIS' });
+const BUB = (q, r) => ({ k: 'bub', q, r });
+const ICON = (n, t) => ({ k: 'icon', n, t });
+const ASK = (t, sub) => ({ k: 'ask', t, sub });
+const TOPIC_DATA = [
+[`procrastination`, GOLD, `Why You Procrastinate`, `Procrastination is not a time problem. It's a feelings problem.`, `Comment ME if you're putting something off right now.`, [
+ [`You are not lazy. Your brain is doing something weirder.`, B(`YOU'RE NOT LAZY`, ['NOT']), 'present'],
+ [`Psychologists say procrastination is about managing emotions, not managing time.`, TERM(`PROCRASTINATION`, `Avoiding a task to escape the bad feeling it brings.`)],
+ [`The task feels boring, scary, or confusing. So your brain wants relief right now.`, VS([`THE TASK`, `Feels boring or scary`], [`YOUR BRAIN`, `Wants relief right now`]), 'both'],
+ [`So you scroll. You feel better for a minute. That relief is the reward.`, BUB(`"I'll start after one video."`, `...two hours later.`)],
+ [`But the task is still there, and now it feels even worse.`, B(`IT FEELS EVEN WORSE`, ['WORSE']), 'think'],
+ [`The fix is not more willpower. It's making the start so small that it feels safe.`, B(`MAKE THE START TINY`, ['TINY']), 'up'],
+ [`Try this. Open the document. Set a two minute timer. Stop when it rings.`, STEPS([`Open the document`, `Set a 2 minute timer`, `Stop when it rings`]), 'present'],
+ [`Most of the time, you won't want to stop. So, what are you putting off right now?`, ASK(`WHAT ARE YOU PUTTING OFF?`, `Comment it below`)]]],
+[`spotlight`, CYAN, `The Spotlight Effect`, `You think everyone noticed your embarrassing moment. They didn't.`, `What embarrassing moment do you still remember that nobody else does?`, [
+ [`Everyone noticed your most embarrassing moment. Except they didn't.`, B(`NOBODY NOTICED`, ['NOBODY']), 'present'],
+ [`It's called the spotlight effect.`, TERM(`THE SPOTLIGHT EFFECT`, `We overestimate how much other people notice us.`)],
+ [`In a famous study, students walked into a room of strangers wearing an embarrassing T-shirt.`, ICON('crowd', `STRANGERS IN A ROOM`), 'presentL'],
+ [`They guessed about half the room would notice. Only about a quarter actually did.`, BARS([[`THEY GUESSED`, 50], [`ACTUALLY NOTICED`, 25]], `%`, `ABOUT`), 'both'],
+ [`You're watching yourself all day. Everyone else is busy watching themselves.`, B(`EVERYONE IS BUSY WATCHING THEMSELVES`, ['THEMSELVES']), 'think'],
+ [`So when you stumble over your words, it matters far less than it feels.`, ICON('eye', `LESS THAN IT FEELS`)],
+ [`Next time, do this.`, STEPS([`Pause and breathe`, `Ask: will anyone remember this?`, `Move on`], `NEXT TIME`), 'up'],
+ [`What embarrassing moment do you still remember, that nobody else does?`, ASK(`WHAT DO YOU STILL REMEMBER?`, `Tell me below`)]]],
+[`gorilla`, PINK, `The Invisible Gorilla`, `Half the people in this famous study missed a gorilla.`, `Be honest: would you have seen the gorilla?`, [
+ [`Half of you would miss a gorilla standing right in front of you.`, B(`YOU'D MISS A GORILLA`, ['GORILLA']), 'present'],
+ [`In a famous experiment, people counted basketball passes. A person in a gorilla suit walked right through the game.`, ICON('eye', `A GORILLA WALKED THROUGH`), 'presentL'],
+ [`About half of the viewers never saw it.`, STAT(50, '%', `ABOUT HALF NEVER SAW THE GORILLA`)],
+ [`It's called inattentional blindness.`, TERM(`INATTENTIONAL BLINDNESS`, `When you focus on one thing, you can miss something obvious.`)],
+ [`Your brain can't process everything, so it only shows you what it thinks matters.`, ICON('brain', `A FILTER, NOT A CAMERA`), 'both'],
+ [`That's why a driver can look straight at a cyclist and still not see them.`, ICON('warn', `LOOKED, BUT DIDN'T SEE`), 'think'],
+ [`The fix? Slow down and ask yourself one question.`, B(`WHAT AM I NOT SEEING?`, ['NOT SEEING']), 'up'],
+ [`So, would you have seen the gorilla?`, ASK(`WOULD YOU HAVE SEEN IT?`, `Comment YES or NO`)]]],
+[`sunkcost`, GOLD, `The Sunk Cost Trap`, `You finish bad movies and stay in bad plans. Here's why.`, `What's the longest you stayed in something you should have quit?`, [
+ [`Why can't you quit a bad movie, a bad plan, or a bad job?`, B(`WHY CAN'T YOU QUIT?`, ['QUIT']), 'present'],
+ [`It's called the sunk cost fallacy.`, TERM(`THE SUNK COST FALLACY`, `Sticking with something because of what you already put in.`)],
+ [`Logically, only the future matters. But your brain keeps counting the past.`, VS([`LOGIC`, `Only the future matters`], [`YOUR BRAIN`, `But I already paid for it!`]), 'both'],
+ [`In one study, people who paid full price for theater tickets went to more shows than people who got a discount.`, ICON('coin', `FULL PRICE, MORE SHOWS`), 'presentL'],
+ [`The money is gone either way. Only the next hour matters.`, B(`THE MONEY IS GONE EITHER WAY`, ['GONE']), 'think'],
+ [`So ask yourself a different question.`, STEPS([`Ignore what you already spent`, `Ask: would I start this today?`, `If not, walk away`], `NEXT TIME`), 'up'],
+ [`That's not quitting. That's choosing your future over your past.`, B(`CHOOSE YOUR FUTURE`, ['FUTURE'])],
+ [`What did you stay in for way too long?`, ASK(`WHAT DID YOU STAY IN TOO LONG?`, `Tell me below`)]]],
+[`anchoring`, CYAN, `The Anchoring Trick`, `The first number you see quietly controls what feels fair.`, `Has a high price ever made something else look cheap to you?`, [
+ [`The first number you see controls what you think is fair.`, B(`THE FIRST NUMBER WINS`, ['FIRST']), 'present'],
+ [`It's called anchoring.`, TERM(`ANCHORING`, `Your first piece of information pulls every guess after it.`)],
+ [`Researchers spun a rigged wheel that landed on ten, or sixty five. Then they asked people a factual question.`, VS([`WHEEL LANDED ON 10`, `Average guess: about 25`], [`WHEEL LANDED ON 65`, `Average guess: about 45`]), 'both'],
+ [`A random wheel changed their answers.`, B(`A RANDOM WHEEL CHANGED THEIR MINDS`, ['RANDOM']), 'think'],
+ [`Stores know this. They show the high price first, so the sale price looks like a bargain.`, ICON('coin', `THE HIGH PRICE COMES FIRST`), 'presentL'],
+ [`Here's how to defend yourself.`, STEPS([`Decide your price first`, `Check real prices`, `Ignore their starting number`], `DEFEND YOURSELF`), 'up'],
+ [`The first number is just a hook. You decide what's fair.`, B(`YOU DECIDE WHAT'S FAIR`, ['YOU'])],
+ [`When did a high price make something else look cheap to you?`, ASK(`WHEN DID THIS TRICK YOU?`, `Tell me below`)]]],
+[`lossaversion`, PINK, `Why Losing Hurts More`, `Losing hurts about twice as much as winning feels good.`, `What's something you kept just because you didn't want to lose it?`, [
+ [`Losing a hundred dollars hurts more than finding a hundred dollars feels good.`, B(`LOSING HURTS MORE`, ['HURTS']), 'present'],
+ [`It's called loss aversion.`, TERM(`LOSS AVERSION`, `Losses feel roughly twice as powerful as equal gains.`)],
+ [`Researchers estimate a loss feels about twice as strong.`, BARS([[`GAINING $100`, 1], [`LOSING $100`, 2]], `x`, `HOW STRONG IT FEELS`), 'both'],
+ [`That's why free trials work. Once it's yours, giving it up feels like a loss.`, ICON('coin', `ONCE IT'S YOURS...`), 'presentL'],
+ [`And why stores say only two left. Missing out feels like losing.`, B(`"ONLY 2 LEFT!"`, ['2']), 'think'],
+ [`Your brain is not judging value. It's avoiding pain.`, B(`YOU'RE AVOIDING PAIN, NOT JUDGING VALUE`, ['PAIN'])],
+ [`Before big decisions, try this.`, STEPS([`Pause for a day`, `Ask: am I afraid of losing?`, `Judge the real value`]), 'up'],
+ [`What have you kept, just because you didn't want to lose it?`, ASK(`WHAT DID YOU KEEP?`, `Tell me below`)]]],
+[`confirmation`, CYAN, `Confirmation Bias`, `Your brain searches for proof you're right. Always.`, `What's something you changed your mind about?`, [
+ [`Your brain is quietly lying to you, every single day.`, B(`YOUR BRAIN IS LYING`, ['LYING']), 'present'],
+ [`It's called confirmation bias.`, TERM(`CONFIRMATION BIAS`, `We look for proof we're right, and ignore proof we're wrong.`)],
+ [`You search for what agrees with you, and skip anything that doesn't.`, VS([`WHAT YOU SEARCH`, `Proof you're right`], [`WHAT YOU SKIP`, `Anything that disagrees`]), 'both'],
+ [`In a classic puzzle, people were asked to find a hidden number rule. Most only tested examples that fit their own guess.`, ICON('brain', `TESTING ONLY WHAT FITS`), 'presentL'],
+ [`And being smart doesn't automatically protect you.`, B(`SMART PEOPLE DO IT TOO`, ['SMART']), 'think'],
+ [`The cure is simple, but uncomfortable.`, STEPS([`Search for the opposite view`, `Ask: what would change my mind?`, `Talk to someone who disagrees`], `THE CURE`), 'up'],
+ [`If you never change your mind, you're not thinking. You're collecting evidence for a verdict you already reached.`, B(`CHANGE YOUR MIND SOMETIMES`, ['MIND'])],
+ [`So, what have you changed your mind about?`, ASK(`WHAT DID YOU CHANGE YOUR MIND ABOUT?`, `Tell me below`)]]],
+[`planning`, GOLD, `The Planning Fallacy`, `Why everything takes longer than you plan, every time.`, `What project took way longer than you expected?`, [
+ [`Why is everything always late, even when you plan carefully?`, B(`WHY IS EVERYTHING LATE?`, ['LATE']), 'present'],
+ [`It's called the planning fallacy.`, TERM(`THE PLANNING FALLACY`, `We underestimate how long things take, even when we've been wrong before.`)],
+ [`The Sydney Opera House was planned for nineteen sixty three, at seven million dollars. It opened in nineteen seventy three, at over one hundred million.`, VS([`PLANNED`, `1963 · $7 million`], [`REALITY`, `1973 · $102 million`]), 'both'],
+ [`Why? We picture the best case, and forget the delays.`, B(`WE PICTURE THE BEST CASE`, ['BEST']), 'think'],
+ [`We plan for the version where nothing goes wrong. That version almost never happens.`, ICON('clock', `NOTHING GOES WRONG?`), 'presentL'],
+ [`Here's the fix.`, STEPS([`Remember similar past tasks`, `Use how long they really took`, `Add a buffer`], `PLAN BETTER`), 'up'],
+ [`Plan for real life, not the dream version.`, B(`PLAN FOR REAL LIFE`, ['REAL'])],
+ [`What took way longer than you expected?`, ASK(`WHAT TOOK WAY LONGER?`, `Tell me below`)]]],
+[`curseknowledge`, PINK, `The Curse of Knowledge`, `Why experts are so bad at explaining simple things.`, `Who is the worst explainer you've ever had?`, [
+ [`Why are smart people so bad at explaining simple things?`, B(`WHY CAN'T EXPERTS EXPLAIN?`, ['EXPERTS']), 'present'],
+ [`It's called the curse of knowledge.`, TERM(`THE CURSE OF KNOWLEDGE`, `Once you know something, you can't imagine not knowing it.`)],
+ [`Researchers asked people to tap the rhythm of a famous song. Listeners had to guess the tune.`, ICON('crowd', `TAP, TAP, GUESS`), 'presentL'],
+ [`Tappers predicted half of the listeners would get it. Only about two and a half percent did.`, BARS([[`TAPPERS PREDICTED`, 50], [`LISTENERS GOT IT`, 2.5]], `%`, `NAME THAT TUNE`), 'both'],
+ [`In the tapper's head, the whole song was playing.`, B(`THE SONG WAS PLAYING IN THEIR HEAD`, ['HEAD']), 'think'],
+ [`Listeners only heard knocking.`, ICON('brain', `ALL YOU HEAR IS KNOCKING`)],
+ [`To explain better, try this.`, STEPS([`Start with a simple example`, `Skip the jargon`, `Ask them to explain it back`], `EXPLAIN BETTER`), 'up'],
+ [`Who's the worst explainer you've ever had?`, ASK(`WORST EXPLAINER EVER?`, `Tell me below`)]]],
+[`ikea`, GOLD, `The IKEA Effect`, `We love things more when we build them ourselves.`, `What's something you built that you're proud of?`, [
+ [`Why do you love things more when you build them yourself?`, B(`YOU LOVE WHAT YOU BUILD`, ['BUILD']), 'present'],
+ [`It's called the IKEA effect.`, TERM(`THE IKEA EFFECT`, `We value things more when we put effort into making them.`)],
+ [`In studies, people who built simple furniture valued it about sixty percent more.`, STAT(60, '%', `MORE WILLING TO PAY FOR THEIR OWN BUILD`), 'both'],
+ [`The effort turns into ownership. And ownership feels like love.`, B(`EFFORT TURNS INTO LOVE`, ['LOVE']), 'think'],
+ [`That's why apps ask you to set up your profile before you start.`, ICON('bulb', `YOU BUILT IT, SO YOU STAY`), 'presentL'],
+ [`You can use this for your goals too.`, STEPS([`Break the goal into builds`, `Do the work yourself`, `Look back at what you built`], `USE IT`), 'up'],
+ [`The things you work for, you value.`, B(`YOU VALUE WHAT YOU WORK FOR`, ['WORK'])],
+ [`So, what have you built that you're proud of?`, ASK(`WHAT ARE YOU PROUD OF?`, `Tell me below`)]]],
+[`halo`, CYAN, `The Halo Effect`, `One good trait makes you assume ten more.`, `What first impression did you get totally wrong?`, [
+ [`You decide if someone is smart in seconds. And you're often wrong.`, B(`YOU JUDGE IN SECONDS`, ['SECONDS']), 'present'],
+ [`It's called the halo effect.`, TERM(`THE HALO EFFECT`, `One good trait makes us assume other good traits.`)],
+ [`Attractive people tend to be judged as kinder, smarter, and more trustworthy.`, ICON('crowd', `LOOKS CHANGE JUDGMENT`), 'presentL'],
+ [`It works in reverse too. One flaw can make everything look worse.`, VS([`HALO`, `One good trait lifts everything`], [`HORNS`, `One bad trait sinks everything`]), 'both'],
+ [`The same essay can even get a better grade when the writer already seems impressive.`, ICON('bulb', `SAME WORK, DIFFERENT GRADE`), 'think'],
+ [`So, slow down your first judgment.`, STEPS([`Pause before you decide`, `List facts, not feelings`, `Judge actions, not looks`], `SEE CLEARLY`), 'up'],
+ [`First impressions are a guess. Treat them like one.`, B(`FIRST IMPRESSIONS ARE A GUESS`, ['GUESS'])],
+ [`What first impression did you get totally wrong?`, ASK(`WHO DID YOU MISJUDGE?`, `Tell me below`)]]],
+[`peakend`, PINK, `The Peak-End Rule`, `You don't remember experiences. You remember two moments.`, `What was the best ending to a bad day?`, [
+ [`You don't remember experiences. You remember two moments.`, B(`YOU REMEMBER TWO MOMENTS`, ['TWO']), 'present'],
+ [`It's called the peak-end rule.`, TERM(`THE PEAK-END RULE`, `We judge an experience by its most intense moment, and its ending.`)],
+ [`In one experiment, people put a hand in painfully cold water twice. Once for sixty seconds. Once for ninety, with the last thirty seconds slightly warmer.`, VS([`TRIAL A`, `60 sec of cold`], [`TRIAL B`, `90 sec, warmer ending`]), 'both'],
+ [`About seven in ten chose to repeat the longer one.`, STAT(70, '%', `CHOSE THE LONGER, WARMER TRIAL`)],
+ [`More pain, but a better ending. So it felt better.`, B(`A BETTER ENDING FEELS BETTER`, ['ENDING']), 'think'],
+ [`That's why a great ending can save a trip, a meal, or a date.`, ICON('clock', `END ON A HIGH`), 'presentL'],
+ [`Use it.`, STEPS([`Plan one great moment`, `Plan a strong ending`, `End meetings on a high`], `USE IT`), 'up'],
+ [`What was the best ending to a bad day for you?`, ASK(`BEST ENDING TO A BAD DAY?`, `Tell me below`)]]],
+[`negativity`, GOLD, `The Negativity Bias`, `Why one bad comment outweighs ten good ones.`, `What's one good thing that happened to you this week?`, [
+ [`Why does one bad comment outweigh ten good ones?`, B(`WHY BAD STICKS`, ['BAD']), 'present'],
+ [`It's called the negativity bias.`, TERM(`THE NEGATIVITY BIAS`, `Bad events affect us more strongly than good ones.`)],
+ [`Your ancestors who noticed danger fast survived. So your brain still gives danger priority.`, ICON('warn', `DANGER GETS PRIORITY`), 'presentL'],
+ [`Ten compliments are forgotten by tonight. One insult gets replayed for days.`, VS([`10 COMPLIMENTS`, `Forgotten by tonight`], [`1 INSULT`, `Replayed for days`]), 'both'],
+ [`Your brain isn't broken. It's just trying to protect you.`, B(`IT'S TRYING TO PROTECT YOU`, ['PROTECT']), 'think'],
+ [`You can balance it, on purpose.`, STEPS([`Write 3 good things each night`, `Add why they happened`, `Do it for one week`], `THREE GOOD THINGS`), 'up'],
+ [`Small habit. Real effect.`, B(`TRAIN YOUR BRAIN TO NOTICE GOOD`, ['GOOD'])],
+ [`So, what's one good thing that happened to you this week?`, ASK(`ONE GOOD THING THIS WEEK?`, `Tell me below`)]]],
+[`bystander`, CYAN, `The Bystander Effect`, `The more people watching, the less likely someone helps.`, `Have you ever hesitated to help? Be honest.`, [
+ [`The more people watching, the less likely someone helps.`, B(`MORE PEOPLE, LESS HELP`, ['LESS']), 'present'],
+ [`It's called the bystander effect.`, TERM(`THE BYSTANDER EFFECT`, `People are less likely to help when others are around.`)],
+ [`In a classic study, a student seemed to have a seizure over an intercom. Alone, eighty five percent of people reported it. With four others around, only thirty one percent did.`, BARS([[`ALONE`, 85], [`WITH 4 OTHERS`, 31]], `%`, `REPORTED IT`), 'both'],
+ [`Everyone assumes someone else will act.`, B(`"SOMEONE ELSE WILL DO IT"`, ['SOMEONE']), 'think'],
+ [`Psychologists call it diffusion of responsibility.`, ICON('crowd', `EVERYONE'S JOB IS NO ONE'S JOB`), 'presentL'],
+ [`If you ever need help, do this.`, STEPS([`Pick one person`, `Speak to them directly`, `Give a clear job`], `ASK FOR HELP`), 'up'],
+ [`Be the first person who acts. Everyone else is waiting for you.`, B(`BE THE FIRST TO ACT`, ['FIRST'])],
+ [`Have you ever hesitated to help? Be honest.`, ASK(`EVER HESITATED TO HELP?`, `Be honest below`)]]],
+[`dissonance`, PINK, `Cognitive Dissonance`, `Why we defend choices we know are wrong.`, `When did you defend a choice you secretly doubted?`, [
+ [`Why do we defend choices we secretly know are wrong?`, B(`WHY DO WE DEFEND BAD CHOICES?`, ['DEFEND']), 'present'],
+ [`It's called cognitive dissonance.`, TERM(`COGNITIVE DISSONANCE`, `The discomfort of holding two conflicting beliefs.`)],
+ [`In a classic study, people did a boring task. Then they were paid one dollar, or twenty dollars, to tell the next person it was fun.`, VS([`PAID $20`, `"I did it for the money."`], [`PAID $1`, `"Maybe it WAS fun."`]), 'both'],
+ [`The one dollar group later rated the task as more enjoyable.`, ICON('brain', `THEY CHANGED THEIR BELIEF`), 'think'],
+ [`Your brain would rather change the story than admit it was wrong.`, B(`CHANGE THE STORY`, ['STORY'])],
+ [`When you feel that discomfort, notice it.`, STEPS([`Notice the discomfort`, `Ask: what is actually true?`, `Change the belief, not the facts`], `NEXT TIME`), 'up'],
+ [`Being wrong isn't the problem. Defending it is.`, B(`DON'T DEFEND IT, FIX IT`, ['FIX'])],
+ [`When did you defend a choice you secretly doubted?`, ASK(`WHAT DID YOU DEFEND?`, `Tell me below`)]]],
+[`overconfidence`, GOLD, `The Overconfidence Effect`, `93 percent of drivers say they're better than average.`, `Be honest: are you an above average driver?`, [
+ [`Ninety three percent of drivers say they are better than average.`, B(`93% OF DRIVERS ARE "ABOVE AVERAGE"`, ['93%']), 'present'],
+ [`That's mathematically impossible.`, STAT(93, '%', `OF DRIVERS IN ONE SURVEY`)],
+ [`It's called the overconfidence effect.`, TERM(`THE OVERCONFIDENCE EFFECT`, `We rate our own skills higher than they really are.`)],
+ [`It shows up in driving, in intelligence, and in how long we think tasks will take.`, ICON('crowd', `EVERYONE'S ABOVE AVERAGE`), 'both'],
+ [`And the less skilled we are, the more we tend to overestimate.`, B(`LESS SKILL, MORE CONFIDENCE`, ['CONFIDENCE']), 'think'],
+ [`Real experts doubt themselves more.`, ICON('brain', `EXPERTS KEEP CHECKING`), 'presentL'],
+ [`So, keep yourself honest.`, STEPS([`Ask for blunt feedback`, `Write down your predictions`, `Review what you got wrong`], `STAY HONEST`), 'up'],
+ [`Be honest. Are you really an above average driver?`, ASK(`ARE YOU ABOVE AVERAGE?`, `Be honest below`)]]],
+[`barnum`, CYAN, `The Barnum Effect`, `Your horoscope isn't about you. It's about everyone.`, `Which sign are you, and does it actually fit?`, [
+ [`Your horoscope isn't talking about you. It's talking about everyone.`, B(`THIS ISN'T ABOUT YOU`, ['YOU']), 'present'],
+ [`It's called the Barnum effect.`, TERM(`THE BARNUM EFFECT`, `We believe vague descriptions are written just for us.`)],
+ [`A psychologist gave students a personality description and said it was made for them. Every student got the exact same text.`, ICON('crowd', `ONE TEXT, EVERY STUDENT`), 'presentL'],
+ [`On average, they rated it four point two six out of five for accuracy.`, STAT(4.26, '/5', `HOW ACCURATE THEY SAID IT WAS`), 'both'],
+ [`Sentences like this work on everyone.`, BUB(`"You sometimes doubt your decisions."`), 'think'],
+ [`Who doesn't?`, B(`WHO DOESN'T?`, ['DOESN\'T'])],
+ [`To spot it, try this.`, STEPS([`Look for vague words`, `Ask: would this fit anyone?`, `Test it on a friend`], `SPOT IT`), 'up'],
+ [`So, which sign are you? And does it actually fit?`, ASK(`WHICH SIGN ARE YOU?`, `Does it fit? Tell me below`)]]],
+[`memory`, PINK, `Your Memory Lies`, `Your memories get rewritten every time you recall them.`, `What's a memory you were sure about, but were wrong?`, [
+ [`Your memories are not recordings. They get rewritten.`, B(`YOUR MEMORIES GET REWRITTEN`, ['REWRITTEN']), 'present'],
+ [`In a classic experiment, people watched a car crash. Then they estimated the speed.`, ICON('eye', `THE CAR CRASH STUDY`), 'presentL'],
+ [`People asked about cars that smashed guessed about forty one miles an hour. For cars that contacted, about thirty two.`, BARS([[`"CONTACTED"`, 32], [`"SMASHED"`, 41]], ` MPH`, `SPEED ESTIMATE`), 'both'],
+ [`One single word changed what they remembered.`, B(`ONE WORD CHANGED THE MEMORY`, ['WORD']), 'think'],
+ [`Every time you remember something, your brain rebuilds it. And it can add or change details.`, ICON('brain', `REBUILT EVERY TIME`)],
+ [`So, be careful with the phrase, I remember exactly.`, STEPS([`Write things down early`, `Check old photos or messages`, `Stay humble about vivid memories`], `STAY HUMBLE`), 'up'],
+ [`A vivid memory is not the same as a true one.`, B(`VIVID IS NOT THE SAME AS TRUE`, ['TRUE'])],
+ [`What's a memory you were sure about, but were wrong?`, ASK(`WHEN WERE YOU SURE, BUT WRONG?`, `Tell me below`)]]],
+[`hedonic`, GOLD, `The Happiness Treadmill`, `The new thing that made you so happy is already wearing off.`, `What's something you were so excited about that now feels normal?`, [
+ [`The new thing that made you so happy? It's already wearing off.`, B(`THE HAPPINESS WEARS OFF`, ['WEARS OFF']), 'present'],
+ [`It's called hedonic adaptation.`, TERM(`HEDONIC ADAPTATION`, `We get used to good things, and happiness returns to normal.`)],
+ [`New phone. New car. New job. Amazing for a month. Then it's just normal.`, B(`NEW PHONE. NEW CAR. NEW JOB.`, ['NEW']), 'both'],
+ [`And it works on bad things too. We usually adapt more than we expect.`, ICON('brain', `YOU ADAPT TO BOTH`), 'think'],
+ [`That's why chasing the next upgrade never feels like enough.`, ICON('coin', `THE NEXT UPGRADE`), 'presentL'],
+ [`Here's how to fight it.`, STEPS([`Appreciate what you already have`, `Take breaks from your favorites`, `Spend on experiences`], `FIGHT IT`), 'up'],
+ [`Happiness fades fastest on things. Experiences last longer.`, B(`COLLECT MOMENTS, NOT THINGS`, ['MOMENTS'])],
+ [`What was so exciting once, but now feels normal?`, ASK(`WHAT FEELS NORMAL NOW?`, `Tell me below`)]]],
+[`conformity`, CYAN, `The Conformity Test`, `Would you give a wrong answer just to fit in?`, `Would you have gone along with the group? Be honest.`, [
+ [`Would you give an answer you know is wrong, just to fit in?`, B(`WOULD YOU AGREE TO BE WRONG?`, ['WRONG']), 'present'],
+ [`In a famous experiment, people compared the length of lines. The answer was obvious. But actors in the room gave the wrong answer on purpose.`, VS([`THE TRUTH`, `Line A matches`], [`THE GROUP SAID`, `Line C`]), 'both'],
+ [`About three quarters of people went along with the group at least once.`, STAT(75, '%', `AGREED WITH THE WRONG GROUP AT LEAST ONCE`)],
+ [`They weren't stupid. Disagreeing just felt uncomfortable.`, B(`DISAGREEING FEELS RISKY`, ['RISKY']), 'think'],
+ [`But when just one other person disagreed, the pressure dropped sharply.`, ICON('crowd', `ONE ALLY CHANGES EVERYTHING`), 'presentL'],
+ [`So, next time you feel the pressure, try this.`, STEPS([`Write your answer first`, `Find one ally`, `Say it calmly anyway`], `STAND YOUR GROUND`), 'up'],
+ [`You don't have to be loud. You just have to be first.`, B(`SOMEONE HAS TO BE FIRST`, ['FIRST'])],
+ [`Would you have gone along with the group? Be honest.`, ASK(`WOULD YOU HAVE GONE ALONG?`, `Be honest below`)]]],
+];
+
+
+// Arabic subtitles, same order as the English beats above (before any re-ordering)
+const AR = {
+procrastination: [`أنت لست كسولاً. دماغك يفعل شيئاً أغرب من ذلك.`,`يقول علماء النفس إن التسويف يتعلق بإدارة المشاعر، لا بإدارة الوقت.`,`تبدو المهمة مملة أو مخيفة أو مربكة، فيريد دماغك الراحة فوراً.`,`فتتصفح هاتفك وتشعر بتحسن لدقيقة. هذه الراحة هي المكافأة.`,`لكن المهمة ما زالت موجودة، وصارت أسوأ الآن.`,`الحل ليس مزيداً من قوة الإرادة، بل جعل البداية صغيرة جداً حتى تبدو آمنة.`,`جرّب هذا: افتح الملف، وشغّل مؤقتاً لدقيقتين، وتوقف عندما يرن.`,`غالباً لن ترغب في التوقف. إذن، ما الذي تؤجله الآن؟`],
+spotlight: [`الجميع لاحظ أكثر لحظاتك إحراجاً. إلا أنهم لم يلاحظوا.`,`يسمى هذا تأثير بقعة الضوء.`,`في دراسة شهيرة، دخل طلاب غرفة مليئة بالغرباء وهم يرتدون قميصاً محرجاً.`,`توقعوا أن نصف الغرفة تقريباً سيلاحظ، لكن ربعها فقط لاحظ فعلاً.`,`أنت تراقب نفسك طوال اليوم، والجميع منشغل بمراقبة نفسه.`,`لذلك عندما تتلعثم في الكلام، فالأمر أقل أهمية بكثير مما تشعر.`,`في المرة القادمة، افعل هذا.`,`ما اللحظة المحرجة التي ما زلت تتذكرها ولم ينتبه لها أحد غيرك؟`],
+gorilla: [`نصفكم تقريباً سيفوّت غوريلا تقف أمام عينيه مباشرة.`,`في تجربة شهيرة، كان الناس يعدّون تمريرات كرة السلة، بينما مرّ شخص يرتدي زي غوريلا وسط اللعبة.`,`نحو نصف المشاهدين لم يروه أبداً.`,`يسمى هذا العمى عن غير انتباه.`,`دماغك لا يستطيع معالجة كل شيء، فيُريك فقط ما يظن أنه مهم.`,`لهذا قد ينظر سائق مباشرة إلى راكب دراجة ولا يراه.`,`والحل؟ أبطئ واسأل نفسك سؤالاً واحداً.`,`إذن، هل كنت ستشاهد الغوريلا؟`],
+sunkcost: [`لماذا لا تستطيع ترك فيلم سيئ أو خطة سيئة أو وظيفة سيئة؟`,`يسمى هذا مغالطة التكلفة الغارقة.`,`منطقياً، المستقبل وحده هو المهم، لكن دماغك يظل يحسب الماضي.`,`في إحدى الدراسات، ذهب من دفعوا السعر كاملاً لتذاكر المسرح إلى عروض أكثر ممن حصلوا على خصم.`,`المال ضاع في الحالتين. الساعة القادمة فقط هي المهمة.`,`لذلك اسأل نفسك سؤالاً مختلفاً.`,`هذا ليس استسلاماً، بل اختيار لمستقبلك بدلاً من ماضيك.`,`ما الشيء الذي بقيت فيه أطول مما يجب؟`],
+anchoring: [`أول رقم تراه يتحكم في ما تعتبره عادلاً.`,`يسمى هذا التثبيت.`,`أدار باحثون عجلة حظ مزوّرة استقرت على عشرة أو خمسة وستين، ثم سألوا الناس سؤالاً عن حقيقة معينة.`,`عجلة عشوائية غيّرت إجاباتهم.`,`المتاجر تعرف هذا. تعرض السعر المرتفع أولاً ليبدو سعر التخفيض صفقة رابحة.`,`إليك كيف تدافع عن نفسك.`,`الرقم الأول مجرد طُعم. أنت من يقرر ما هو عادل.`,`متى جعلك سعر مرتفع تظن أن شيئاً آخر رخيص؟`],
+lossaversion: [`خسارة مئة دولار تؤلم أكثر مما يسعدك العثور على مئة دولار.`,`يسمى هذا النفور من الخسارة.`,`يقدّر الباحثون أن الخسارة تبدو أقوى بمرتين تقريباً.`,`لهذا تنجح التجارب المجانية. عندما يصبح الشيء لك، يبدو التخلي عنه خسارة.`,`ولهذا تقول المتاجر: بقي اثنان فقط. فالتفويت يشبه الخسارة.`,`دماغك لا يقيّم القيمة، بل يتجنب الألم.`,`قبل القرارات الكبيرة، جرّب هذا.`,`ما الذي احتفظت به فقط لأنك لا تريد خسارته؟`],
+confirmation: [`دماغك يكذب عليك بهدوء كل يوم.`,`يسمى هذا التحيز التأكيدي.`,`تبحث عما يوافقك وتتجاهل أي شيء يخالفك.`,`في لغز كلاسيكي، طُلب من الناس اكتشاف قاعدة رقمية مخفية، فاختبر معظمهم أمثلة تناسب تخمينهم فقط.`,`والذكاء وحده لا يحميك تلقائياً.`,`العلاج بسيط لكنه غير مريح.`,`إذا لم تغيّر رأيك أبداً، فأنت لا تفكر، بل تجمع أدلة لحكم أصدرته مسبقاً.`,`إذن، ما الذي غيّرت رأيك فيه؟`],
+planning: [`لماذا يتأخر كل شيء دائماً، حتى لو خططت بعناية؟`,`يسمى هذا مغالطة التخطيط.`,`كان من المخطط أن يكتمل مبنى دار أوبرا سيدني عام ألف وتسعمئة وثلاثة وستين بسبعة ملايين دولار. لكنه افتُتح عام ألف وتسعمئة وثلاثة وسبعين بأكثر من مئة مليون.`,`لماذا؟ نتخيل أفضل سيناريو وننسى التأخيرات.`,`نخطط للنسخة التي لا يحدث فيها أي خطأ، وهذه النسخة نادراً ما تحدث.`,`إليك الحل.`,`خطط للحياة الحقيقية، لا للنسخة المثالية.`,`ما الذي استغرق وقتاً أطول بكثير مما توقعت؟`],
+curseknowledge: [`لماذا يعجز الأذكياء عن شرح أشياء بسيطة؟`,`يسمى هذا لعنة المعرفة.`,`طلب باحثون من أشخاص أن ينقروا إيقاع أغنية مشهورة، وعلى المستمعين تخمين اللحن.`,`توقع النقّارون أن نصف المستمعين سيعرفونها، لكن نحو اثنين ونصف بالمئة فقط عرفوها.`,`في رأس النقّار، كانت الأغنية كاملة تعزف.`,`أما المستمعون فلم يسمعوا سوى طرق.`,`لتشرح بشكل أفضل، جرّب هذا.`,`من هو أسوأ شخص شرح لك شيئاً في حياتك؟`],
+ikea: [`لماذا تحب الأشياء أكثر عندما تبنيها بنفسك؟`,`يسمى هذا تأثير إيكيا.`,`في الدراسات، قدّر من بنوا أثاثاً بسيطاً بأنفسهم قيمته بنحو ستين بالمئة أكثر.`,`يتحول الجهد إلى شعور بالملكية، والملكية تشبه الحب.`,`ولهذا تطلب منك التطبيقات إعداد ملفك الشخصي قبل أن تبدأ.`,`يمكنك استخدام هذا في أهدافك أيضاً.`,`ما تعمل من أجله، تعطيه قيمة.`,`إذن، ما الذي بنيته وتفخر به؟`],
+halo: [`تحكم على ذكاء شخص ما في ثوانٍ، وكثيراً ما تخطئ.`,`يسمى هذا تأثير الهالة.`,`يميل الناس إلى الحكم على الأشخاص الجذابين بأنهم أكثر لطفاً وذكاءً وجدارة بالثقة.`,`ويعمل بالعكس أيضاً. عيب واحد قد يجعل كل شيء يبدو أسوأ.`,`وقد ينال المقال نفسه درجة أفضل عندما يبدو كاتبه مبهراً من قبل.`,`لذلك أبطئ حكمك الأول.`,`الانطباع الأول مجرد تخمين، فعامله على هذا الأساس.`,`ما الانطباع الأول الذي كان خاطئاً تماماً؟`],
+peakend: [`أنت لا تتذكر التجارب، بل تتذكر لحظتين فقط.`,`يسمى هذا قاعدة الذروة والنهاية.`,`في تجربة، وضع الناس أيديهم في ماء شديد البرودة مرتين: مرة لستين ثانية، ومرة لتسعين ثانية مع ماء أدفأ قليلاً في آخر ثلاثين ثانية.`,`نحو سبعة من كل عشرة اختاروا تكرار التجربة الأطول.`,`ألم أكثر، لكن نهاية أفضل، فبدت أفضل.`,`ولهذا قد تنقذ النهاية الرائعة رحلة أو وجبة أو موعداً.`,`استخدم هذا.`,`ما أفضل نهاية ليوم سيئ مررت به؟`],
+negativity: [`لماذا يفوق تعليق سيئ واحد عشرة تعليقات جيدة؟`,`يسمى هذا التحيز السلبي.`,`أجدادك الذين لاحظوا الخطر بسرعة نجوا، ولذلك ما زال دماغك يعطي الخطر الأولوية.`,`عشر مجاملات تُنسى بحلول الليل، وإهانة واحدة تُعاد لأيام.`,`دماغك ليس معطلاً، إنه يحاول حمايتك فقط.`,`يمكنك موازنة ذلك عمداً.`,`عادة صغيرة وتأثير حقيقي.`,`ما الشيء الجيد الذي حدث لك هذا الأسبوع؟`],
+bystander: [`كلما زاد عدد المشاهدين، قلّ احتمال أن يساعد أحد.`,`يسمى هذا تأثير المتفرج.`,`في دراسة كلاسيكية، بدا أن طالباً يتعرض لنوبة عبر جهاز اتصال داخلي. عندما كان الشخص وحده، أبلغ عنه خمسة وثمانون بالمئة. ومع وجود أربعة آخرين، أبلغ واحد وثلاثون بالمئة فقط.`,`يفترض الجميع أن شخصاً آخر سيتصرف.`,`يسميه علماء النفس انتشار المسؤولية.`,`إذا احتجت إلى مساعدة يوماً، افعل هذا.`,`كن أول من يتصرف. الجميع ينتظرك.`,`هل ترددت يوماً في المساعدة؟ كن صادقاً.`],
+dissonance: [`لماذا ندافع عن قرارات نعرف سراً أنها خاطئة؟`,`يسمى هذا التنافر المعرفي.`,`في دراسة كلاسيكية، أدى الناس مهمة مملة، ثم دُفع لهم دولار واحد أو عشرون دولاراً ليقولوا للشخص التالي إنها ممتعة.`,`قيّمت مجموعة الدولار الواحد المهمة لاحقاً بأنها أكثر متعة.`,`دماغك يفضل تغيير القصة على الاعتراف بالخطأ.`,`عندما تشعر بهذا الانزعاج، لاحظه.`,`الخطأ ليس المشكلة، المشكلة في الدفاع عنه.`,`ما القرار الذي دافعت عنه رغم شكّك فيه سراً؟`],
+overconfidence: [`ثلاثة وتسعون بالمئة من السائقين يقولون إنهم أفضل من المتوسط.`,`هذا مستحيل رياضياً.`,`يسمى هذا تأثير الثقة المفرطة.`,`يظهر في القيادة وفي الذكاء وفي تقدير الوقت اللازم للمهام.`,`وكلما قلّت مهارتنا، زاد ميلنا إلى المبالغة في تقدير أنفسنا.`,`الخبراء الحقيقيون يشككون في أنفسهم أكثر.`,`لذلك حافظ على صدقك مع نفسك.`,`كن صادقاً. هل أنت فعلاً سائق أفضل من المتوسط؟`],
+barnum: [`برجك لا يتحدث عنك، بل يتحدث عن الجميع.`,`يسمى هذا تأثير بارنوم.`,`أعطى عالم نفس طلابه وصفاً لشخصيتهم وقال إنه كُتب لهم خصيصاً. وحصل كل طالب على النص نفسه تماماً.`,`في المتوسط، قيّموا دقته بأربعة فاصل ستة وعشرين من خمسة.`,`جمل كهذه تنطبق على الجميع.`,`ومن لا يفعل ذلك؟`,`لتكتشف هذا، جرّب ما يلي.`,`ما برجك؟ وهل ينطبق عليك فعلاً؟`],
+memory: [`ذكرياتك ليست تسجيلات، بل تُعاد كتابتها.`,`في تجربة كلاسيكية، شاهد الناس حادث سيارة، ثم قدّروا السرعة.`,`الذين سُئلوا عن سيارات «تحطمت» قدّروا نحو واحد وأربعين ميلاً في الساعة، وعن سيارات «تلامست» نحو اثنين وثلاثين.`,`كلمة واحدة غيّرت ما تذكروه.`,`في كل مرة تتذكر شيئاً، يعيد دماغك بناءه، وقد يضيف تفاصيل أو يغيرها.`,`لذلك احذر من عبارة: أتذكر ذلك بالضبط.`,`الذكرى الواضحة ليست بالضرورة صحيحة.`,`ما الذكرى التي كنت واثقاً منها لكنك كنت مخطئاً؟`],
+hedonic: [`الشيء الجديد الذي أسعدك كثيراً؟ بدأ تأثيره يزول بالفعل.`,`يسمى هذا التكيّف اللذّي.`,`هاتف جديد. سيارة جديدة. وظيفة جديدة. رائع لمدة شهر، ثم يصبح عادياً.`,`وينطبق ذلك على الأشياء السيئة أيضاً. نتكيف عادةً أكثر مما نتوقع.`,`لذلك لا تكفي الترقية القادمة أبداً.`,`إليك كيف تقاومه.`,`تتلاشى السعادة بأسرع ما يكون مع الأشياء، أما التجارب فتدوم أطول.`,`ما الذي كان مثيراً يوماً ويبدو عادياً الآن؟`],
+conformity: [`هل ستعطي إجابة تعرف أنها خاطئة لمجرد أن تنسجم مع الآخرين؟`,`في تجربة شهيرة، قارن الناس بين أطوال خطوط. كانت الإجابة واضحة، لكن ممثلين في الغرفة أعطوا إجابة خاطئة عمداً.`,`نحو ثلاثة أرباع الناس جاروا المجموعة مرة واحدة على الأقل.`,`لم يكونوا أغبياء، لكن المعارضة كانت غير مريحة.`,`لكن عندما عارض شخص واحد آخر، انخفض الضغط بشدة.`,`لذلك عندما تشعر بالضغط في المرة القادمة، جرّب هذا.`,`لا يجب أن تكون صاخباً، يكفي أن تكون الأول.`,`هل كنت ستجاري المجموعة؟ كن صادقاً.`],
+};
+// storytelling variety: some topics reveal the study first and name the effect afterwards
+const ORDER = { spotlight: [0,2,3,1,4,5,6,7], sunkcost: [0,3,4,1,2,5,6,7], anchoring: [0,2,3,1,4,5,6,7], lossaversion: [0,2,1,3,4,5,6,7], planning: [0,2,1,3,4,5,6,7], curseknowledge: [0,2,3,1,4,5,6,7], peakend: [0,2,3,4,1,5,6,7], bystander: [0,2,3,1,4,5,6,7], dissonance: [0,2,3,1,4,5,6,7], barnum: [0,2,3,1,4,5,6,7] };
+const HOSTP = [[510], [210], [510, 210, 510, 360, 210, 360, 510, 210], [360, 360, 510, 510, 210, 210, 360, 510], [210, 510, 210, 510, 360, 210, 510, 360], [360], [510, 510, 360, 210, 210, 360, 510, 510]];
+function topic(d, idx) {
+  const [id, , title, cap, q, beats0] = d, ord = ORDER[id] || [0, 1, 2, 3, 4, 5, 6, 7], ar = AR[id] || [];
+  const beats = ord.map((k) => ({ v: beats0[k][0], s: beats0[k][1], g: beats0[k][2] || null, ar: ar[k] || '', d: 2.4 }));
+  const r = rng(idx * 7 + 3), trs = [0, 1, 2, 3, 4, 5]; for (let i = 5; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [trs[i], trs[j]] = [trs[j], trs[i]]; }
+  return { id, title, kind: 'mind', note: `Comment prompt: ${q}`, caption: `${cap}\n\n${q}`,
+    tags: '#Psychology #PsychologyFacts #HumanBehavior #Mindset #LearnSomethingNew #Brain',
+    pal: PALS[(idx * 3) % 8], pat: (idx * 5) % 4, host: HOSTP[(idx * 3 + 2) % 7], hs: 0.84 + ((idx * 7) % 5) * 0.02, cap: idx % 3 === 1 ? 1 : 0, trs,
+    bpm: 70 + (idx % 5) * 4, rot: idx % 4, beats };
+}
+
+
+// =====================================================================
+//  TIMELINE: one beat per spoken line; captions follow the words
+// =====================================================================
+const VOICE_OFF = 0.25, VOICE_TAIL = 0.3, END_HOLD = 0.9;
+let STORY = null, TL = null;
+function buildTL(v) {
+  const bs = STORY.beats, n = bs.length, E = [], R = [], starts = [], VD = [], words = [], ars = []; let t = 0;
+  for (let i = 0; i < n; i++) {
+    const w = bs[i].v.split(/\s+/), has = v && v[i] > 0, off = i === 0 ? 0.1 : VOICE_OFF, est = w.length * 0.33;
+    const vd = has ? v[i] : est, r = Math.max(bs[i].d, off + vd + VOICE_TAIL);
+    E.push(t); R.push(r); starts.push(t + off); VD.push(vd);
+    const wt = w.map((x) => x.length + 2 + (/[.,!?;:]$/.test(x) ? 5 : 0)), sum = wt.reduce((a, b) => a + b, 0); let acc = 0;
+    words.push(w.map((x, j) => { const a0 = acc / sum; acc += wt[j]; return { w: x, t0: starts[i] + vd * a0, t1: starts[i] + vd * (acc / sum) }; }));
+    const arT = (bs[i].ar || '').split(/(?<=[.؟!])\s+/).filter(Boolean), aw = arT.map((x) => x.length + 3), as = aw.reduce((a, b) => a + b, 0) || 1; let aa = 0;
+    ars.push(arT.map((x, j) => { const a0 = aa / as; aa += aw[j]; return { text: x, t0: starts[i] + vd * a0, t1: j === arT.length - 1 ? starts[i] + vd + 0.3 : starts[i] + vd * (aa / as) }; }));
+    t += r;
+  }
+  return { E, R, starts, VD, words, ars, total: t + END_HOLD };
+}
+const beatAt = (T) => { let k = 0; for (let i = 0; i < TL.E.length; i++) if (T >= TL.E[i]) k = i; return k; };
+function speaking(T) { for (let i = 0; i < TL.starts.length; i++) if (T >= TL.starts[i] && T < TL.starts[i] + TL.VD[i]) return true; return false; }
+
+// =====================================================================
+//  DRAWING HELPERS
+// =====================================================================
+function wrapW(c, str, maxW) {
+  const out = []; let cur = '';
+  for (const w of str.split(' ')) { const t = cur ? cur + ' ' + w : w; if (!cur || c.measureText(t).width <= maxW) cur = t; else { out.push(cur); cur = w; } }
+  if (cur) out.push(cur); return out;
+}
+function fitWrap(c, str, font, size, maxW, maxLines) {
+  let s = size, lines;
+  for (let k = 0; k < 10; k++) { c.font = font(s); lines = wrapW(c, str, maxW); if (lines.length <= maxLines && lines.every((l) => c.measureText(l).width <= maxW)) break; s = Math.floor(s * 0.92); }
+  return { s, lines };
+}
+function stext(c, str, x, y, col, lw = 8) { c.lineJoin = 'round'; c.lineWidth = lw; c.strokeStyle = 'rgba(0,0,0,.85)'; c.strokeText(str, x, y); c.fillStyle = col; c.fillText(str, x, y); }
+function rr(c, x, y, w, h, r) { c.beginPath(); c.roundRect(x, y, w, h, r); }
+function glow(c, col, b) { c.shadowColor = col; c.shadowBlur = b; }
+function noglow(c) { c.shadowColor = 'transparent'; c.shadowBlur = 0; }
+const clean = (w) => w.replace(/[^A-Za-z0-9%$']/g, '').toUpperCase();
+
+// ---------- icons ----------
+function icon(c, name, x, y, s, col, T, alpha = 1) {
+  c.save(); c.translate(x, y); c.scale(s, s); c.globalAlpha = alpha; c.strokeStyle = col; c.fillStyle = 'rgba(10,15,36,.55)'; c.lineWidth = 7; c.lineCap = 'round'; c.lineJoin = 'round'; glow(c, col, 22);
+  if (name === 'brain') {
+    [[-34, -8, 44], [34, -8, 44], [-22, 28, 36], [22, 28, 36]].forEach(([bx, by, r]) => { c.beginPath(); c.arc(bx, by, r, 0, TAU); c.fill(); c.stroke(); });
+    c.beginPath(); c.moveTo(0, -50); c.lineTo(0, 62); c.stroke(); noglow(c); c.lineWidth = 4; c.globalAlpha = alpha * 0.7;
+    for (let k = 0; k < 4; k++) { const o = Math.sin(T * 2 + k) * 4; c.beginPath(); c.moveTo(-60, -20 + k * 18 + o); c.quadraticCurveTo(-34, -34 + k * 18, -10, -14 + k * 18 - o); c.moveTo(60, -20 + k * 18 - o); c.quadraticCurveTo(34, -34 + k * 18, 10, -14 + k * 18 + o); c.stroke(); }
+  } else if (name === 'bulb') {
+    c.beginPath(); c.arc(0, -16, 56, 0, TAU); c.fill(); c.stroke(); rr(c, -24, 38, 48, 40, 8); c.fill(); c.stroke(); noglow(c); c.lineWidth = 5;
+    for (let k = 0; k < 8; k++) { const a = k / 8 * TAU + T * 0.4, l = 8 + Math.sin(T * 4 + k) * 5; c.beginPath(); c.moveTo(Math.cos(a) * 78, -16 + Math.sin(a) * 78); c.lineTo(Math.cos(a) * (88 + l), -16 + Math.sin(a) * (88 + l)); c.stroke(); }
+  } else if (name === 'clock') {
+    c.beginPath(); c.arc(0, 0, 80, 0, TAU); c.fill(); c.stroke(); noglow(c); c.lineWidth = 8;
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(T * 0.8 - 1.57) * 52, Math.sin(T * 0.8 - 1.57) * 52); c.moveTo(0, 0); c.lineTo(Math.cos(T * 0.07 - 1.57) * 34, Math.sin(T * 0.07 - 1.57) * 34); c.stroke();
+    c.lineWidth = 5; for (let k = 0; k < 12; k++) { const a = k / 12 * TAU; c.beginPath(); c.moveTo(Math.cos(a) * 68, Math.sin(a) * 68); c.lineTo(Math.cos(a) * 76, Math.sin(a) * 76); c.stroke(); }
+  } else if (name === 'eye') {
+    c.beginPath(); c.moveTo(-96, 0); c.quadraticCurveTo(0, -84, 96, 0); c.quadraticCurveTo(0, 84, -96, 0); c.fill(); c.stroke(); noglow(c);
+    const px = Math.sin(T * 1.3) * 18; c.fillStyle = col; c.beginPath(); c.arc(px, 0, 30, 0, TAU); c.fill(); c.fillStyle = '#060914'; c.beginPath(); c.arc(px, 0, 13, 0, TAU); c.fill();
+  } else if (name === 'crowd') {
+    for (let k = 0; k < 5; k++) { const px = (k - 2) * 52, hl = k === 2; c.globalAlpha = alpha * (hl ? 1 : 0.65); c.strokeStyle = hl ? col : WHT; c.beginPath(); c.arc(px, -22 + Math.sin(T * 2 + k) * 3, 20, 0, TAU); c.fill(); c.stroke(); c.beginPath(); c.arc(px, 46, 30, Math.PI, 0); c.fill(); c.stroke(); }
+  } else if (name === 'warn') {
+    c.beginPath(); c.moveTo(0, -80); c.lineTo(84, 64); c.lineTo(-84, 64); c.closePath(); c.fill(); c.stroke(); noglow(c); c.lineWidth = 11; c.beginPath(); c.moveTo(0, -30); c.lineTo(0, 22); c.stroke(); c.fillStyle = col; c.beginPath(); c.arc(0, 46, 7, 0, TAU); c.fill();
+  } else if (name === 'coin') {
+    c.beginPath(); c.arc(0, 0, 78, 0, TAU); c.fill(); c.stroke(); noglow(c); c.beginPath(); c.arc(0, 0, 58, 0, TAU); c.lineWidth = 4; c.stroke(); c.fillStyle = col; c.font = `120px ${ANT}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('$', 0, 8);
+  }
+  c.restore();
+}
+
+// ---------- background (4 patterns, palette per video) ----------
+function bg(c, T, acc, bi) {
+  const g = c.createLinearGradient(0, 0, 0, HH); g.addColorStop(0, PAL.top); g.addColorStop(0.55, PAL.mid); g.addColorStop(1, PAL.top); c.fillStyle = g; c.fillRect(0, 0, W, HH);
+  const gl = c.createRadialGradient(360, 260, 20, 360, 260, 520); gl.addColorStop(0, acc + '38'); gl.addColorStop(1, acc + '00'); c.fillStyle = gl; c.fillRect(0, 0, W, 900);
+  c.save(); c.strokeStyle = acc; const pat = STORY.pat;
+  if (pat === 0) { c.globalAlpha = 0.07; c.lineWidth = 2; const off = (T * 24) % 80; for (let x = -80; x < W + 80; x += 80) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, SCR_H); c.stroke(); } for (let y = -80 + off; y < SCR_H; y += 80) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); } }
+  else if (pat === 1) { c.fillStyle = acc; for (let gx = 24; gx < W; gx += 48) for (let gy = 24; gy < SCR_H; gy += 48) { c.globalAlpha = 0.14 + 0.1 * Math.sin(T * 2 + gx * 0.03 + gy * 0.04); c.beginPath(); c.arc(gx, gy, 2.5 + Math.sin(T * 1.5 + gx * 0.05) * 1.2, 0, TAU); c.fill(); } }
+  else if (pat === 2) { c.globalAlpha = 0.08; c.lineWidth = 3; const off = (T * 30) % 90; for (let k = -SCR_H; k < W + SCR_H; k += 90) { c.beginPath(); c.moveTo(k + off, 0); c.lineTo(k + off - SCR_H * 0.6, SCR_H); c.stroke(); } }
+  else { c.lineWidth = 3; for (let k = 0; k < 8; k++) { const r = ((T * 36 + k * 90) % 720); c.globalAlpha = 0.14 * (1 - r / 720); c.beginPath(); c.arc(360, 330, r, 0, TAU); c.stroke(); } }
+  c.restore();
+  const r = rng(11 + bi); c.fillStyle = acc;
+  for (let i = 0; i < 30; i++) { const x = r() * W, sp = 10 + r() * 30, y = ((r() * SCR_H - T * sp) % SCR_H + SCR_H) % SCR_H, s = 1.5 + r() * 3; c.globalAlpha = 0.1 + r() * 0.28; c.beginPath(); c.arc(x + Math.sin(T + i) * 10, y, s, 0, TAU); c.fill(); }
+  c.globalAlpha = 1;
+}
+
+// =====================================================================
+//  SCENES (each draws in the area above the captions)
+// =====================================================================
+function sBig(c, s, tb, acc, bi) {
+  const words = s.t.split(' ');
+  if (!s._lay) {
+    let size = words.length > 5 ? 104 : words.length > 3 ? 124 : 144, lines, ok = false;
+    for (let k = 0; k < 14 && !ok; k++) {
+      c.font = `${size}px ${ANT}`; const sp = c.measureText(' ').width; lines = []; let cur = [], cw = 0;
+      words.forEach((w, j) => { const ww = c.measureText(w).width; if (cur.length && cw + sp + ww > 620) { lines.push(cur); cur = []; cw = 0; } cw += (cur.length ? sp : 0) + ww; cur.push({ w, j, ww }); });
+      if (cur.length) lines.push(cur);
+      ok = lines.length <= 4 && lines.every((l) => l.reduce((a, x) => a + x.ww, 0) + sp * (l.length - 1) <= 620);
+      if (!ok) size = Math.floor(size * 0.92);
+    }
+    s._lay = { size, lines, sp: c.measureText(' ').width };
+  }
+  const { size, lines, sp } = s._lay, lh = size * 1.04, y0 = 400 - (lines.length * lh) / 2 + size * 0.82, hl = (s.hl || []).map((x) => clean(x));
+  const left = vr(bi, 1) < 0.35, tilt = vr(bi, 2) < 0.4 ? (vr(bi, 3) - 0.5) * 0.12 : 0, en = Math.floor(vr(bi, 4) * 3);
+  c.save(); if (tilt) { c.translate(360, 400); c.rotate(tilt); c.translate(-360, -400); }
+  if (left) { c.fillStyle = acc; c.fillRect(30, y0 - size * 0.8, 10, lines.length * lh); }
+  c.textAlign = 'center'; c.textBaseline = 'alphabetic'; c.font = `${size}px ${ANT}`;
+  lines.forEach((ln, li) => {
+    const tw = ln.reduce((a, x) => a + x.ww, 0) + sp * (ln.length - 1); let x = left ? 64 : 360 - tw / 2;
+    ln.forEach((wd) => {
+      const t0 = (bi === 0 ? -0.4 : 0) + wd.j * 0.15, q = clamp((tb - t0) / 0.2), cx = x + wd.ww / 2, y = y0 + li * lh, ys = y - size * 0.35;
+      x += wd.ww + sp; if (q <= 0) return;
+      const on = hl.some((h) => h && clean(wd.w).indexOf(h) >= 0); let k = 1, dx = 0, dy = 0;
+      if (en === 0) k = 1 + 0.55 * (1 - eo(q)); else if (en === 1) dx = (li % 2 ? 1 : -1) * (1 - eo(q)) * 300; else dy = -(1 - eo(q)) * 170;
+      c.save(); c.globalAlpha = q; c.translate(cx + dx, ys + dy); c.scale(k, k); c.translate(-cx, -ys);
+      if (on) glow(c, acc, 36); stext(c, wd.w, cx, y, on ? acc : WHT, 10); noglow(c); c.restore();
+      if (on) { const u = eo((tb - t0 - 0.2) / 0.3); c.fillStyle = acc; c.fillRect(cx - wd.ww / 2, y + 12, wd.ww * u, 9); }
+    });
+  });
+  c.restore();
+}
+function sTerm(c, s, tb, acc) {
+  icon(c, 'brain', 360, 420, 3.4, acc, tb, 0.08);
+  const a = eo(tb / 0.3); c.save(); c.globalAlpha = a; c.font = `800 26px ${MON}`; const tw = c.measureText('PSYCHOLOGY TERM').width + 44;
+  c.translate(0, (1 - a) * -30); c.fillStyle = acc; rr(c, 360 - tw / 2, 150, tw, 52, 26); c.fill(); c.fillStyle = NAVY; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('PSYCHOLOGY TERM', 360, 177); c.restore();
+  const f = fitWrap(c, s.n, (z) => `${z}px ${ANT}`, 112, 640, 3), lh = f.s * 1.05, q = eb((tb - 0.15) / 0.4), y0 = 330 + f.s * 0.5;
+  c.textAlign = 'center'; c.textBaseline = 'alphabetic'; c.font = `${f.s}px ${ANT}`;
+  c.save(); c.globalAlpha = clamp((tb - 0.15) / 0.2); c.translate(360, 330); c.scale(0.7 + 0.3 * q, 0.7 + 0.3 * q); c.translate(-360, -330);
+  glow(c, acc, 30); f.lines.forEach((l, j) => stext(c, l, 360, y0 + j * lh, acc, 10)); noglow(c); c.restore();
+  const yl = y0 + (f.lines.length - 1) * lh + 28, u = eo((tb - 0.5) / 0.4); c.fillStyle = WHT; c.fillRect(360 - 150 * u, yl, 300 * u, 6);
+  c.save(); c.globalAlpha = clamp((tb - 0.8) / 0.4); c.font = `700 38px ${MON}`; const d = fitWrap(c, s.d, (z) => `700 ${z}px ${MON}`, 38, 560, 4); c.textAlign = 'center';
+  d.lines.forEach((l, j) => stext(c, l, 360, yl + 70 + j * d.s * 1.3, 'rgba(245,247,255,.95)', 6)); c.restore();
+}
+function sStat(c, s, tb, acc) {
+  const q = eo(tb / 1.1), v = s.v * q, dec = String(s.v).indexOf('.') >= 0, txt = dec ? v.toFixed(2) : String(Math.round(v));
+  if (s.suf === '%') { c.save(); c.lineWidth = 22; c.lineCap = 'round'; c.strokeStyle = 'rgba(255,255,255,.1)'; c.beginPath(); c.arc(360, 340, 215, 0, TAU); c.stroke(); glow(c, acc, 26); c.strokeStyle = acc; c.beginPath(); c.arc(360, 340, 215, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(v / 100) * 0.9999); c.stroke(); c.restore(); }
+  c.font = `250px ${ANT}`; const w1 = c.measureText(txt).width; c.font = `110px ${ANT}`; const w2 = c.measureText(s.suf).width, x0 = 360 - (w1 + w2) / 2;
+  c.textAlign = 'left'; c.textBaseline = 'alphabetic'; glow(c, acc, 30); c.font = `250px ${ANT}`; stext(c, txt, x0, 440, acc, 12); c.font = `110px ${ANT}`; stext(c, s.suf, x0 + w1 + 6, 440, WHT, 8); noglow(c);
+  c.save(); c.globalAlpha = clamp((tb - 0.9) / 0.3); const f = fitWrap(c, s.t, (z) => `800 ${z}px ${MON}`, 40, 560, 3); c.textAlign = 'center'; f.lines.forEach((l, j) => stext(c, l, 360, 640 + j * f.s * 1.3, WHT, 7)); c.restore();
+}
+function sBars(c, s, tb, acc) {
+  const a = eo(tb / 0.3); c.save(); c.globalAlpha = a; c.font = `800 28px ${MON}`; const tw = c.measureText(s.t).width + 44; c.fillStyle = acc; rr(c, 360 - tw / 2, 130, tw, 52, 26); c.fill(); c.fillStyle = NAVY; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(s.t, 360, 157); c.restore();
+  const mx = Math.max(...s.rows.map((r) => r[1])), cols = [PAL.acc2, acc];
+  s.rows.forEach((r, j) => {
+    const y = 260 + j * 210, q = eo((tb - 0.2 - j * 0.4) / 0.9), col = cols[j % 2]; c.save(); c.globalAlpha = clamp((tb - j * 0.4) / 0.25);
+    c.font = `800 34px ${MON}`; c.textAlign = 'left'; c.textBaseline = 'alphabetic'; stext(c, r[0], 70, y, WHT, 7);
+    c.fillStyle = 'rgba(255,255,255,.1)'; rr(c, 70, y + 18, 580, 78, 20); c.fill();
+    const bw = Math.max(40, 580 * (r[1] / mx) * q); glow(c, col, 20); c.fillStyle = col; rr(c, 70, y + 18, bw, 78, 20); c.fill(); noglow(c);
+    const val = r[1] * q, dec = String(r[1]).indexOf('.') >= 0; c.font = `64px ${ANT}`; c.textBaseline = 'middle'; c.fillStyle = NAVY; c.textAlign = 'left'; c.fillText((dec ? val.toFixed(1) : Math.round(val)) + s.unit, 90, y + 59); c.restore();
+  });
+}
+function sVS(c, s, tb, acc, bi) {
+  const side = vr(bi, 5) < 0.45, col2 = PAL.acc2;
+  const card = (d, x, y, w, h, dx, dy, col, fsz, maxW) => {
+    c.save(); c.translate(dx, dy); c.fillStyle = PAL.card; rr(c, x, y, w, h, 28); c.fill(); glow(c, col, 18); c.lineWidth = 4; c.strokeStyle = col; c.stroke(); noglow(c);
+    c.fillStyle = col; rr(c, x, y, 14, h, 7); c.fill(); c.font = `800 26px ${MON}`; c.textAlign = 'left'; c.textBaseline = 'alphabetic'; c.fillText(d[0], x + 46, y + 54);
+    const f = fitWrap(c, d[1], (z) => `900 ${z}px ${MON}`, fsz, maxW, 5); f.lines.forEach((l, j) => { c.font = `900 ${f.s}px ${MON}`; c.fillStyle = WHT; c.fillText(l, x + 46, y + 108 + j * f.s * 1.25); }); c.restore();
+  };
+  let cy;
+  if (side) { card(s.a, 24, 170, 330, 380, 0, (1 - eo(tb / 0.45)) * -760, col2, 40, 262); card(s.b, 366, 170, 330, 380, 0, (1 - eo((tb - 0.4) / 0.45)) * 760, acc, 40, 262); cy = 360; }
+  else { card(s.a, 50, 150, 620, 230, (1 - eo(tb / 0.45)) * -760, 0, col2, 46, 540); card(s.b, 50, 440, 620, 230, (1 - eo((tb - 0.4) / 0.45)) * 760, 0, acc, 46, 540); cy = 410; }
+  const q = eb((tb - 0.75) / 0.35); if (q > 0) { c.save(); c.translate(360, cy); c.scale(q, q); glow(c, acc, 24); c.fillStyle = acc; c.beginPath(); c.arc(0, 0, 44, 0, TAU); c.fill(); noglow(c); c.fillStyle = NAVY; c.font = `46px ${ANT}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('VS', 0, 3); c.restore(); }
+}
+function sSteps(c, s, tb, acc, bi) {
+  const zig = vr(bi, 6) < 0.5;
+  const a = eo(tb / 0.3); c.save(); c.globalAlpha = a; c.font = `800 30px ${MON}`; const tw = c.measureText(s.t).width + 50; c.fillStyle = acc; rr(c, 360 - tw / 2, 120, tw, 56, 28); c.fill(); c.fillStyle = NAVY; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(s.t, 360, 148); c.restore();
+  s.items.forEach((it, j) => {
+    const q = eo((tb - 0.3 - j * 0.55) / 0.4); if (q <= 0) return; const y = 230 + j * 170, x = zig ? (j % 2 ? 140 : 40) : 50, w = zig ? 540 : 620; c.save(); c.globalAlpha = q; c.translate((zig ? (j % 2 ? 1 : -1) : 0) * (1 - q) * 120, (zig ? 0 : (1 - q) * 50));
+    c.fillStyle = PAL.card; rr(c, x, y, w, 140, 26); c.fill(); glow(c, acc, 14); c.lineWidth = 3; c.strokeStyle = acc; c.stroke(); noglow(c);
+    c.fillStyle = acc; c.beginPath(); c.arc(x + 66, y + 70, 36, 0, TAU); c.fill(); c.fillStyle = NAVY; c.font = `54px ${ANT}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(j + 1), x + 66, y + 74);
+    const f = fitWrap(c, it, (z) => `800 ${z}px ${MON}`, 36, w - 180, 3); c.textAlign = 'left'; c.textBaseline = 'alphabetic'; c.fillStyle = WHT; f.lines.forEach((l, k) => { c.font = `800 ${f.s}px ${MON}`; c.fillText(l, x + 126, y + 70 + f.s * 0.35 - (f.lines.length - 1) * f.s * 0.62 + k * f.s * 1.24); }); c.restore();
+  });
+}
+function bubble(c, str, x, y, maxW, col, tcol, right, chars) {
+  c.font = `800 44px ${MON}`; const f = fitWrap(c, str, (z) => `800 ${z}px ${MON}`, 44, maxW, 3), shown = str.slice(0, chars), lines = wrapW(c, shown || ' ', maxW);
+  c.font = `800 ${f.s}px ${MON}`; const w = Math.max(...f.lines.map((l) => c.measureText(l).width)) + 60, h = f.lines.length * f.s * 1.3 + 40, bx = right ? x - w : x;
+  c.fillStyle = col; rr(c, bx, y, w, h, 30); c.fill(); c.beginPath(); c.moveTo(right ? bx + w - 50 : bx + 50, y + h - 2); c.lineTo(right ? bx + w - 20 : bx + 20, y + h + 30); c.lineTo(right ? bx + w - 90 : bx + 90, y + h - 2); c.fill();
+  c.fillStyle = tcol; c.textAlign = 'left'; c.textBaseline = 'alphabetic'; lines.forEach((l, j) => c.fillText(l, bx + 30, y + 24 + f.s * 1.0 + j * f.s * 1.3)); return h;
+}
+function sBub(c, s, tb, acc) {
+  const q = eb(tb / 0.35); c.save(); c.translate(60, 300); c.scale(q, q); c.translate(-60, -300); bubble(c, s.q, 60, 190, 540, PAL.bub, WHT, false, Math.floor(tb * 26)); c.restore();
+  if (s.r && tb > 1.5) { const q2 = eb((tb - 1.5) / 0.35); c.save(); c.translate(660, 520); c.scale(q2, q2); c.translate(-660, -520); bubble(c, s.r, 660, 470, 480, acc, NAVY, true, Math.floor((tb - 1.5) * 26)); c.restore(); }
+  else if (!s.r) { icon(c, 'brain', 360, 560, 1.2, acc, tb, 0.5); }
+}
+function sIcon(c, s, tb, acc) {
+  const q = eb(tb / 0.45), pulse = 1 + Math.sin(tb * 5) * 0.03;
+  c.save(); c.strokeStyle = acc; c.globalAlpha = 0.35 * (1 - ((tb * 0.9) % 1)); c.lineWidth = 5; c.beginPath(); c.arc(360, 330, 150 + ((tb * 0.9) % 1) * 140, 0, TAU); c.stroke(); c.restore();
+  icon(c, s.n, 360, 330, 2.3 * q * pulse, acc, tb);
+  c.save(); c.globalAlpha = clamp((tb - 0.35) / 0.3); const f = fitWrap(c, s.t, (z) => `${z}px ${ANT}`, 84, 640, 3); c.textAlign = 'center'; c.textBaseline = 'alphabetic'; f.lines.forEach((l, j) => stext(c, l, 360, 600 + j * f.s * 1.08, WHT, 9)); c.restore();
+}
+function sAsk(c, s, tb, acc) {
+  const q = eb(tb / 0.4), f = fitWrap(c, s.t, (z) => `${z}px ${ANT}`, 112, 640, 3), lh = f.s * 1.05;
+  c.save(); c.translate(360, 300); c.scale(q, q); c.translate(-360, -300); c.textAlign = 'center'; c.textBaseline = 'alphabetic'; glow(c, acc, 28); f.lines.forEach((l, j) => stext(c, l, 360, 250 + j * lh, acc, 10)); noglow(c); c.restore();
+  const yb = 250 + (f.lines.length - 1) * lh + 80; c.save(); c.globalAlpha = clamp((tb - 0.5) / 0.3); c.font = `800 38px ${MON}`; c.textAlign = 'center'; stext(c, s.sub, 360, yb, WHT, 7);
+  const b = Math.sin(tb * 6) * 12; c.strokeStyle = acc; c.lineWidth = 18; c.lineCap = 'round'; c.lineJoin = 'round'; glow(c, acc, 20); c.beginPath(); c.moveTo(360, yb + 50 + b); c.lineTo(360, yb + 140 + b); c.stroke(); c.beginPath(); c.moveTo(318, yb + 100 + b); c.lineTo(360, yb + 146 + b); c.lineTo(402, yb + 100 + b); c.stroke(); c.restore();
+}
+const SCENES = { big: sBig, term: sTerm, stat: sStat, bars: sBars, vs: sVS, steps: sSteps, bub: sBub, icon: sIcon, ask: sAsk };
+
+// sound cues for each scene (relative to beat start)
+function cues(s, bi) {
+  const o = [];
+  if (s.k === 'big') s.t.split(' ').forEach((w, j) => o.push({ t: Math.max(0, (bi === 0 ? -0.4 : 0) + j * 0.15), k: 'slam' }));
+  else if (s.k === 'term') o.push({ t: 0.1, k: 'pop' }, { t: 0.45, k: 'ding' });
+  else if (s.k === 'stat') { for (let t = 0; t < 1.1; t += 0.09) o.push({ t, k: 'tick' }); o.push({ t: 1.1, k: 'ding' }); }
+  else if (s.k === 'bars') s.rows.forEach((r, j) => { o.push({ t: 0.2 + j * 0.4, k: 'pop' }); for (let t = 0; t < 0.9; t += 0.1) o.push({ t: 0.2 + j * 0.4 + t, k: 'tick' }); });
+  else if (s.k === 'vs') o.push({ t: 0.25, k: 'slam' }, { t: 0.65, k: 'slam' }, { t: 0.95, k: 'pop' });
+  else if (s.k === 'steps') s.items.forEach((x, j) => o.push({ t: 0.35 + j * 0.55, k: 'pop' }));
+  else if (s.k === 'bub') { for (let j = 0; j < Math.min(s.q.length, 30); j++) o.push({ t: j / 26, k: 'tick' }); if (s.r) o.push({ t: 1.5, k: 'pop' }); }
+  else if (s.k === 'icon') o.push({ t: 0.2, k: 'pop' });
+  else if (s.k === 'ask') o.push({ t: 0.25, k: 'ding' }, { t: 0.55, k: 'pop' });
+  return o;
+}
+
+// =====================================================================
+//  THE HOST: slim man in a suit. Outfit colors, size and position change per video and per scene.
+// =====================================================================
+const SKIN = '#e5b48f', OUTL = '#0a0d1c', HAIRC = '#16121a';
+const GEST = {
+  rest: { L: [-135, 1275], R: [135, 1275] },
+  present: { L: [-135, 1275], R: [235, 1065] },
+  presentL: { L: [-235, 1065], R: [135, 1275] },
+  up: { L: [-135, 1275], R: [135, 945], f: 'up' },
+  think: { L: [-135, 1275], R: [42, 1032] },
+  both: { L: [-195, 1085], R: [195, 1085] },
+};
+const GCYCLE = ['present', 'rest', 'presentL', 'both', 'up', 'present', 'think', 'presentL'];
+function poly(c, pts, fill, lw = 3) { c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath(); c.fillStyle = fill; c.fill(); if (lw) { c.strokeStyle = OUTL; c.lineWidth = lw; c.lineJoin = 'round'; c.stroke(); } }
+function ell(c, x, y, rx, ry, fill, lw = 3) { c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, TAU); c.fillStyle = fill; c.fill(); if (lw) { c.strokeStyle = OUTL; c.lineWidth = lw; c.stroke(); } }
+function limb(c, pts, col, lw) { c.save(); c.lineCap = 'round'; c.lineJoin = 'round'; for (const [s, w] of [[OUTL, lw + 6], [col, lw]]) { c.strokeStyle = s; c.lineWidth = w; c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.stroke(); } c.restore(); }
+function elbow(S, H, side) {
+  const L = 130, dx = H[0] - S[0], dy = H[1] - S[1], dd = Math.hypot(dx, dy) || 1, d = Math.min(dd, 2 * L - 2), h = Math.sqrt(L * L - d * d / 4);
+  let nx = -dy / dd, ny = dx / dd; if (-ny + 0.5 * -nx * side > ny + 0.5 * nx * side) { nx = -nx; ny = -ny; }
+  return [(S[0] + H[0]) / 2 + nx * h, (S[1] + H[1]) / 2 + ny * h];
+}
+const hostAt = (i) => STORY.host[i % STORY.host.length];
+function gestAt(i) { let n = STORY.beats[i].g || GCYCLE[i % GCYCLE.length]; if (hostAt(i) >= 400) n = n === 'present' ? 'presentL' : n === 'presentL' ? 'present' : n; return GEST[n]; }
+function man(c, T, bi, bt, acc) {
+  const cx = 360, sp = speaking(T), sc = STORY.hs, q = ez(bt / 0.45), g1 = gestAt(bi), g0 = bi > 0 ? gestAt(bi - 1) : GEST.rest;
+  const hx = bi === 0 ? hostAt(0) : lerp(hostAt(bi - 1), hostAt(bi), ez(bt / 0.55));
+  const S1 = [cx - 74, 1108], S2 = [cx + 74, 1108], sw = Math.sin(T * 1.6) * 4;
+  const hL = [cx + lerp(g0.L[0], g1.L[0], q), lerp(g0.L[1], g1.L[1], q) + sw], hR = [cx + lerp(g0.R[0], g1.R[0], q), lerp(g0.R[1], g1.R[1], q) - sw];
+  const e1 = elbow(S1, hL, -1), e2 = elbow(S2, hR, 1);
+  const sg = c.createRadialGradient(hx, 1100, 30, hx, 1100, 330); sg.addColorStop(0, acc + '40'); sg.addColorStop(1, acc + '00'); c.fillStyle = sg; c.fillRect(0, 800, W, 480);
+  c.save(); c.translate(hx, 1280); c.scale(sc, sc); c.translate(-360, -1280); c.translate(0, Math.sin(T * 2) * 2 + (sp ? Math.sin(T * 9) * 1.2 : 0));
+  // ---- slim jacket: clean shape, soft gradient, rim light ----
+  const jg = c.createLinearGradient(cx - 104, 0, cx + 104, 0); jg.addColorStop(0, PAL.suit2); jg.addColorStop(0.5, PAL.suit); jg.addColorStop(1, PAL.suit);
+  poly(c, [[cx - 104, 1330], [cx - 102, 1150], [cx - 92, 1100], [cx - 60, 1076], [cx - 30, 1060], [cx + 30, 1060], [cx + 60, 1076], [cx + 92, 1100], [cx + 102, 1150], [cx + 104, 1330]], jg, 4);
+  c.strokeStyle = PAL.acc2; c.globalAlpha = 0.55; c.lineWidth = 3; c.beginPath(); c.moveTo(cx - 102, 1150); c.lineTo(cx - 92, 1100); c.lineTo(cx - 60, 1076); c.lineTo(cx - 30, 1060); c.stroke(); c.globalAlpha = 1;
+  // ---- white shirt, neck, tie ----
+  poly(c, [[cx - 32, 1058], [cx, 1210], [cx + 32, 1058]], '#f7f9ff', 3);
+  poly(c, [[cx - 20, 1010], [cx + 20, 1010], [cx + 24, 1070], [cx - 24, 1070]], SKIN, 3);
+  const blade = [[cx - 8, 1096], [cx + 8, 1096], [cx + 19, 1218], [cx, 1250], [cx - 19, 1218]];
+  poly(c, blade, PAL.tie, 3);
+  poly(c, [[cx - 10, 1072], [cx + 10, 1072], [cx + 13, 1096], [cx - 13, 1096]], PAL.tie, 3);
+  poly(c, [[cx - 28, 1052], [cx - 3, 1070], [cx - 7, 1098], [cx - 38, 1082]], '#ffffff', 3); poly(c, [[cx + 28, 1052], [cx + 3, 1070], [cx + 7, 1098], [cx + 38, 1082]], '#ffffff', 3);
+  ell(c, cx, 1270, 6, 6, 'rgba(255,255,255,.55)', 0);
+  // ---- sleeves with shirt cuffs ----
+  const cuff = (E, H) => { const dx = H[0] - E[0], dy = H[1] - E[1], d = Math.hypot(dx, dy) || 1, u = [dx / d, dy / d]; limb(c, [[H[0] - u[0] * 32, H[1] - u[1] * 32], [H[0] - u[0] * 21, H[1] - u[1] * 21]], '#f7f9ff', 32); ell(c, H[0] - u[0] * 26 - u[1] * 14, H[1] - u[1] * 26 + u[0] * 14, 3.2, 3.2, PAL.acc, 0); };
+  limb(c, [S1, e1, hL], PAL.suit, 30); limb(c, [S2, e2, hR], PAL.suit, 30); cuff(e1, hL); cuff(e2, hR);
+  ell(c, hL[0], hL[1], 16, 16, SKIN, 3); ell(c, hR[0], hR[1], 16, 16, SKIN, 3);
+  if (g1.f === 'up' && q > 0.5) { c.strokeStyle = SKIN; c.lineWidth = 10; c.lineCap = 'round'; c.beginPath(); c.moveTo(hR[0], hR[1] - 8); c.lineTo(hR[0], hR[1] - 44); c.stroke(); }
+  // ---- head ----
+  c.save(); c.translate(cx, 1020); c.rotate(Math.sin(T * 1.1) * 0.025 + (sp ? Math.sin(T * 7) * 0.012 : 0)); c.translate(-cx, -1020);
+  ell(c, cx - 53, 978, 8, 14, SKIN, 3); ell(c, cx + 53, 978, 8, 14, SKIN, 3);
+  ell(c, cx, 972, 52, 66, SKIN, 4);
+  poly(c, [[cx - 55, 962], [cx - 51, 914], [cx - 24, 893], [cx + 24, 893], [cx + 53, 914], [cx + 55, 962], [cx + 42, 930], [cx + 6, 920], [cx - 36, 928]], HAIRC, 3);
+  const lift = sp ? 3 + 3 * Math.sin(T * 4) : 0;
+  for (const s of [-1, 1]) { c.strokeStyle = HAIRC; c.lineWidth = 6; c.lineCap = 'round'; c.beginPath(); c.moveTo(cx + s * 21 - 12, 946 - lift); c.lineTo(cx + s * 21 + 12, 943 - lift - s * 1.5); c.stroke(); }
+  // ---- sunglasses ----
+  c.strokeStyle = '#0a0a10'; c.lineWidth = 5; c.lineCap = 'round'; c.beginPath(); c.moveTo(cx - 40, 962); c.lineTo(cx - 52, 968); c.moveTo(cx + 40, 962); c.lineTo(cx + 52, 968); c.stroke();
+  for (const s of [-1, 1]) {
+    const lx = cx + s * 22; c.beginPath(); c.moveTo(lx - 21, 954); c.lineTo(lx + 21, 954); c.quadraticCurveTo(lx + 24, 976, lx + 11, 992); c.quadraticCurveTo(lx, 996, lx - 11, 992); c.quadraticCurveTo(lx - 24, 976, lx - 21, 954); c.closePath();
+    const lg = c.createLinearGradient(lx - 20, 954, lx + 20, 996); lg.addColorStop(0, '#1c1c2e'); lg.addColorStop(1, '#05050a'); c.fillStyle = lg; c.fill(); c.strokeStyle = '#0a0a10'; c.lineWidth = 5; c.lineJoin = 'round'; c.stroke();
+    c.save(); c.clip(); c.fillStyle = 'rgba(255,255,255,.34)'; c.beginPath(); c.moveTo(lx - 14, 954); c.lineTo(lx - 4, 954); c.lineTo(lx - 16, 996); c.lineTo(lx - 24, 996); c.closePath(); c.fill(); c.fillStyle = acc + '55'; c.fillRect(lx - 22, 985, 44, 12); c.restore();
+  }
+  c.strokeStyle = '#0a0a10'; c.lineWidth = 5; c.beginPath(); c.moveTo(cx - 3, 958); c.quadraticCurveTo(cx, 955, cx + 3, 958); c.stroke();
+  c.strokeStyle = OUTL; c.lineWidth = 3; c.beginPath(); c.moveTo(cx - 3, 1000); c.lineTo(cx + 3, 1001); c.stroke();
+  const open = sp ? (0.25 + 0.75 * Math.abs(Math.sin(T * 14) * Math.sin(T * 5.3 + 0.7))) * 15 : 0;
+  if (open > 2) { ell(c, cx, 1017, 13, open / 2 + 2, '#4a1624', 3); ell(c, cx, 1017 + open / 4, 8, open / 5 + 1, '#d9707f', 0); }
+  else { c.strokeStyle = OUTL; c.lineWidth = 4; c.beginPath(); c.arc(cx, 1010, 14, 0.25, Math.PI - 0.25); c.stroke(); }
+  c.restore(); c.restore();
+}
+
+// =====================================================================
+//  CAPTIONS: English word-by-word (2 styles) + Arabic subtitle box
+// =====================================================================
+function captions(c, T, bi, acc) {
+  const ws = TL.words[bi]; if (T < ws[0].t0 - 0.05 || T > ws[ws.length - 1].t1 + 0.25) return;
+  let k = 0; for (let j = 0; j < ws.length; j++) if (T >= ws[j].t0) k = j;
+  let a = k; while (a > 0 && !/[.,!?;:]$/.test(ws[a - 1].w) && (k - a) < 2) a--;
+  let b = a; while (b < ws.length - 1 && !/[.,!?;:]$/.test(ws[b].w) && (b - a) < 2) b++;
+  if (k > b) { a = k; b = Math.min(ws.length - 1, k + 2); }
+  const chunk = ws.slice(a, b + 1), u = ez((T - chunk[0].t0 + 0.05) / 0.12);
+  c.save(); c.font = `900 54px ${MON}`; c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+  const sp = c.measureText(' ').width, wds = chunk.map((x) => x.w.toUpperCase()), wid = wds.map((x) => c.measureText(x).width), tot = wid.reduce((s, x) => s + x, 0) + sp * (wds.length - 1);
+  let rows = [[0, wds.length]]; if (tot > 640 && wds.length > 1) { const h = Math.ceil(wds.length / 2); rows = [[0, h], [h, wds.length]]; }
+  c.translate(360, CAP_Y); c.scale(0.92 + 0.08 * u, 0.92 + 0.08 * u); c.globalAlpha = u;
+  rows.forEach(([r0, r1], ri) => {
+    const rw = wid.slice(r0, r1).reduce((s, x) => s + x, 0) + sp * (r1 - r0 - 1); let x = -rw / 2;
+    for (let j = r0; j < r1; j++) {
+      const on = (a + j) === k, y = (ri - (rows.length - 1) / 2) * 62 + 20; c.save();
+      if (on) { c.translate(x + wid[j] / 2, y - 20); c.scale(1.08, 1.08); c.translate(-(x + wid[j] / 2), -(y - 20)); }
+      if (on && STORY.cap === 1) { c.fillStyle = acc; rr(c, x - 12, y - 52, wid[j] + 24, 70, 16); c.fill(); c.fillStyle = NAVY; c.fillText(wds[j], x, y); }
+      else stext(c, wds[j], x, y, on ? acc : WHT, 13);
+      c.restore(); x += wid[j] + sp;
+    }
+  });
+  c.restore();
+}
+function arSub(c, T, bi) {
+  const parts = TL.ars[bi]; let cur = null; for (const p of parts) if (T >= p.t0 - 0.05 && T < p.t1) cur = p; if (!cur) return;
+  const u = ez((T - cur.t0 + 0.05) / 0.15);
+  c.save(); c.direction = 'rtl'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  const f = fitWrap(c, cur.text, (z) => `700 ${z}px ${ARF}`, 34, 590, 3); c.font = `700 ${f.s}px ${ARF}`;
+  const lw = Math.max(...f.lines.map((l) => c.measureText(l).width)), lh = f.s * 1.45, bw = lw + 56, bh = f.lines.length * lh + 22;
+  c.translate(360, AR_Y); c.scale(0.94 + 0.06 * u, 0.94 + 0.06 * u); c.globalAlpha = u;
+  c.shadowColor = 'rgba(0,0,0,.4)'; c.shadowBlur = 16; c.shadowOffsetY = 5; c.fillStyle = PAL.top + 'ee'; rr(c, -bw / 2, -bh / 2, bw, bh, 22); c.fill();
+  c.shadowColor = 'transparent'; c.lineWidth = 2; c.strokeStyle = PAL.acc2; c.globalAlpha = u * 0.7; c.stroke(); c.globalAlpha = u; c.fillStyle = '#ffffff';
+  f.lines.forEach((l, j) => c.fillText(l, 0, -bh / 2 + 11 + lh * (j + 0.5)));
+  c.restore();
+}
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+function draw(c, T) {
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; c.shadowBlur = 0; c.clearRect(0, 0, W, HH);
+  const i = beatAt(T), bt = T - TL.E[i], b = STORY.beats[i], acc = PAL.acc, tr = STORY.trs[i % 6]; let zoom = 1 + 0.045 * clamp(bt / TL.R[i]), ox = 0, oy = 0, flash = 0, gl = 0;
+  if (i === 0) zoom *= 1 + 0.07 * (1 - eo(bt / 0.5));
+  else if (bt < 0.4) { const u = bt / 0.4; if (tr === 0) zoom *= 1 + 0.18 * (1 - eo(u)); else if (tr === 1) flash = 0.55 * (1 - u); else if (tr === 2) gl = 1 - u; else if (tr === 3) ox = (1 - ez(u)) * 320; else if (tr === 4) ox = -(1 - ez(u)) * 320; else oy = -(1 - eo(u)) * 260; }
+  bg(c, T, acc, i);
+  c.save(); c.beginPath(); c.rect(0, 0, W, SCR_H); c.clip(); c.translate(ox, oy);
+  c.translate(360, 40); c.scale(VSC, VSC); c.translate(-360, -40); c.translate(360, 400); c.scale(zoom, zoom); c.translate(-360, -400);
+  if (gl > 0) { const r = rng(Math.floor(T * 40) + 7); c.translate((r() - 0.5) * 34 * gl, 0); }
+  SCENES[b.s.k](c, b.s, bt, acc, i); c.restore();
+  if (gl > 0) { const r = rng(Math.floor(T * 40) + 3); for (let k = 0; k < 6; k++) { c.fillStyle = k % 2 ? 'rgba(57,229,255,.28)' : 'rgba(255,77,141,.28)'; c.fillRect(0, r() * SCR_H, W, 4 + r() * 16); } }
+  if ((tr === 3 || tr === 4) && i > 0 && bt < 0.4) { const u = 1 - bt / 0.4, r = rng(i * 13); c.strokeStyle = `rgba(255,255,255,${0.35 * u})`; c.lineWidth = 3; for (let k = 0; k < 9; k++) { const y = r() * SCR_H; c.beginPath(); c.moveTo(tr === 3 ? 0 : W, y); c.lineTo(tr === 3 ? W * (0.4 + r() * 0.6) : W * (0.6 - r() * 0.6), y); c.stroke(); } }
+  const fg = c.createLinearGradient(0, 620, 0, 770); fg.addColorStop(0, PAL.top + '00'); fg.addColorStop(1, PAL.top + 'cc'); c.fillStyle = fg; c.fillRect(0, 620, W, 150);
+  man(c, T, i, bt, acc);
+  captions(c, T, i, acc); arSub(c, T, i);
+  if (flash > 0) { c.fillStyle = `rgba(255,255,255,${flash})`; c.fillRect(0, 0, W, HH); }
+  const vg = c.createRadialGradient(W / 2, HH / 2, 440, W / 2, HH / 2, 900); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.16)'); c.fillStyle = vg; c.fillRect(0, 0, W, HH);
+  c.fillStyle = acc; c.fillRect(0, 0, W * clamp(T / TL.total), 7);
+}
+window.frameJPEG = (t) => { draw(ctx, t); return cv.toDataURL('image/jpeg', 0.92).split(',')[1]; };
+
+// =====================================================================
+//  SOUND: dark pulse + impact hits on every word slam, whooshes between scenes
+// =====================================================================
+const mhz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+function schedule(ctx2, base, from) {
+  const comp = ctx2.createDynamicsCompressor(), master = ctx2.createGain(); master.gain.value = 0.9; comp.connect(master); master.connect(ctx2.destination);
+  const sr = ctx2.sampleRate, nb = ctx2.createBuffer(1, sr * 2, sr), nd = nb.getChannelData(0), r0 = rng(99); for (let i = 0; i < nd.length; i++) nd[i] = r0() * 2 - 1;
+  const rr2 = rng(5), live = (t) => t >= from - 0.02;
+  function noiseB(t, dur, f, q, g, type, f2) {
+    if (!live(t)) return; const tt = base + t, s = ctx2.createBufferSource(); s.buffer = nb; s.loop = true;
+    const fl = ctx2.createBiquadFilter(); fl.type = type || 'bandpass'; fl.frequency.setValueAtTime(f, tt); if (f2) fl.frequency.exponentialRampToValueAtTime(f2, tt + dur); fl.Q.value = q;
+    const gn = ctx2.createGain(); gn.gain.setValueAtTime(0, tt); gn.gain.linearRampToValueAtTime(g, tt + Math.min(0.006 + (f2 ? dur * 0.4 : 0), dur * 0.5)); gn.gain.exponentialRampToValueAtTime(0.0001, tt + dur);
+    s.connect(fl); fl.connect(gn); gn.connect(comp); s.start(tt, rr2() * 1.5); s.stop(tt + dur + 0.02);
+  }
+  function tone(t, dur, f, g, type, att, f2) {
+    if (!live(t)) return; const tt = base + t, o = ctx2.createOscillator(); o.type = type || 'sine'; o.frequency.setValueAtTime(f, tt); if (f2) o.frequency.exponentialRampToValueAtTime(f2, tt + dur);
+    const gn = ctx2.createGain(); gn.gain.setValueAtTime(0, tt); gn.gain.linearRampToValueAtTime(g, tt + (att || 0.005)); gn.gain.exponentialRampToValueAtTime(0.0001, tt + dur);
+    o.connect(gn); gn.connect(comp); o.start(tt); o.stop(tt + dur + 0.02);
+  }
+  const FX = {
+    slam: (t) => { tone(t, 0.3, 130, 0.2, 'sine', 0.003, 45); noiseB(t, 0.09, 1500, 1, 0.1, 'highpass'); },
+    pop: (t) => tone(t, 0.18, 520, 0.11, 'sine', 0.004, 260),
+    tick: (t) => noiseB(t, 0.03, 3500, 3, 0.05),
+    ding: (t) => { tone(t, 0.9, 1318.5, 0.1); tone(t + 0.05, 0.9, 1976, 0.06); },
+  };
+  const bpm = STORY.bpm || 76, beat = 60 / bpm, ch0 = [[57, 60, 64], [53, 57, 60], [60, 64, 67], [52, 56, 59]], rot = STORY.rot || 0, chords = ch0.map((_, i) => ch0[(i + rot) % 4]);
+  for (let k = 0, t = 0; t < TL.total; k++, t += beat * 4) {
+    const ch = chords[k % 4]; ch.forEach((m) => tone(t, beat * 4 + 0.3, mhz(m), 0.013, 'triangle', 0.35)); tone(t, beat * 4, mhz(ch[0] - 24), 0.07, 'sine', 0.05);
+    for (let b = 0; b < 4; b++) { tone(t + b * beat, 0.2, 95, b % 2 ? 0.05 : 0.09, 'sine', 0.003, 42); noiseB(t + b * beat + beat / 2, 0.04, 7000, 1, 0.015, 'highpass'); }
+  }
+  STORY.beats.forEach((b, i) => {
+    const E = TL.E[i];
+    if (i === 0) { tone(E, 0.7, 90, 0.26, 'sine', 0.003, 38); noiseB(E, 0.4, 600, 0.8, 0.12, 'bandpass', 4000); }
+    else { noiseB(E - 0.05, 0.4, 500, 0.8, 0.14, 'bandpass', 3800); tone(E + 0.3, 0.3, 90, 0.12, 'sine', 0.003, 45); }
+    cues(b.s, i).forEach((e) => FX[e.k](E + e.t));
+  });
+}
+window.renderAudioBase64 = async function (withVoice) {
+  const sr = 48000, len = Math.ceil(TL.total * sr), oc = new OfflineAudioContext(2, len, sr);
+  schedule(oc, 0, 0); const buf = await oc.startRendering(), L = buf.getChannelData(0), Rc = buf.getChannelData(1), out = new Int16Array(len * 2);
+  for (let i = 0; i < len; i++) { out[2 * i] = clamp(L[i], -1, 1) * 32767; out[2 * i + 1] = clamp(Rc[i], -1, 1) * 32767; }
+  const bytes = new Uint8Array(out.buffer); let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+
+// =====================================================================
+//  PUBLIC API (used by the workflow)
+// =====================================================================
+const TOPICS = TOPIC_DATA.map(topic);
+STORY = TOPICS[0]; PAL = STORY.pal;
+window.TOPIC_IDS = TOPICS.map((t) => t.id);
+window.TOPIC_KINDS = Object.fromEntries(TOPICS.map((t) => [t.id, t.kind]));
+window.loadTopic = function (id) {
+  STORY = TOPICS.find((x) => x.id === id) || TOPICS[0]; PAL = STORY.pal; STORY.beats.forEach((b) => { if (b.s) delete b.s._lay; }); TL = buildTL(null);
+  return { id: STORY.id, title: STORY.title, vo: STORY.beats.map((b) => b.v), caption: STORY.caption, tags: STORY.tags, note: STORY.note,
+    footer: 'Follow for a new mind trick every day. For education only.', kind: STORY.kind };
+};
+window.setVoiceDurations = function (v) { TL = buildTL(v); return { starts: TL.starts, total: TL.total }; };
+window._dbg = { get story() { return STORY; }, get tl() { return TL; }, draw: (t) => draw(ctx, t) };
+
+// =====================================================================
+//  BROWSER PREVIEW PLAYER
+// =====================================================================
+const $ = (id) => document.getElementById(id);
+let playing = false, tNow = 0, lastTs = 0, soundOn = true, loopOn = true, actx = null, spoken = -1;
+const curSpoken = () => { let k = -1; for (let i = 0; i < TL.starts.length; i++) if (tNow >= TL.starts[i]) k = i; return k; };
+function stopAudio() { if (actx) { try { actx.close(); } catch (e) {} actx = null; } if (window.speechSynthesis) speechSynthesis.cancel(); }
+function startAudio() { stopAudio(); if (!soundOn) return; try { actx = new (window.AudioContext || window.webkitAudioContext)(); schedule(actx, actx.currentTime + 0.05 - tNow, tNow); } catch (e) {} }
+function setPlaying(p) { playing = p; $('play').textContent = p ? 'Pause' : 'Play'; if (p) { spoken = curSpoken(); startAudio(); } else stopAudio(); }
+const fmt = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
+function frame(ts) {
+  requestAnimationFrame(frame); const dt = lastTs ? (ts - lastTs) / 1000 : 0; lastTs = ts;
+  if (playing) {
+    tNow += Math.min(dt, 0.1);
+    if (tNow >= TL.total) { if (loopOn) { tNow = 0; spoken = -1; startAudio(); } else { tNow = TL.total - 0.01; setPlaying(false); } }
+    if (soundOn && window.speechSynthesis) { const k = curSpoken(); if (k > spoken) { spoken = k; speechSynthesis.speak(new SpeechSynthesisUtterance(STORY.beats[k].v)); } }
+  }
+  draw(ctx, Math.min(tNow, TL.total - 0.01)); $('seek').value = tNow; $('time').textContent = `${fmt(tNow)} / ${fmt(TL.total)}`;
+}
+function selectTopic(id) { setPlaying(false); window.loadTopic(id); tNow = 0; $('seek').max = TL.total; }
+(async function init() {
+  TOPICS.forEach((t, i) => { const o = document.createElement('option'); o.value = t.id; o.textContent = `${i + 1}. ${t.title}`; $('topic').appendChild(o); });
+  try { await Promise.race([Promise.all([`60px Anton`, `800 40px Montserrat`, `900 40px Montserrat`, `700 40px Cairo`].map((f) => document.fonts.load(f, 'AaBb123 مرحبا'))), new Promise((r) => setTimeout(r, 8000))]); await document.fonts.ready; } catch (e) {}
+  selectTopic(TOPICS[0].id);
+  $('topic').onchange = (e) => selectTopic(e.target.value);
+  $('play').onclick = () => setPlaying(!playing);
+  $('seek').oninput = (e) => { tNow = parseFloat(e.target.value); spoken = curSpoken(); if (playing) startAudio(); };
+  $('snd').onclick = (e) => { soundOn = !soundOn; e.target.setAttribute('aria-pressed', soundOn); if (playing) { soundOn ? startAudio() : stopAudio(); } };
+  $('loop').onclick = (e) => { loopOn = !loopOn; e.target.setAttribute('aria-pressed', loopOn); };
+  $('loading').style.display = 'none'; window._ready = true; requestAnimationFrame(frame);
+})();
+})();
+</script>
+</body>
+</html>
