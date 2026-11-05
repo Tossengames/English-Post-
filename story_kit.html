@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>قصص قصيرة ثلاثية الأبعاد</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&display=block">
+<style>
+  html, body { margin:0; height:100%; background:#14102a; color:#fff; font:15px Cairo, Arial, sans-serif; }
+  #app { display:flex; flex-direction:column; height:100%; }
+  #stage { flex:1; min-height:0; position:relative; background:#14102a; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+  #loading { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:24px; pointer-events:none; }
+  #bar { display:flex; align-items:center; gap:10px; padding:8px 12px; background:#241c4a; border-top:2px solid #ff7060; flex-wrap:wrap; }
+  #bar button, #bar select { background:#3a2f70; color:#fff; border:1px solid #ff7060; border-radius:6px; padding:6px 12px; font:inherit; cursor:pointer; min-width:44px; }
+  #bar button:focus-visible, #bar select:focus-visible, #seek:focus-visible { outline:2px solid #ffd23f; outline-offset:2px; }
+  #bar button[aria-pressed="true"] { background:#ff7060; }
+  #seek { flex:1; min-width:120px; accent-color:#ff7060; }
+  #time { font-variant-numeric:tabular-nums; min-width:110px; text-align:right; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage"><canvas id="c" width="720" height="1280"></canvas><div id="loading">جاري التحميل...</div></div>
+  <div id="bar">
+    <button id="play" aria-label="Play">Play</button>
+    <select id="topic" aria-label="Story"></select>
+    <input id="seek" type="range" min="0" max="40" step="0.01" value="0" aria-label="Scrub">
+    <span id="time">0:00.0 / 0:00.0</span>
+    <button id="snd" aria-pressed="true" aria-label="Sound on or off">Sound</button>
+    <button id="loop" aria-pressed="true" aria-label="Loop on or off">Loop</button>
+    <button id="cat" aria-pressed="false" aria-label="Model catalog">Catalog</button>
+    <select id="catpage" aria-label="Catalog page" style="display:none"></select>
+  </div>
+</div>
+<script>
+'use strict';
+// =====================================================================
+//  MICRO STORIES: short (under 30 s) true stories, low-poly 3D, Arabic narration + live subtitles.
+//  720x1280. Every frame is a pure function of T (no Math.random). The page API matches the render workflow.
+// =====================================================================
+const W = 720, HH = 1280, TAU = Math.PI * 2, F = 980;
+const cl = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), wn = (p, a, b) => cl((p - a) / (b - a)), lerp = (a, b, t) => a + (b - a) * t;
+const ez = (x) => { x = cl(x); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }, eo = (x) => 1 - Math.pow(1 - cl(x), 3);
+const bk = (x) => { x = cl(x); return 1 + 2.70158 * Math.pow(x - 1, 3) + 1.70158 * Math.pow(x - 1, 2); };
+const hashS = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+function rng(seed) { let a = (seed >>> 0) || 1; const r = () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; r.range = (a, b) => a + r() * (b - a); return r; }
+const mixc = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+const lerp3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+const FA = 'Cairo, "Noto Naskh Arabic", Arial, sans-serif';
+
+// ---------- tiny 3D pipeline ----------
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], add3 = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], scl = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm = (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+function makeCam(pos, yaw, pitch) { const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch); return { pos, view(p) { const dx = p[0] - pos[0], dy = p[1] - pos[1], dz = p[2] - pos[2]; const x1 = dx * cy - dz * sy, z1 = dx * sy + dz * cy; return [x1, dy * cp + z1 * sp, -dy * sp + z1 * cp]; } }; }
+function clipNear(P, zn) { const o = []; for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length], ia = a[2] >= zn, ib = b[2] >= zn; if (ia) o.push(a); if (ia !== ib) { const t = (zn - a[2]) / (b[2] - a[2]); o.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, zn]); } } return o; }
+function lookCam(pos, tg) { const dx = tg[0] - pos[0], dy = tg[1] - pos[1], dz = tg[2] - pos[2]; return makeCam(pos, Math.atan2(dx, dz), Math.atan2(-dy, Math.hypot(dx, dz))); }
+const rotY = (a) => (p) => [p[0] * Math.cos(a) + p[2] * Math.sin(a), p[1], -p[0] * Math.sin(a) + p[2] * Math.cos(a)];
+const rotX = (a, v = [0, 0, 0]) => (p) => { const y = p[1] - v[1], z = p[2] - v[2]; return [p[0], v[1] + y * Math.cos(a) - z * Math.sin(a), v[2] + y * Math.sin(a) + z * Math.cos(a)]; };
+const rotZ = (a, v = [0, 0, 0]) => (p) => { const x = p[0] - v[0], y = p[1] - v[1]; return [v[0] + x * Math.cos(a) - y * Math.sin(a), v[1] + x * Math.sin(a) + y * Math.cos(a), p[2]]; };
+const mv = (x, y, z) => (p) => [p[0] + x, p[1] + y, p[2] + z], sc = (s) => (p) => [p[0] * s, p[1] * s, p[2] * s];
+const comp = (...fs) => (p) => { let q = p; for (const f of fs) if (f) q = f(q); return q; };
+const ICO = (() => { const t = (1 + Math.sqrt(5)) / 2; const v = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]].map(norm); const f = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]]; return { v, f }; })();
+
+let TRI = [];
+const tri = (a, b, c, col, o) => TRI.push(Object.assign({ p: [a, b, c], col }, o));
+function mesh(vs, fs, col, center, o, xf) { const P = xf ? vs.map(xf) : vs, cc = xf ? xf(center) : center; fs.forEach((f, i) => tri(P[f[0]], P[f[1]], P[f[2]], typeof col === 'function' ? col(f, i) : col, Object.assign({ center: cc }, o))); }
+function box(cx, cy, cz, sx, sy, sz, col, xf, o) { const x0 = cx - sx / 2, x1 = cx + sx / 2, y0 = cy - sy / 2, y1 = cy + sy / 2, z0 = cz - sz / 2, z1 = cz + sz / 2; mesh([[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]], [[4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7], [0, 3, 2], [0, 2, 1]], col, [cx, cy, cz], o, xf); }
+function prism(cx, y0, cz, r, h, n, col, xf, r2, o) { r2 = r2 == null ? r : r2; const vs = [], fs = []; for (let i = 0; i < n; i++) { const a = (i / n) * TAU; vs.push([cx + Math.cos(a) * r, y0, cz + Math.sin(a) * r]); } for (let i = 0; i < n; i++) { const a = (i / n) * TAU; vs.push([cx + Math.cos(a) * r2, y0 + h, cz + Math.sin(a) * r2]); } for (let i = 0; i < n; i++) { const j = (i + 1) % n; fs.push([i, j, n + j], [i, n + j, n + i]); } for (let i = 1; i < n - 1; i++) fs.push([n, n + i, n + i + 1], [0, i + 1, i]); mesh(vs, fs, col, [cx, y0 + h / 2, cz], o, xf); }
+function cone(cx, y0, cz, r, h, n, col, xf, o) { const vs = [[cx, y0 + h, cz]], fs = []; for (let i = 0; i < n; i++) { const a = (i / n) * TAU; vs.push([cx + Math.cos(a) * r, y0, cz + Math.sin(a) * r]); } for (let i = 0; i < n; i++) fs.push([0, 1 + i, 1 + ((i + 1) % n)]); mesh(vs, fs, col, [cx, y0 + h * 0.3, cz], o, xf); }
+function ico(cx, cy, cz, r, col, xf, sy, o) { sy = sy || 1; mesh(ICO.v.map((v) => [cx + v[0] * r, cy + v[1] * r * sy, cz + v[2] * r]), ICO.f, col, [cx, cy, cz], o, xf); }
+function tube(z0, z1, r0, r1, n, col, xf, o) { const vs = [], fs = []; for (let i = 0; i < n; i++) { const a = (i / n) * TAU; vs.push([Math.cos(a) * r0, Math.sin(a) * r0, z0]); } for (let i = 0; i < n; i++) { const a = (i / n) * TAU; vs.push([Math.cos(a) * r1, Math.sin(a) * r1, z1]); } vs.push([0, 0, z0], [0, 0, z1]); for (let i = 0; i < n; i++) { const j = (i + 1) % n; fs.push([i, j, n + j], [i, n + j, n + i]); } for (let i = 0; i < n; i++) { const j = (i + 1) % n; fs.push([2 * n, j, i], [2 * n + 1, n + i, n + j]); } mesh(vs, fs, col, [0, 0, (z0 + z1) / 2], o, xf); }
+function ground(x0, x1, z0, z1, cell, hf, cf, seed) { const r = rng(seed || 3); for (let z = z0; z < z1; z += cell) for (let x = x0; x < x1; x += cell) { const a = [x, hf(x, z), z], b = [x + cell, hf(x + cell, z), z], c = [x, hf(x, z + cell), z + cell], d = [x + cell, hf(x + cell, z + cell), z + cell], col = cf(x + cell / 2, z + cell / 2), j1 = (r() - 0.5) * 14, j2 = (r() - 0.5) * 14; tri(a, c, b, [col[0] + j1, col[1] + j1, col[2] + j1], { terrain: 1, bias: 9 }); tri(b, c, d, [col[0] + j2, col[1] + j2, col[2] + j2], { terrain: 1, bias: 9 }); } }
+
+
+// =====================================================================
+//  THE KIT.  Every model has a NAME. Stories (hand-written or AI-written) only use these names.
+//  Convention: a model's FRONT faces +z. face = degrees (0 = away from the default camera, 180 = toward it).
+// =====================================================================
+const PAL = { white: [240, 240, 244], black: [34, 34, 40], dark: [58, 56, 66], grey: [130, 134, 144], silver: [196, 202, 212], red: [206, 66, 60], blue: [66, 110, 190], green: [80, 150, 90], yellow: [236, 200, 70], orange: [236, 140, 60], brown: [120, 84, 56], tan: [214, 184, 140], pink: [226, 120, 150], purple: [128, 90, 170], navy: [40, 56, 100], cream: [240, 228, 206], gold: [214, 170, 66], skyblue: [150, 196, 236], lime: [140, 190, 70], teal: [60, 160, 170], sand: [232, 214, 164], snow: [244, 246, 252], stone: [150, 146, 156], brick: [181, 101, 74], wood: [150, 104, 64], skin1: [240, 200, 170], skin2: [224, 172, 134], skin3: [176, 124, 92], skin4: [120, 84, 64], hair: [40, 30, 30], blond: [214, 176, 96] };
+const colr = (c) => (Array.isArray(c) ? c : PAL[c] || [128, 128, 128]);
+const MODELS = {}, MINFO = {};
+const ANIMS = ['stand', 'walk', 'run', 'sit', 'wave', 'point', 'celebrate', 'carry', 'work', 'plant', 'type', 'push', 'look'];
+function shadow(x, y, z, r) { const n = 10, vs = []; for (let i = 0; i < n; i++) { const a = (i / n) * TAU; vs.push([x + Math.cos(a) * r, y + 0.05, z + Math.sin(a) * r * 0.85]); } for (let i = 0; i < n; i++) tri([x, y + 0.05, z], vs[i], vs[(i + 1) % n], [0, 0, 0], { terrain: 1, alpha: 0.26, bias: 1.5 }); }
+function roof(cx, y0, cz, w, d, h, col, xf, o) { const x0 = cx - w / 2, x1 = cx + w / 2, z0 = cz - d / 2, z1 = cz + d / 2; mesh([[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [cx, y0 + h, cz]], [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]], col, [cx, y0 + h * 0.3, cz], o, xf); }
+function cyl(cx, cy, cz, r, len, axis, n, col, xf, r2) { const t = axis === 'x' ? comp(rotY(Math.PI / 2), mv(cx, cy, cz), xf) : axis === 'y' ? comp(rotX(-Math.PI / 2), mv(cx, cy, cz), xf) : comp(mv(cx, cy, cz), xf); tube(-len / 2, len / 2, r, r2 == null ? r : r2, n || 10, col, t); }
+// a model described as a list of primitives; colours '$a' etc. come from the model's defaults or the story's  c:{a:'red'}
+function spec(list, base, o, d) {
+  const cc = (c) => (typeof c === 'string' && c[0] === '$' ? colr((o.c && o.c[c.slice(1)]) || (c === '$w' && o.lit ? 'yellow' : d[c.slice(1)])) : colr(c));
+  for (const q of list) {
+    const k = q[0];
+    if (k === 'box') box(q[1], q[2], q[3], q[4], q[5], q[6], cc(q[7]), base); else if (k === 'glow') box(q[1], q[2], q[3], q[4], q[5], q[6], cc(q[7]), base, { emissive: 1 });
+    else if (k === 'pri') prism(q[1], q[2], q[3], q[4], q[5], q[6], cc(q[7]), base, q[8]); else if (k === 'cone') cone(q[1], q[2], q[3], q[4], q[5], q[6], cc(q[7]), base);
+    else if (k === 'ico') ico(q[1], q[2], q[3], q[4], cc(q[5]), base, q[6]); else if (k === 'gico') ico(q[1], q[2], q[3], q[4], cc(q[5]), base, q[6], { emissive: 1 });
+    else if (k === 'cyl') cyl(q[1], q[2], q[3], q[4], q[5], q[6], q[7], cc(q[8]), base, q[9]); else if (k === 'roof') roof(q[1], q[2], q[3], q[4], q[5], q[6], cc(q[7]), base);
+  }
+}
+const bxf = (x, y, z, face, s, o) => comp(sc(s), rotZ(((o && o.roll) || 0) * Math.PI / 180), rotX(-((o && o.pitch) || 0) * Math.PI / 180), rotY((face * Math.PI) / 180), mv(x, y, z));
+function defModel(name, info, list) { MINFO[name] = info; MODELS[name] = (x, y, z, face, s, o, T) => { o = o || {}; if (info.sh !== 0) shadow(x, y, z, (info.r || 1.5) * s); spec(typeof list === 'function' ? list(o, T) : list, bxf(x, y, z, face, s, o), o, info.d || {}); }; }
+
+// ---------- people: faces, hands, shoes, hair, hats, clothes. All driven by a pose ----------
+const PPL = {
+  man: { shirt: 'blue', pants: 'navy', hair: 'short', hc: 'hair' }, woman: { dress: 'pink', hair: 'long', hc: 'brown' }, boy: { shirt: 'orange', pants: 'navy', hair: 'short', hc: 'hair', k: 0.72 }, girl: { dress: 'yellow', hair: 'long', hc: 'brown', k: 0.7 },
+  elder: { shirt: 'grey', pants: 'brown', hair: 'short', hc: 'white' }, worker: { shirt: 'orange', pants: 'navy', hat: 'hard', vest: 1 }, miner: { shirt: 'grey', pants: 'navy', hat: 'hard', lamp: 1, vest: 1, skin: 'skin3' },
+  pilot: { shirt: 'white', pants: 'navy', hat: 'cap', hc: 'navy' }, officer: { shirt: 'green', pants: 'dark', hat: 'cap', hc: 'dark' }, astronaut: { shirt: 'white', pants: 'white', hat: 'helmet' },
+  scientist: { coat: 'white', shirt: 'blue', pants: 'dark', hair: 'short', hc: 'hair' }, musher: { shirt: 'brown', pants: 'navy', coat: 'brown', hat: 'hood' }, farmer: { shirt: 'tan', pants: 'brown', hat: 'straw' },
+  engineer: { shirt: 'white', pants: 'grey', hair: 'short', hc: 'hair', headset: 1 }, nurse: { dress: 'white', hair: 'bun', hc: 'brown' },
+};
+function poseOf(anim, T, st) {
+  const ph = T * (anim === 'run' ? 11 : 7) + (st.seed || 0), sw = Math.sin(ph);
+  switch (anim) {
+    case 'walk': return { sw: sw * 0.7, aL: -sw * 0.8, aR: sw * 0.8 };
+    case 'run': return { sw: sw * 1.0, aL: -sw * 1.1, aR: sw * 1.1, bend: 0.2, hop: Math.abs(sw) * 0.08 };
+    case 'wave': return { aR: -2.6 + Math.sin(T * 8) * 0.35, aL: 0.05 };
+    case 'point': return { aR: -1.55, aL: 0.05 };
+    case 'celebrate': return { aL: -2.8 + Math.sin(T * 9) * 0.3, aR: -2.8 - Math.sin(T * 9) * 0.3, hop: Math.abs(Math.sin(T * 6)) * 0.22 };
+    case 'carry': return { aL: -1.2, aR: -1.2, sw: st.moving ? sw * 0.6 : 0 };
+    case 'work': return { aR: -1.0 + Math.sin(T * 9) * 0.6, aL: -0.6 + Math.sin(T * 9 + 1) * 0.4, bend: 0.22 };
+    case 'plant': return { bend: 0.75, aR: -1.2 + Math.sin(T * 5) * 0.3, aL: -1.0, sw: 0.1 };
+    case 'type': return { sit: 1, aR: -1.0 + Math.sin(T * 14) * 0.12, aL: -1.0 + Math.sin(T * 14 + 2) * 0.12 };
+    case 'sit': return { sit: 1, aL: -0.3, aR: -0.3 };
+    case 'push': return { aL: -1.5, aR: -1.5, bend: 0.3, sw: sw * 0.5 };
+    default: return { aL: Math.sin(T * 1.5) * 0.04, aR: -Math.sin(T * 1.5) * 0.04 };
+  }
+}
+function human(name, x, y, z, face, s, o, T, st) {
+  const P = Object.assign({}, PPL[name], o.c || {}), pose = poseOf(st.anim, T, st), k = (P.k || 1), skin = colr(P.skin || 'skin2'), sit = pose.sit || 0, dy = -0.43 * sit + (pose.hop || 0);
+  const base = comp(sc(s * k), rotY((face * Math.PI) / 180), mv(x, y + dy * s * k, z), o.xf), bend = pose.bend || 0, ub = comp(rotX(bend, [0, 0.9, 0]), base);
+  if (!o.xf) shadow(x, y, z, 0.5 * s * k);
+  const pants = colr(P.pants || 'navy'), shirt = colr(P.shirt || P.dress || P.coat || 'blue'), hc = colr(P.hc || 'hair');
+  [-1, 1].forEach((d) => { const lg = sit ? -1.45 : (pose.sw || 0) * d, lx = comp(rotX(lg, [0, 0.88, 0]), base); if (!P.dress) box(d * 0.12, 0.43, 0, 0.18, 0.86, 0.2, pants, lx); else box(d * 0.1, 0.4, 0, 0.12, 0.8, 0.14, skin, lx); box(d * 0.12, 0.05, 0.07, 0.2, 0.1, 0.34, [40, 34, 34], lx); });
+  if (P.dress) prism(0, 0.28, 0, 0.4, 0.8, 8, colr(P.dress), ub, 0.17);
+  box(0, 1.18, 0, 0.5, 0.62, 0.28, P.dress ? colr(P.dress) : shirt, ub); box(0, 1.46, 0, 0.64, 0.12, 0.3, P.dress ? colr(P.dress) : shirt, ub); box(0, 1.56, 0, 0.11, 0.1, 0.11, skin, ub);
+  if (P.coat) box(0, 0.85, 0, 0.56, 1.1, 0.32, colr(P.coat), ub); if (P.vest) { box(0, 1.2, 0, 0.53, 0.5, 0.3, [240, 130, 40], ub); box(0, 1.25, 0.152, 0.5, 0.06, 0.02, [240, 240, 120], ub, { emissive: 1 }); }
+  [-1, 1].forEach((d) => { const a = d < 0 ? (pose.aL || 0) : (pose.aR || 0), ax = comp(rotX(a, [0, 1.46, 0]), ub); box(d * 0.35, 1.12, 0, 0.13, 0.66, 0.15, P.dress ? skin : (P.coat ? colr(P.coat) : shirt), ax); box(d * 0.35, 0.76, 0, 0.12, 0.12, 0.14, skin, ax); });
+  ico(0, 1.72, 0, 0.2, skin, ub); [-1, 1].forEach((d) => box(d * 0.075, 1.74, 0.185, 0.04, 0.05, 0.03, [24, 20, 24], ub)); box(0, 1.69, 0.2, 0.04, 0.06, 0.05, mixc(skin, [150, 90, 70], 0.3), ub); box(0, 1.63, 0.19, 0.08, 0.02, 0.02, [150, 60, 60], ub);
+  const hs = P.hair; if (hs === 'short' || hs === 'long' || hs === 'bun') { ico(0, 1.8, -0.025, 0.215, hc, ub, 0.66); if (hs === 'long') box(0, 1.6, -0.14, 0.34, 0.5, 0.1, hc, ub); if (hs === 'bun') ico(0, 1.97, -0.08, 0.1, hc, ub); }
+  const h = P.hat; if (h === 'hard') { ico(0, 1.86, 0, 0.235, [250, 200, 40], ub, 0.55); box(0, 1.8, 0.2, 0.3, 0.03, 0.14, [250, 200, 40], ub); if (P.lamp) box(0, 1.9, 0.235, 0.07, 0.07, 0.04, [255, 250, 200], ub, { emissive: 1 }); }
+  if (h === 'cap') { ico(0, 1.85, -0.01, 0.225, colr(P.hc || 'navy'), ub, 0.6); box(0, 1.8, 0.2, 0.28, 0.025, 0.16, [30, 30, 40], ub); }
+  if (h === 'helmet') { ico(0, 1.76, 0, 0.33, [244, 244, 248], ub, 1.0); box(0, 1.76, 0.25, 0.3, 0.2, 0.1, [214, 170, 66], ub, { emissive: 1 }); box(0, 1.1, -0.2, 0.4, 0.6, 0.18, [226, 226, 232], ub); }
+  if (h === 'hood') { ico(0, 1.76, -0.05, 0.28, colr(P.coat || 'brown'), ub, 0.95); ico(0, 1.72, 0.12, 0.25, [236, 226, 210], ub, 0.9); ico(0, 1.72, 0.18, 0.2, skin, ub); }
+  if (h === 'straw') { cone(0, 1.86, 0, 0.5, 0.16, 8, [226, 196, 110], ub); ico(0, 1.84, 0, 0.2, [226, 196, 110], ub, 0.5); }
+  if (P.headset) { box(0, 1.72, 0, 0.44, 0.04, 0.04, [30, 30, 36], ub); box(0.12, 1.66, 0.17, 0.02, 0.02, 0.1, [30, 30, 36], ub); }
+}
+Object.keys(PPL).forEach((n) => { MINFO[n] = { h: 1.9 * (PPL[n].k || 1), cat: 'people' }; MODELS[n] = (x, y, z, f, s, o, T, st) => human(n, x, y, z, f, s, o || {}, T, st || { anim: 'stand' }); });
+
+// ---------- animals (one quadruped builder with per-animal proportions) ----------
+function quad(x, y, z, face, s, o, T, st, A) {
+  const base = comp(sc(s), rotY((face * Math.PI) / 180), mv(x, y, z)), c1 = colr((o.c && o.c.a) || A.a), c2 = colr((o.c && o.c.b) || A.b), dk = [44, 36, 36];
+  const run = st.anim === 'run', gait = st.moving ? Math.sin(T * (run ? 14 : 9) + (st.seed || 0)) * (run ? 0.8 : 0.55) : 0, sit = st.anim === 'sit' ? 1 : 0, lie = st.anim === 'lie' ? 1 : 0;
+  const L = A.leg, by = lie ? A.leg * 0.45 + A.bh / 2 : L + A.bh / 2, bl = A.bl, bx = sit ? comp(rotX(-0.55, [0, by, bl * 0.2]), base) : base;
+  shadow(x, y, z, A.r * s);
+  box(0, by, 0, A.bw, A.bh, bl, c1, bx); box(0, by + A.bh * 0.42, -bl * 0.04, A.bw * 0.86, A.bh * 0.26, bl * 0.8, c2, bx);
+  [[-1, 1], [1, 1], [-1, -1], [1, -1]].forEach(([d, f], i) => { const lz = f * bl * 0.38, lw = A.lw; if (lie) { box(d * A.bw * 0.3, L * 0.18, lz * 0.9, lw, L * 0.3, lw * 1.6, c1, base); return; } if (sit && f < 0) { box(d * A.bw * 0.34, 0.12 * L / 0.4, lz * 0.55, lw * 1.2, lw * 1.6, bl * 0.4, c1, base); return; } box(d * A.bw * 0.3, L / 2, lz, lw, L, lw, c1, comp(rotX(gait * (i % 2 ? 1 : -1) * f, [0, L, lz]), base)); });
+  const hy = by + A.hy - (sit ? 0.0 : 0), hz = bl * 0.5 + A.hz - (sit ? 0.1 : 0), hx = comp(rotX(A.tilt || 0, [0, by, bl * 0.4]), base);
+  if (A.neck) box(0, by + A.hy / 2, bl * 0.44, A.bw * 0.5, A.hy + 0.1, A.bw * 0.5, c1, comp(rotX(-0.35, [0, by, bl * 0.4]), base));
+  box(0, hy, hz, A.hw, A.hh, A.hl, c1, hx); box(0, hy - A.hh * 0.15, hz + A.hl * 0.55, A.hw * 0.55, A.hh * 0.5, A.hl * 0.6, c2, hx); box(0, hy - A.hh * 0.05, hz + A.hl * 0.88, A.hw * 0.28, A.hh * 0.22, A.hl * 0.12, dk, hx);
+  [-1, 1].forEach((d) => { box(d * A.hw * 0.32, hy + A.hh * 0.12, hz + A.hl * 0.3, 0.035 * A.k, 0.05 * A.k, 0.03, [20, 16, 18], hx); cone(d * A.hw * 0.3, hy + A.hh * 0.5, hz - A.hl * 0.1, A.ear, A.ear * 2, 4, c2, hx); });
+  const wag = Math.sin(T * (st.moving ? 9 : 3.2) + (st.seed || 0)) * (A.wag || 0.4);
+  if (A.tail) box(0, by + A.bh * 0.35, -bl * 0.55, A.tail[0], A.tail[0], A.tail[1], c2, comp(rotX(A.tail[2], [0, by + A.bh * 0.2, -bl * 0.45]), rotZ(wag, [0, by, -bl * 0.45]), base));
+  if (A.extra) A.extra({ base, hx, c1, c2, hy, hz, by, bl, T, st });
+}
+const ANI = {
+  dog: { a: 'cream', b: 'tan', leg: 0.4, bh: 0.34, bw: 0.34, bl: 0.8, lw: 0.1, hy: 0.22, hz: 0.04, hw: 0.28, hh: 0.26, hl: 0.3, ear: 0.07, r: 0.6, k: 1, tail: [0.1, 0.38, 0.9] },
+  husky: { a: 'white', b: 'grey', leg: 0.42, bh: 0.34, bw: 0.34, bl: 0.82, lw: 0.1, hy: 0.22, hz: 0.04, hw: 0.28, hh: 0.26, hl: 0.3, ear: 0.07, r: 0.6, k: 1, tail: [0.11, 0.4, 1.4], extra: (c) => { box(0, c.hy + 0.09, c.hz + 0.12, 0.2, 0.08, 0.2, [60, 64, 72], c.hx); } },
+  cat: { a: 'grey', b: 'white', leg: 0.2, bh: 0.2, bw: 0.2, bl: 0.5, lw: 0.07, hy: 0.14, hz: 0.04, hw: 0.2, hh: 0.18, hl: 0.2, ear: 0.06, r: 0.35, k: 0.7, tail: [0.06, 0.5, 1.2] },
+  horse: { a: 'brown', b: 'dark', leg: 0.95, bh: 0.6, bw: 0.5, bl: 1.7, lw: 0.14, hy: 0.7, hz: 0.1, hw: 0.28, hh: 0.34, hl: 0.62, ear: 0.07, r: 1.1, k: 1.6, neck: 1, tilt: 0.3, tail: [0.14, 0.9, 0.5], extra: (c) => { box(0, c.hy + 0.1, c.hz - 0.32, 0.08, 0.5, 0.18, [30, 24, 24], c.base); } },
+  deer: { a: 'tan', b: 'cream', leg: 0.8, bh: 0.45, bw: 0.34, bl: 1.2, lw: 0.09, hy: 0.55, hz: 0.1, hw: 0.2, hh: 0.24, hl: 0.4, ear: 0.07, r: 0.8, k: 1.2, neck: 1, tilt: 0.2, tail: [0.1, 0.16, 0.4], extra: (c) => { [-1, 1].forEach((d) => { box(d * 0.1, c.hy + 0.35, c.hz - 0.08, 0.03, 0.5, 0.03, [214, 200, 170], c.hx); box(d * 0.18, c.hy + 0.52, c.hz - 0.08, 0.03, 0.03, 0.22, [214, 200, 170], c.hx); box(d * 0.16, c.hy + 0.36, c.hz - 0.04, 0.03, 0.03, 0.18, [214, 200, 170], c.hx); }); } },
+  elephant: { a: 'grey', b: 'stone', leg: 1.3, bh: 1.7, bw: 1.5, bl: 2.8, lw: 0.55, hy: 0.5, hz: 0.5, hw: 0.9, hh: 1.0, hl: 1.0, ear: 0.0, r: 2.4, k: 3, wag: 0.1, tail: [0.12, 0.9, 0.2], extra: (c) => { for (let i = 0; i < 4; i++) box(0, c.hy - 0.3 - i * 0.28, c.hz + 0.95 + i * 0.05 - (i > 2 ? 0.1 : 0), 0.34 - i * 0.05, 0.3, 0.3, c.c1, c.base); [-1, 1].forEach((d) => { box(d * 0.62, c.hy + 0.05, c.hz - 0.3, 0.08, 0.9, 0.7, [136, 134, 144], c.base); box(d * 0.3, c.hy - 0.4, c.hz + 0.65, 0.07, 0.07, 0.6, [244, 240, 224], c.base); }); } },
+};
+Object.keys(ANI).forEach((n) => { MINFO[n] = { h: ANI[n].leg + ANI[n].bh + 0.4, cat: 'animals' }; MODELS[n] = (x, y, z, f, s, o, T, st) => quad(x, y, z, f, s, o || {}, T, st || { anim: 'stand' }, ANI[n]); });
+
+// ---------- vehicles ----------
+const WH = (x, y, z, r, w) => ['cyl', x, y, z, r, w, 'x', 8, 'black'];
+defModel('car', { h: 1.7, r: 2.4, cat: 'vehicles', d: { a: 'red', w: 'skyblue' } }, [['box', 0, 0.6, 0, 1.8, 0.6, 4, '$a'], ['box', 0, 1.15, -0.1, 1.6, 0.55, 2.1, '$a'], ['glow', 0, 1.15, 0.98, 1.4, 0.4, 0.05, '$w'], ['glow', 0.81, 1.15, -0.1, 0.05, 0.4, 1.7, '$w'], ['glow', -0.81, 1.15, -0.1, 0.05, 0.4, 1.7, '$w'], WH(0.95, 0.38, 1.3, 0.38, 0.25), WH(-0.95, 0.38, 1.3, 0.38, 0.25), WH(0.95, 0.38, -1.3, 0.38, 0.25), WH(-0.95, 0.38, -1.3, 0.38, 0.25), ['glow', 0.6, 0.65, 2.02, 0.4, 0.2, 0.05, 'yellow'], ['glow', -0.6, 0.65, 2.02, 0.4, 0.2, 0.05, 'yellow']]);
+defModel('bus', { h: 3, r: 5, cat: 'vehicles', d: { a: 'yellow', w: 'skyblue' } }, [['box', 0, 1.5, 0, 2.5, 2.4, 9, '$a'], ['glow', 1.27, 1.9, 0, 0.06, 0.8, 7.6, '$w'], ['glow', -1.27, 1.9, 0, 0.06, 0.8, 7.6, '$w'], ['glow', 0, 1.9, 4.52, 2.1, 0.9, 0.06, '$w'], WH(1.2, 0.5, 3, 0.5, 0.3), WH(-1.2, 0.5, 3, 0.5, 0.3), WH(1.2, 0.5, -3, 0.5, 0.3), WH(-1.2, 0.5, -3, 0.5, 0.3)]);
+defModel('truck', { h: 3.2, r: 5, cat: 'vehicles', d: { a: 'blue', b: 'white' } }, [['box', 0, 1.5, 3, 2.4, 2, 2.2, '$a'], ['glow', 0, 1.9, 4.12, 2, 0.7, 0.05, 'skyblue'], ['box', 0, 2, -1.4, 2.5, 2.5, 5.4, '$b'], ['box', 0, 0.7, 0.4, 2.2, 0.4, 9, 'dark'], WH(1.1, 0.5, 3, 0.5, 0.3), WH(-1.1, 0.5, 3, 0.5, 0.3), WH(1.1, 0.5, -2, 0.5, 0.3), WH(-1.1, 0.5, -2, 0.5, 0.3), WH(1.1, 0.5, -3.4, 0.5, 0.3), WH(-1.1, 0.5, -3.4, 0.5, 0.3)]);
+defModel('boat', { h: 4, r: 6, cat: 'vehicles', d: { a: 'white', b: 'orange' } }, [['box', 0, 0.7, 0, 5, 1.4, 14, '$a'], ['roof', 0, 0.7, 7.6, 3, 2.4, 1.4, '$a'], ['box', 0, 1.9, -1, 3.6, 1.6, 6, '$b'], ['box', 0, 1.3, 0, 5.06, 0.3, 14.06, 'red'], ['glow', 1.82, 1.9, -1, 0.06, 0.6, 5, 'skyblue'], ['glow', -1.82, 1.9, -1, 0.06, 0.6, 5, 'skyblue'], ['box', 0, 2.9, -1, 2.4, 0.4, 3, 'white']]);
+defModel('ship', { h: 12, r: 14, cat: 'vehicles', d: { a: 'navy' } }, [['box', 0, 2, 0, 9, 4, 38, '$a'], ['roof', 0, 2, 20.5, 8, 3, 3, '$a'], ['box', 0, 4.2, 0, 8.6, 0.4, 37.6, 'grey'], ['box', 0, 7, -10, 6, 5, 7, 'white'], ['glow', 0, 8, -6.48, 5, 0.9, 0.06, 'skyblue'], ['pri', 0, 9, -10, 1.2, 4, 8, 'red'], ['box', -2, 5.4, 8, 3, 2.4, 6, 'orange'], ['box', 2, 5.4, 8, 3, 2.4, 6, 'blue'], ['box', 0, 5.4, 14, 3, 2.4, 5, 'green']]);
+defModel('sled', { h: 1.2, r: 2, cat: 'vehicles', d: { a: 'wood' } }, [['box', -0.5, 0.12, 0, 0.1, 0.15, 2.8, 'dark'], ['box', 0.5, 0.12, 0, 0.1, 0.15, 2.8, 'dark'], ['box', 0, 0.5, 0.1, 1.1, 0.4, 2.2, '$a'], ['box', 0, 0.95, -1.2, 1.0, 0.08, 0.08, 'dark'], ['box', -0.5, 0.7, -1.2, 0.08, 0.5, 0.08, 'dark'], ['box', 0.5, 0.7, -1.2, 0.08, 0.5, 0.08, 'dark'], ['box', 0, 0.85, 0.3, 0.7, 0.35, 1, 'red']]);
+defModel('bicycle', { h: 1.1, r: 1, cat: 'vehicles' }, [['cyl', 0, 0.35, 0.55, 0.35, 0.04, 'x', 10, 'black'], ['cyl', 0, 0.35, -0.55, 0.35, 0.04, 'x', 10, 'black'], ['box', 0, 0.6, 0, 0.05, 0.05, 1.2, 'red'], ['box', 0, 0.95, 0.55, 0.5, 0.04, 0.04, 'dark'], ['box', 0, 0.82, -0.3, 0.12, 0.05, 0.25, 'dark']]);
+defModel('train', { h: 4, r: 10, cat: 'vehicles', d: { a: 'red', b: 'cream' } }, (o) => { const L = [['box', 0, 1.9, 8, 3, 3.2, 8, '$a'], ['glow', 0, 2.6, 12.02, 2.4, 1, 0.05, 'skyblue']]; for (let k = 0; k < (o.n || 2); k++) { L.push(['box', 0, 1.9, -2 - k * 11, 3, 3.2, 10.4, '$b'], ['glow', 1.52, 2.4, -2 - k * 11, 0.06, 0.9, 8.6, 'skyblue'], ['glow', -1.52, 2.4, -2 - k * 11, 0.06, 0.9, 8.6, 'skyblue'], ['box', 0, 3.7, -2 - k * 11, 3.1, 0.3, 10.5, 'grey']); } return L; });
+defModel('capsule', { h: 3.6, r: 2.4, cat: 'space', d: { a: 'silver' } }, [['cyl', 0, 0, 0, 1.9, 3, 'z', 12, '$a', 0.6], ['cyl', 0, 0, -1.8, 1.95, 0.5, 'z', 12, 'dark'], ['glow', 0.9, 0.5, 0.2, 0.3, 0.3, 0.05, 'skyblue']]);
+defModel('spacecraft', { h: 4, r: 6, cat: 'space', d: { a: 'silver' } }, [['cyl', 0, 0, 3.4, 1.9, 3, 'z', 12, '$a', 0.5], ['cyl', 0, 0, -0.1, 1.9, 4.6, 'z', 12, 'white'], ['cyl', 0, 0, -3.2, 0.9, 1.8, 'z', 8, 'grey', 1.5], ['cyl', 0, 0, -2.3, 1.95, 0.4, 'z', 12, 'gold']]);
+defModel('satellite', { h: 2, r: 3, cat: 'space' }, [['box', 0, 0, 0, 1.4, 1.4, 1.8, 'gold'], ['box', -3.2, 0, 0, 4, 0.06, 1.5, 'blue'], ['box', 3.2, 0, 0, 4, 0.06, 1.5, 'blue'], ['cyl', 0, 0.95, 0.2, 0.6, 0.15, 'y', 8, 'white'], ['glow', 0, 0, -0.95, 0.3, 0.3, 0.05, 'red']]);
+// ---------- buildings ----------
+defModel('house', { h: 5, r: 4, cat: 'buildings', d: { a: 'cream', b: 'brick', w: 'skyblue' } }, [['box', 0, 1.6, 0, 5, 3.2, 4, '$a'], ['roof', 0, 3.2, 0, 5.8, 4.8, 1.8, '$b'], ['box', 0, 0.9, 2.02, 0.9, 1.8, 0.1, 'brown'], ['glow', -1.6, 1.9, 2.02, 0.9, 0.9, 0.1, '$w'], ['glow', 1.6, 1.9, 2.02, 0.9, 0.9, 0.1, '$w']]);
+defModel('hut', { h: 3.4, r: 3, cat: 'buildings', d: { a: 'tan', b: 'brown' } }, [['cyl', 0, 0.9, 0, 1.9, 1.8, 'y', 10, '$a'], ['cone', 0, 1.8, 0, 2.5, 1.8, 10, '$b'], ['box', 0, 0.7, 1.88, 0.7, 1.4, 0.1, 'dark']]);
+defModel('tent', { h: 2.6, r: 3, cat: 'buildings', d: { a: 'orange' } }, [['roof', 0, 0, 0, 4, 4.4, 2.6, '$a'], ['box', 0, 0.7, 2.2, 0.8, 1.3, 0.06, 'dark']]);
+defModel('tower', { h: 30, r: 8, cat: 'buildings', d: { a: 'grey', w: 'cream' } }, (o) => { const h = o.h || 24, w = o.w || 8, L = [['box', 0, h / 2, 0, w, h, w * 0.9, '$a'], ['box', 0, h + 0.25, 0, w + 0.5, 0.5, w * 0.9 + 0.5, 'dark']]; for (let y = 3; y < h - 1; y += 3.2) L.push(['glow', 0, y, w * 0.45 + 0.05, w * 0.8, 0.9, 0.1, '$w']); return L; });
+defModel('hospital', { h: 7, r: 7, cat: 'buildings' }, [['box', 0, 3, 0, 9, 6, 6, 'white'], ['box', 0, 6.2, 0, 9.4, 0.5, 6.4, 'grey'], ['glow', 0, 4.6, 3.05, 2.4, 0.6, 0.1, 'red'], ['glow', 0, 4.6, 3.05, 0.6, 2.4, 0.1, 'red'], ['glow', -3, 3, 3.05, 1.2, 1, 0.1, 'skyblue'], ['glow', 3, 3, 3.05, 1.2, 1, 0.1, 'skyblue'], ['box', 0, 1.1, 3.05, 1.6, 2.2, 0.1, 'dark']]);
+defModel('station', { h: 14, r: 14, cat: 'buildings' }, [['box', 0, 3.5, 0, 22, 7, 8, 'brick'], ['box', 0, 7.4, 0, 24, 0.8, 10, 'dark'], ['box', 0, 10.4, 0, 5, 6, 5, 'brick'], ['box', 0, 13.6, 0, 6.4, 0.8, 6.4, 'dark'], ['box', 0, 10.6, 2.6, 3.6, 3.6, 0.2, 'white'], ['box', 0, 10.9, 2.72, 0.18, 1.2, 0.1, 'black'], ['box', 0.45, 10.6, 2.72, 0.9, 0.18, 0.1, 'black'], ['box', 0, 1.6, 4.1, 4, 3.2, 0.3, 'dark'], ['glow', -7, 3.6, 4.1, 2, 2.2, 0.2, 'yellow'], ['glow', -3.6, 3.6, 4.1, 2, 2.2, 0.2, 'yellow'], ['glow', 3.6, 3.6, 4.1, 2, 2.2, 0.2, 'yellow'], ['glow', 7, 3.6, 4.1, 2, 2.2, 0.2, 'yellow']]);
+defModel('minegate', { h: 5, r: 5, cat: 'buildings', d: { a: 'wood' } }, [['box', 0, 2, 0.3, 4.4, 4, 0.3, 'black'], ['box', -2.4, 2, 0, 0.5, 4, 0.6, '$a'], ['box', 2.4, 2, 0, 0.5, 4, 0.6, '$a'], ['box', 0, 4.2, 0, 5.6, 0.6, 0.7, '$a'], ['ico', -3.6, 0.8, 0, 1.5, 'grey', 0.8], ['ico', 3.6, 0.7, 0, 1.4, 'stone', 0.8], ['ico', 0, 5.4, 0, 1, 'grey', 0.6]]);
+defModel('drillrig', { h: 18, r: 5, cat: 'buildings', d: { a: 'red' } }, [['pri', 0, 0, 0, 2.2, 16, 4, '$a', 0.6], ['box', 0, 16.4, 0, 1.6, 0.8, 1.6, 'dark'], ['box', 3.4, 1.2, 0, 3, 2.4, 3, 'grey'], ['box', 0, 8, 0, 0.12, 16, 0.12, 'black'], ['box', 0, 0.4, 0, 3.2, 0.8, 3.2, 'dark']]);
+defModel('shaft', { h: 0.5, r: 2, cat: 'buildings', sh: 0 }, [['pri', 0, 0.06, 0, 1.1, 0.04, 12, 'black'], ['ico', -1.3, 0.2, 0.4, 0.5, 'stone', 0.6], ['ico', 1.2, 0.2, -0.5, 0.5, 'grey', 0.6], ['ico', 0.2, 0.2, 1.3, 0.45, 'stone', 0.6]]);
+// ---------- nature ----------
+MINFO.tree = { h: 7, r: 2, cat: 'nature' }; MODELS.tree = (x, y, z, f, s, o) => { const col = colr((o.c && o.c.a) || 'green'); shadow(x, y, z, 1.6 * s); const b = comp(sc(s), mv(x, y, z)); prism(0, 0, 0, 0.28, 2.4, 6, [96, 66, 44], b, 0.2); ico(0, 3.5, 0, 1.8, col, b, 0.9); ico(0.5, 4.7, -0.3, 1.2, mixc(col, [255, 255, 200], 0.18), b, 0.9); };
+MINFO.pine = { h: 8, r: 2, cat: 'nature' }; MODELS.pine = (x, y, z, f, s, o) => { const sn = o.snow ? 0.7 : 0, b = comp(sc(s), mv(x, y, z)); shadow(x, y, z, 1.6 * s); prism(0, 0, 0, 0.25, 1.2, 6, [90, 62, 44], b); for (let i = 0; i < 4; i++) cone(0, 1 + i * 1.5, 0, 2.2 - i * 0.5, 2.4, 7, mixc([46, 110, 80], [244, 246, 252], sn * (i / 3 * 0.5 + 0.5)), b); };
+MINFO.palm = { h: 7, r: 1, cat: 'nature' }; MODELS.palm = (x, y, z, f, s, o, T) => { shadow(x, y, z, 1.2 * s); const sw = Math.sin(T * 1.2 + x) * 0.06, xf = comp(rotZ(0.1 + sw), sc(s), mv(x, y, z)); prism(0, 0, 0, 0.3, 6.5, 6, [150, 112, 74], xf, 0.2); const tp = xf([0, 6.5, 0]); for (let k = 0; k < 7; k++) { const a = (k / 7) * TAU; tri(tp, [tp[0] + Math.cos(a) * 3.4 * s, tp[1] + 0.4 * s, tp[2] + Math.sin(a) * 3.4 * s], [tp[0] + Math.cos(a + 0.35) * 2.6 * s, tp[1] - 1.2 * s, tp[2] + Math.sin(a + 0.35) * 2.6 * s], k % 2 ? [74, 150, 84] : [58, 126, 74], { twoSided: 1 }); } };
+defModel('bush', { h: 1.4, r: 1.2, cat: 'nature', d: { a: 'green' } }, [['ico', 0, 0.6, 0, 1.1, '$a', 0.7], ['ico', 0.8, 0.5, 0.3, 0.7, '$a', 0.7]]);
+defModel('rock', { h: 1.2, r: 1.2, cat: 'nature', d: { a: 'grey' } }, [['ico', 0, 0.5, 0, 1, '$a', 0.7], ['ico', 0.8, 0.3, 0.4, 0.55, 'stone', 0.7]]);
+defModel('mountain', { h: 26, r: 24, cat: 'nature', sh: 0, d: { a: 'stone' } }, (o) => [['cone', 0, 0, 0, o.r || 30, o.h || 24, 7, '$a'], ['cone', 0, (o.h || 24) * 0.66, 0, (o.r || 30) * 0.36, (o.h || 24) * 0.34, 7, 'snow']]);
+defModel('cactus', { h: 3, r: 1, cat: 'nature' }, [['pri', 0, 0, 0, 0.35, 3, 6, 'green'], ['pri', 0.7, 1.2, 0, 0.2, 1.2, 6, 'green'], ['box', 0.4, 1.3, 0, 0.6, 0.2, 0.2, 'green']]);
+defModel('flower', { h: 0.7, r: 0.3, cat: 'nature', d: { a: 'red' } }, [['box', 0, 0.25, 0, 0.04, 0.5, 0.04, 'green'], ['ico', 0, 0.55, 0, 0.16, '$a', 0.8], ['ico', 0, 0.58, 0, 0.06, 'yellow']]);
+defModel('cloud', { h: 3, r: 1, cat: 'nature', sh: 0 }, [['ico', 0, 0, 0, 2.2, 'white', 0.6], ['ico', 2, -0.2, 0.3, 1.7, 'white', 0.55], ['ico', -2, -0.2, 0, 1.6, 'white', 0.55], ['ico', 0.5, 0.6, 0, 1.6, 'white', 0.6]]);
+defModel('sun', { h: 6, cat: 'nature', sh: 0 }, [['gico', 0, 0, 0, 4, [255, 232, 160]]]); defModel('moon', { h: 6, cat: 'nature', sh: 0 }, [['ico', 0, 0, 0, 3, [226, 226, 218]], ['ico', 1, 0.8, 2.3, 0.7, [170, 170, 164]], ['ico', -1.2, -0.6, 2.4, 0.5, [170, 170, 164]]]);
+MINFO.earth = { h: 12, cat: 'space' }; MODELS.earth = (x, y, z, f, s) => { const r = 6 * s, q = rng(5); mesh(ICO.v.map((v) => [x + v[0] * r, y + v[1] * r, z + v[2] * r]), ICO.f, (fc, i) => (q() < 0.45 ? [90, 160, 96] : q() < 0.12 ? [244, 246, 250] : [50, 110, 200]), [x, y, z], { emissive: 1 }); };
+// ---------- props ----------
+defModel('bench', { h: 1, r: 1.3, cat: 'props' }, [['box', 0, 0.5, 0, 2.2, 0.12, 0.6, 'wood'], ['box', 0, 0.9, -0.28, 2.2, 0.5, 0.1, 'wood'], ['box', -0.9, 0.25, 0, 0.12, 0.5, 0.5, 'dark'], ['box', 0.9, 0.25, 0, 0.12, 0.5, 0.5, 'dark']]);
+defModel('lamp', { h: 5.6, r: 0.5, cat: 'props' }, [['pri', 0, 0, 0, 0.12, 5, 6, 'dark'], ['gico', 0, 5.2, 0, 0.45, [255, 226, 160]]]);
+defModel('fence', { h: 1.2, r: 0.5, cat: 'props', sh: 0 }, (o) => { const n = o.n || 6, L = [['box', n * 0.75 - 0.75, 0.95, 0, n * 1.5, 0.1, 0.08, 'wood'], ['box', n * 0.75 - 0.75, 0.5, 0, n * 1.5, 0.1, 0.08, 'wood']]; for (let i = 0; i < n; i++) L.push(['box', i * 1.5, 0.6, 0, 0.12, 1.2, 0.12, 'wood']); return L; });
+defModel('sign', { h: 3, r: 0.6, cat: 'props', d: { a: 'blue' } }, [['box', 0, 1.2, 0, 0.1, 2.4, 0.1, 'grey'], ['box', 0, 2.5, 0.05, 1.6, 0.9, 0.1, '$a']]);
+defModel('desk', { h: 1.5, r: 1.4, cat: 'props', d: { w: 'skyblue' } }, [['box', 0, 0.75, 0, 2, 0.1, 1, 'wood'], ['box', -0.9, 0.37, 0, 0.1, 0.75, 0.9, 'wood'], ['box', 0.9, 0.37, 0, 0.1, 0.75, 0.9, 'wood'], ['box', 0, 1.15, -0.1, 0.8, 0.55, 0.08, 'dark'], ['glow', 0, 1.15, -0.05, 0.7, 0.45, 0.04, '$w'], ['box', 0.7, 0.85, 0.2, 0.3, 0.1, 0.3, 'white']]);
+defModel('table', { h: 1, r: 1.4, cat: 'props' }, [['box', 0, 0.85, 0, 2.4, 0.1, 1.2, 'wood'], ['box', -1.1, 0.42, -0.5, 0.1, 0.85, 0.1, 'wood'], ['box', 1.1, 0.42, -0.5, 0.1, 0.85, 0.1, 'wood'], ['box', -1.1, 0.42, 0.5, 0.1, 0.85, 0.1, 'wood'], ['box', 1.1, 0.42, 0.5, 0.1, 0.85, 0.1, 'wood']]);
+defModel('chair', { h: 1.6, r: 0.6, cat: 'props' }, [['box', 0, 0.5, 0, 0.6, 0.08, 0.6, 'wood'], ['box', 0, 1, -0.28, 0.6, 0.9, 0.08, 'wood'], ['box', 0, 0.25, 0, 0.5, 0.5, 0.5, 'dark']]);
+defModel('shelf', { h: 3, r: 1.5, cat: 'props' }, (o) => { const L = [['box', 0, 1.5, -0.1, 2.6, 3, 0.2, 'wood'], ['box', -1.3, 1.5, 0.2, 0.1, 3, 0.6, 'wood'], ['box', 1.3, 1.5, 0.2, 0.1, 3, 0.6, 'wood']]; const cs = ['red', 'blue', 'green', 'yellow', 'purple', 'orange']; for (let r = 0; r < 4; r++) { L.push(['box', 0, 0.05 + r * 0.9, 0.2, 2.6, 0.08, 0.6, 'wood']); for (let i = 0; i < 7; i++) L.push(['box', -1.05 + i * 0.35, 0.5 + r * 0.9, 0.2, 0.26, 0.7, 0.4, cs[(i + r * 2) % 6]]); } return L; });
+defModel('book', { h: 0.4, r: 0.5, cat: 'props', d: { a: 'red' } }, [['box', 0, 0.1, 0, 0.5, 0.12, 0.7, '$a'], ['box', 0.02, 0.1, 0.02, 0.44, 0.1, 0.64, 'cream']]);
+defModel('crate', { h: 1.2, r: 0.9, cat: 'props' }, [['box', 0, 0.55, 0, 1.1, 1.1, 1.1, 'wood'], ['box', 0, 0.55, 0, 1.14, 0.12, 1.14, 'brown']]);
+defModel('barrel', { h: 1.2, r: 0.7, cat: 'props', d: { a: 'brown' } }, [['cyl', 0, 0.6, 0, 0.5, 1.2, 'y', 8, '$a'], ['cyl', 0, 0.3, 0, 0.52, 0.08, 'y', 8, 'dark'], ['cyl', 0, 0.9, 0, 0.52, 0.08, 'y', 8, 'dark']]);
+defModel('ladder', { h: 4, r: 0.6, cat: 'props' }, (o) => { const L = [['box', -0.3, 2, 0, 0.08, 4, 0.08, 'wood'], ['box', 0.3, 2, 0, 0.08, 4, 0.08, 'wood']]; for (let i = 0; i < 8; i++) L.push(['box', 0, 0.4 + i * 0.5, 0, 0.6, 0.06, 0.06, 'wood']); return L; });
+defModel('backpack', { h: 0.8, r: 0.5, cat: 'props', d: { a: 'orange' } }, [['box', 0, 0.4, 0, 0.5, 0.7, 0.3, '$a'], ['box', 0, 0.25, 0.17, 0.4, 0.25, 0.06, 'dark']]);
+defModel('medbox', { h: 0.6, r: 0.6, cat: 'props' }, [['box', 0, 0.25, 0, 0.8, 0.5, 0.5, 'white'], ['glow', 0, 0.26, 0.26, 0.3, 0.1, 0.02, 'red'], ['glow', 0, 0.26, 0.26, 0.1, 0.3, 0.02, 'red']]);
+defModel('microscope', { h: 1.2, r: 0.6, cat: 'props' }, [['box', 0, 0.06, 0, 0.5, 0.12, 0.4, 'dark'], ['box', 0, 0.55, -0.1, 0.1, 1, 0.1, 'dark'], ['cyl', 0, 0.8, 0.1, 0.07, 0.5, 'y', 6, 'silver'], ['box', 0, 0.35, 0.1, 0.4, 0.04, 0.3, 'silver']]);
+defModel('bulb', { h: 3, r: 0.4, cat: 'props' }, [['pri', 0, 0, 0, 0.1, 2.2, 6, 'dark'], ['gico', 0, 2.5, 0, 0.5, [255, 236, 150]]]);
+defModel('phone', { h: 0.3, r: 0.2, cat: 'props', sh: 0 }, [['box', 0, 0, 0, 0.1, 0.2, 0.03, 'dark'], ['glow', 0, 0, 0.02, 0.08, 0.16, 0.01, 'skyblue']]);
+defModel('umbrella', { h: 2.8, r: 1.6, cat: 'props', d: { a: 'red' } }, [['pri', 0, 0, 0, 0.04, 2.4, 5, 'grey'], ['cone', 0, 2.2, 0, 1.5, 0.7, 8, '$a']]);
+defModel('ball', { h: 0.6, r: 0.4, cat: 'props', d: { a: 'red' } }, [['ico', 0, 0.3, 0, 0.3, '$a']]);
+defModel('bottle', { h: 0.6, r: 0.2, cat: 'props', d: { a: 'skyblue' } }, [['cyl', 0, 0.2, 0, 0.1, 0.4, 'y', 6, '$a'], ['cyl', 0, 0.5, 0, 0.04, 0.2, 'y', 6, '$a']]);
+defModel('petri', { h: 0.5, r: 1.6, cat: 'props' }, [['cyl', 0, 0.12, 0, 1.4, 0.24, 'y', 14, [200, 220, 224]], ['cyl', 0, 0.26, 0, 1.3, 0.04, 'y', 14, [226, 204, 150]], ['ico', 0.5, 0.3, 0.3, 0.22, 'yellow', 0.3], ['ico', -0.6, 0.3, 0.5, 0.2, 'yellow', 0.3], ['ico', -0.3, 0.3, -0.6, 0.24, 'yellow', 0.3], ['ico', 0.7, 0.3, -0.5, 0.2, 'yellow', 0.3], ['cyl', -0.1, 0.29, 0, 0.5, 0.03, 'y', 12, [236, 226, 190]], ['ico', -0.1, 0.32, 0, 0.16, 'green', 0.4]]);
+// ---------- models with movement ----------
+MINFO.console = { h: 2.2, r: 2, cat: 'props' }; MODELS.console = (x, y, z, f, s, o, T) => { const b = bxf(x, y, z, f, s, o); shadow(x, y, z, 2 * s); spec([['box', 0, 0.5, 0, 3.6, 1, 1.2, 'grey'], ['box', 0, 1.35, -0.3, 3.6, 0.9, 0.3, 'dark']], b, o, {}); [-1.2, 0, 1.2].forEach((dx, i) => box(dx, 1.35, -0.14, 0.9, 0.6, 0.04, o.alarm ? (Math.sin(T * 10) > 0 ? [255, 70, 60] : [120, 30, 30]) : [90, 220, 140], b, { emissive: 1 })); for (let i = 0; i < 6; i++) box(-1.4 + i * 0.56, 1.02, 0.2, 0.18, 0.06, 0.18, Math.sin(T * 3 + i * 2) > 0 ? [255, 200, 70] : [90, 70, 40], b, { emissive: 1 }); };
+MINFO.alarm = { h: 1.2, cat: 'props' }; MODELS.alarm = (x, y, z, f, s, o, T) => { const on = Math.sin(T * 9) > 0; const b = comp(sc(s), mv(x, y, z)); prism(0, 0, 0, 0.3, 0.2, 8, [60, 60, 66], b); ico(0, 0.5, 0, 0.35, on ? [255, 60, 50] : [110, 30, 30], b, 1, { emissive: 1 }); };
+MINFO.windmill = { h: 12, r: 2, cat: 'buildings' }; MODELS.windmill = (x, y, z, f, s, o, T) => { const b = bxf(x, y, z, f, s, o), hh = 9; shadow(x, y, z, 2 * s); prism(0, 0, 0, 0.7, hh, 6, colr('wood'), b, 0.35); box(0, hh, 0.3, 0.5, 0.5, 0.9, [90, 90, 100], b); const a0 = T * (o.spin == null ? 2.2 : o.spin); for (let k = 0; k < 4; k++) box(0, hh + 1.6, 0.8, 0.28, 3.2, 0.06, [236, 236, 240], comp(rotZ(a0 + (k * Math.PI) / 2, [0, hh, 0.8]), b)); };
+MINFO.flag = { h: 6, r: 0.4, cat: 'props' }; MODELS.flag = (x, y, z, f, s, o, T) => { const b = bxf(x, y, z, f, s, o), cs = [colr((o.c && o.c.a) || 'white'), colr((o.c && o.c.b) || 'red'), colr((o.c && o.c.c) || 'blue')]; prism(0, 0, 0, 0.07, 6, 6, [180, 180, 190], b); for (let i = 0; i < 5; i++) for (let j = 0; j < 3; j++) { const w = (xx) => Math.sin(T * 4 + xx * 1.4) * 0.12 * xx, x0 = 0.1 + i * 0.5, x1 = x0 + 0.5, y0 = 5.9 - j * 0.6, p = (xx, yy) => [0, yy, xx]; const A = [w(x0), y0, x0], B = [w(x1), y0, x1], C = [w(x0), y0 - 0.6, x0], D = [w(x1), y0 - 0.6, x1]; const col = cs[Math.min(2, j)]; tri(b(A), b(B), b(C), col, { twoSided: 1 }); tri(b(B), b(D), b(C), col, { twoSided: 1 }); } };
+MINFO.parachute = { h: 8, r: 3, cat: 'space' }; MODELS.parachute = (x, y, z, f, s, o) => { const b = comp(sc(s), mv(x, y, z)); const a = colr((o.c && o.c.a) || 'red'), c2 = colr((o.c && o.c.b) || 'white'); for (let i = 0; i < 8; i++) { const a0 = (i / 8) * TAU, a1 = ((i + 1) / 8) * TAU; tri(b([0, 7, 0]), b([Math.cos(a0) * 3.5, 5.2, Math.sin(a0) * 3.5]), b([Math.cos(a1) * 3.5, 5.2, Math.sin(a1) * 3.5]), i % 2 ? a : c2, { twoSided: 1 }); box(Math.cos(a0) * 1.7, 2.7, Math.sin(a0) * 1.7, 0.03, 5.2, 0.03, [60, 60, 60], comp(rotX(0), b)); } };
+MINFO.statue = { h: 4, r: 2, cat: 'props' }; MODELS.statue = (x, y, z, f, s, o, T, st) => { const b = comp(sc(s), mv(x, y, z)); shadow(x, y, z, 1.6 * s); prism(0, 0, 0, 1.2, 1.2, 6, [150, 146, 156], b, 1.0); const g = { c: { a: 'gold', b: 'gold', shirt: 'gold', pants: 'gold', skin: 'gold', dress: 'gold' } }; (o.kind === 'person' ? MODELS.man : MODELS.dog)(x, y + 1.2 * s, z, f, s * (o.kind === 'person' ? 1.4 : 1.15), g, T, { anim: o.kind === 'person' ? 'stand' : 'sit' }); };
+MINFO.bird = { h: 1, cat: 'animals', sh: 0 }; MODELS.bird = (x, y, z, f, s, o, T, st) => { const b = comp(sc(s), rotY((f * Math.PI) / 180), mv(x, y, z)), fl = st && st.moving ? Math.sin(T * 14) * 0.6 : 0.1; ico(0, 0, 0, 0.18, colr((o.c && o.c.a) || 'dark'), b, 0.7); tri(b([0, 0, 0.2]), b([0, 0, 0.45]), b([0.05, 0.02, 0.32]), [250, 190, 60], { twoSided: 1 }); [-1, 1].forEach((d) => { tri(b([d * 0.05, 0.05, 0.1]), b([d * 0.05, 0.05, -0.15]), b([d * 0.7, fl, -0.02]), colr((o.c && o.c.b) || 'dark'), { twoSided: 1 }); }); };
+MINFO.flock = { h: 3, cat: 'animals', sh: 0 }; MODELS.flock = (x, y, z, f, s, o, T) => { const q = rng(hashS('flock' + (o.n || 12))), n = o.n || 12; for (let i = 0; i < n; i++) { const ox = (q() - 0.5) * 10 * s, oy = (q() - 0.5) * 4 * s, oz = (q() - 0.5) * 8 * s; MODELS.bird(x + ox, y + oy + Math.sin(T * 3 + i) * 0.3, z + oz, f, 1.6 * s, { c: { a: 'dark', b: 'dark' } }, T, { moving: true }); } };
+MINFO.wave = { h: 10, r: 1, cat: 'nature', sh: 0 }; MODELS.wave = (x, y, z, f, s, o, T) => { const w = (o.w || 170) * s, h = (o.h || 10) * s; box(x, y + h / 2, z, w, h, 5, [58, 164, 186]); box(x, y + h * 0.2, z + 22, w, h * 0.4, 40, [34, 120, 176]); for (let k = 0; k < 24; k++) ico(x - w / 2 + (k + 0.5) * (w / 24) + Math.sin(T * 3 + k) * 1.5, y + h + 0.2 + Math.sin(T * 2 + k) * 0.3, z - 1.2, 2.4 * s, [255, 255, 255], null, 0.55); };
+MINFO.plane = { h: 5, r: 12, cat: 'vehicles' }; MODELS.plane = (x, y, z, f, s, o, T) => {
+  const xf = bxf(x, y, z, f, s, o), W1 = [236, 240, 246], G1 = [150, 158, 170];
+  tube(-11, 12, 1.9, 1.9, 10, (fc, k) => { const sg = Math.floor(k / 2) % 10; return sg === 0 || sg === 5 ? [60, 120, 190] : sg >= 6 && sg <= 8 ? [208, 214, 224] : W1; }, xf); tube(12, 15.5, 1.9, 0.35, 10, W1, xf); tube(-16, -11, 0.7, 1.9, 10, W1, xf);
+  [-1, 1].forEach((d) => { box(d * 10.5, -0.9, -0.5, 18, 0.35, 4.6, [226, 232, 240], comp(rotY(d * -0.28, [d * 2, 0, 0]), xf)); box(d * 5.6, -2.1, 1.5, 1.9, 1.9, 3.8, G1, xf); box(d * 4.2, 1.1, -13.3, 7, 0.25, 2.6, W1, xf); });
+  box(0, 3.4, -13, 0.35, 4.6, 3.4, [60, 120, 190], xf); for (let k = 0; k < 14; k++) box(k % 2 ? 1.93 : -1.93, 0.8, 9 - k * 1.3, 0.05, 0.4, 0.5, [150, 190, 230], xf, { emissive: 1 });
+  if (o.smoke) for (let k = 0; k < 9; k++) ico(5.6, -2.1 + k * 0.05, 1.5 - k * 3.2, 0.7 + k * 0.22, [120 + k * 6, 124 + k * 6, 132 + k * 6], xf, 0.9);
+  if (o.people) for (let k = 0; k < 6; k++) { const d = k % 2 ? -1 : 1; human('man', d * (5.5 + (k >> 1) * 2.4), -0.7, -1.2, d * 20, 1.5, { xf, c: { shirt: ['orange', 'skyblue', 'red'][k % 3] } }, T, { anim: 'wave', seed: k }); }
+};
+
+// ---------- extra kit models: crowd, dog sled team, puff ----------
+MINFO.crowd = { h: 2, r: 4, cat: 'people' }; MODELS.crowd = (x, y, z, f, s, o, T, st) => { const n = o.n || 5, sp = o.spread || 5, q = rng(hashS('crowd' + n)), L = ['man', 'woman', 'boy', 'elder', 'girl', 'man', 'woman']; for (let i = 0; i < n; i++) { const dx = (q() - 0.5) * sp * s, dz = (q() - 0.5) * sp * 0.6 * s, nm = (o.kinds && o.kinds[i % o.kinds.length]) || L[i % L.length]; MODELS[nm](x + dx, y, z + dz, f, s, { c: o.c }, T, Object.assign({}, st, { seed: i * 1.7 })); } };
+MINFO.dogteam = { h: 2, r: 5, cat: 'animals' }; MODELS.dogteam = (x, y, z, f, s, o, T, st) => { const b = comp(sc(s), rotY((f * Math.PI) / 180), mv(x, y, z)), n = o.n || 4, run = { moving: true, anim: 'run' }; shadow(x, y, z, 3 * s); for (let i = 0; i < n; i++) for (const d of [-1, 1]) { const p = b([d * 0.8, 0, 1.4 + i * 1.3]); MODELS.husky(p[0], p[1], p[2], f, s, { c: i % 2 ? { a: 'grey', b: 'white' } : null }, T, Object.assign({ seed: i * 1.3 + d }, run)); } box(0, 0.05, 0, 0.04, 0.04, n * 1.3 + 2, [90, 80, 80], b); const sp = b([0, 0, -2.6]); MODELS.sled(sp[0], sp[1], sp[2], f, s, {}, T); const mp = b([0, 0.35, -3.6]); MODELS.musher(mp[0], mp[1], mp[2], f, s, {}, T, { anim: 'stand' }); };
+MINFO.puff = { h: 2, cat: 'effects', sh: 0 }; MODELS.puff = (x, y, z, f, s, o, T) => { const c = colr((o.c && o.c.a) || 'grey'); ico(x, y, z, 1.6 * s, c, null, 0.9, o.glow ? { emissive: 1 } : undefined); ico(x + 1.1 * s, y + 0.4 * s, z, 1.1 * s, mixc(c, [255, 255, 255], 0.2), null, 0.9, o.glow ? { emissive: 1 } : undefined); ico(x - 1.0 * s, y - 0.2 * s, z + 0.3 * s, 1.0 * s, mixc(c, [0, 0, 0], 0.15), null, 0.9, o.glow ? { emissive: 1 } : undefined); };
+
+// ---------- times of day ----------
+const TIMES = {
+  day: { top: [110, 170, 228], bot: [236, 244, 252], fog: [226, 236, 246], sunCol: [255, 244, 220], glow: '255,246,225' },
+  dawn: { top: [86, 112, 190], bot: [255, 206, 150], fog: [250, 206, 160], sunCol: [255, 214, 160], glow: '255,210,150', bright: 0.96 },
+  dusk: { top: [44, 40, 100], bot: [255, 168, 122], fog: [240, 170, 142], sunCol: [255, 196, 150], glow: '255,190,140', bright: 0.92 },
+  night: { top: [8, 12, 34], bot: [40, 54, 104], fog: [30, 42, 84], sunCol: [140, 160, 230], glow: '120,140,220', bright: 0.62, stars: 1, amb: [0.6, 0.62, 0.78] },
+  storm: { top: [88, 96, 112], bot: [170, 176, 186], fog: [160, 166, 176], sunCol: [210, 214, 224], glow: '200,206,216', bright: 0.82 },
+  snow: { top: [170, 180, 198], bot: [238, 242, 248], fog: [228, 234, 242], sunCol: [240, 244, 255], glow: '240,246,255', bright: 1 },
+  indoor: { top: [36, 34, 50], bot: [64, 58, 74], fog: [46, 44, 58], sunCol: [255, 236, 200], glow: '255,230,190', bright: 1, amb: [0.78, 0.76, 0.82], fogNear: 60, fogFar: 200 },
+  cave: { top: [18, 14, 16], bot: [34, 26, 24], fog: [24, 18, 16], sunCol: [255, 190, 110], glow: '255,180,100', bright: 1, amb: [0.5, 0.45, 0.45], fogNear: 14, fogFar: 70 },
+  space: { top: [2, 4, 16], bot: [10, 12, 34], fog: [10, 12, 34], sunCol: [255, 248, 236], glow: '255,248,236', bright: 1, stars: 1, fogNear: 900, fogFar: 1000 },
+};
+// ---------- sets: a ground, a backdrop, and a default time of day ----------
+const SETS = {};
+const put = (n, x, y, z, f, s, o) => MODELS[n](x, y, z, f == null ? 180 : f, s || 1, o || {}, 0, { anim: 'stand' });
+const scatter = (n, seed, x0, x1, z0, z1, fn, avoid) => { const q = rng(seed); for (let i = 0; i < n; i++) { const x = x0 + q() * (x1 - x0), z = z0 + q() * (z1 - z0); if (avoid && avoid(x, z)) continue; fn(x, z, q); } };
+const far = (z, hs, col) => { for (let i = 0; i < 6; i++) put('mountain', -110 + i * 44, 0, z, 0, 1, { r: 36 + (i % 3) * 10, h: hs[i % hs.length], c: { a: col || 'stone' } }); };
+SETS.meadow = { time: 'day', build() { ground(-100, 100, -60, 150, 6, () => 0, (x, z) => [104, 168, 92], 5); far(190, [26, 36, 22]); scatter(40, 7, -70, 70, 8, 120, (x, z, q) => put('tree', x, 0, z, 0, 0.9 + q() * 0.5), (x, z) => Math.abs(x) < 9 && z < 40); scatter(24, 8, -50, 50, 4, 90, (x, z, q) => put('flower', x, 0, z, 0, 1.4, { c: { a: ['red', 'yellow', 'pink'][Math.floor(q() * 3)] } })); } };
+SETS.beach = { time: 'day', build() { ground(-90, 90, -70, 132, 5, (x, z) => 0.9 - 0.045 * z, (x, z) => (z < 18 ? [232, 214, 164] : mixc([232, 214, 164], [186, 160, 112], cl((z - 18) / 40))), 21); [[-16, 6], [-6, 8], [12, 5], [20, 9], [-30, 12]].forEach(([x, z]) => put('palm', x, 0, z, 0, 1)); put('cloud', -30, 28, 120, 0, 3); put('cloud', 40, 34, 140, 0, 3.4); },
+  dyn(b, T, p) { const a = b.sea || [0, 0], lvl = lerp(a[0], a[1], ez(p)), cell = 5; for (let z = 10; z < 132; z += cell) for (let x = -90; x < 90; x += cell) { const d = lvl - (0.9 - 0.045 * (z + cell / 2)); if (d < 0.05) continue; const w = (xx, zz) => lvl + Math.sin(xx * 0.35 + zz * 0.25 + T * 1.6) * 0.1, col = mixc([110, 214, 208], [34, 120, 176], cl(d / 5)); tri([x, w(x, z), z], [x, w(x, z + cell), z + cell], [x + cell, w(x + cell, z), z], col, { water: 1, bias: 8.4 }); tri([x + cell, w(x + cell, z), z], [x, w(x, z + cell), z + cell], [x + cell, w(x + cell, z + cell), z + cell], mixc(col, [255, 255, 255], 0.12), { water: 1, bias: 8.4 }); } if (b.sea && p > 0 && b.sea[1] < -1) { const sz = (0.9 - lvl) / 0.045; for (let k = 0; k < 14; k++) ico(-28 + k * 4.3 + Math.sin(k * 3.1) * 2, lvl + 0.15, sz + 3 + ((k * 7) % 11), 0.45, [255, 255, 255], null, 0.5, { emissive: 1 }); } } };
+SETS.village = { time: 'day', build() { ground(-100, 100, -60, 150, 6, () => 0, (x, z) => ((Math.floor(x / 12) + Math.floor(z / 12)) & 1 ? [200, 170, 118] : [190, 158, 108]), 9); far(190, [20, 30], 'brick'); [[-18, 22], [20, 26], [-30, 38], [34, 44], [-8, 52]].forEach(([x, z], k) => put(k % 2 ? 'hut' : 'house', x, 0, z, 180 + k * 12, 1)); scatter(14, 3, -60, 60, 10, 90, (x, z, q) => put('tree', x, 0, z, 0, 0.8 + q() * 0.4, { c: { a: 'lime' } }), (x, z) => Math.abs(x) < 8 && z < 30); } };
+SETS.desert = { time: 'day', build() { ground(-100, 100, -60, 150, 6, (x, z) => Math.sin(x * 0.05 + z * 0.03) * 1.2, (x, z) => [214, 178, 120], 13); far(190, [24, 38, 30], 'brick'); scatter(18, 4, -60, 60, 10, 110, (x, z, q) => put(q() < 0.6 ? 'rock' : 'cactus', x, 0, z, 0, 1 + q(), {}), (x, z) => Math.abs(x) < 10 && z < 36); } };
+SETS.snow = { time: 'snow', build() { ground(-100, 100, -60, 160, 6, (x, z) => Math.sin(x * 0.07) * 0.6, (x, z) => [236, 240, 250], 15); far(190, [28, 40, 24], 'stone'); scatter(46, 6, -70, 70, 6, 130, (x, z, q) => put('pine', x, 0, z, 0, 0.9 + q() * 0.7, { snow: 1 }), (x, z) => Math.abs(x) < 8); } };
+SETS.plaza = { time: 'dusk', build() { ground(-70, 70, -50, 90, 5, () => 0, (x, z) => (Math.abs(x) > 30 || z > 52 ? [96, 150, 96] : z > 31 ? [128, 124, 132] : (Math.floor(x / 5) + Math.floor(z / 5)) & 1 ? [170, 164, 170] : [184, 178, 182]), 11); put('station', 0, 0, 36, 180, 0.7); [[-22, 10], [-14, 14], [16, 14], [26, 10], [-30, 24], [32, 22]].forEach(([x, z], k) => put('tree', x, 0, z, 0, 1 + (k % 3) * 0.12, { c: { a: [236, 172, 44] } })); [-14, 14, -26, 26].forEach((x) => put('lamp', x, 0, 8, 0, 1)); for (let k = 0; k < 3; k++) put('train', -6 + k * 0, 0, 56, 90, 1, { n: 2 }); } };
+SETS.river = { time: 'day', build() { ground(-140, 140, -90, 320, 10, () => -0.2, (x) => (Math.abs(x) > 52 ? [86, 90, 100] : [52, 88, 126]), 31); const r = rng(41), pal = ['grey', 'tan', 'stone', 'brick', 'silver']; for (let z = -80; z < 300; z += 17) [-1, 1].forEach((d) => { const w = 16 + r() * 8, h = 14 + r() * 44; put('tower', d * (62 + w / 2 + r() * 6), 0, z, d > 0 ? -90 : 90, 1, { w, h, c: { a: pal[Math.floor(r() * 5)] } }); put('tower', d * (86 + w / 2), 0, z + 8, 0, 1, { w, h: h * 0.7 + 8, c: { a: pal[Math.floor(r() * 5)] } }); }); } };
+SETS.ocean = { time: 'day', build() { put('cloud', -30, 40, 150, 0, 4); put('cloud', 50, 46, 190, 0, 4.4); }, dyn(b, T) { for (let z = -30; z < 260; z += 10) for (let x = -130; x < 130; x += 10) { const w = (xx, zz) => Math.sin(xx * 0.25 + zz * 0.2 + T * 1.5) * 0.2, col = mixc([40, 120, 180], [70, 160, 210], 0.5 + 0.5 * Math.sin(x * 0.2 + z * 0.17)); tri([x, w(x, z), z], [x, w(x, z + 10), z + 10], [x + 10, w(x + 10, z), z], col, { water: 1, bias: 8.4 }); tri([x + 10, w(x + 10, z), z], [x, w(x, z + 10), z + 10], [x + 10, w(x + 10, z + 10), z + 10], mixc(col, [255, 255, 255], 0.1), { water: 1, bias: 8.4 }); } } };
+SETS.island = { time: 'dawn', build() { ground(-110, 110, -50, 150, 6, (x, z) => (Math.abs(x) > 28 || z > 110 ? -0.45 : 0), (x, z) => (Math.abs(x) > 28 || z > 110 ? [70, 140, 190] : [226, 206, 150]), 17); far(200, [16, 24], 'green'); scatter(20, 9, -22, 22, 24, 100, (x, z, q) => put('bush', x, 0, z, 0, 0.5 + q() * 0.4)); } };
+SETS.room = { time: 'indoor', build() { ground(-30, 30, -20, 40, 5, () => 0, (x, z) => ((Math.floor(x / 5) + Math.floor(z / 5)) & 1 ? [182, 160, 130] : [170, 148, 120]), 19); box(0, 6, 40, 70, 12, 1, [150, 160, 176]); box(-30, 6, 10, 1, 12, 60, [140, 150, 168]); box(30, 6, 10, 1, 12, 60, [140, 150, 168]); [-14, 0, 14].forEach((x) => box(x, 7, 39.4, 6, 4, 0.2, [255, 240, 190], null, { emissive: 1 })); box(0, 12.4, 10, 70, 0.8, 60, [90, 96, 108]); } };
+SETS.cave = { time: 'cave', build() { ground(-40, 40, -30, 60, 5, () => 0, (x, z) => [92, 74, 62], 23); for (let i = 0; i < 16; i++) { const a = (i / 16) * TAU; put('rock', Math.cos(a) * 34, 0, 14 + Math.sin(a) * 36, 0, 7, {}); } scatter(12, 4, -26, 26, 20, 50, (x, z, q) => put('rock', x, 0, z, 0, 1 + q() * 1.4, {})); [-12, 0, 12].forEach((x, k) => put('lamp', x, 0, 18 + k * 3, 0, 1)); } };
+SETS.space = { time: 'space', build() { } };
+SETS.city = { time: 'day', build() { ground(-100, 100, -60, 150, 6, () => 0, (x) => (Math.abs(x) < 8 ? [74, 74, 82] : [160, 160, 168]), 27); const r = rng(5); for (let z = 0; z < 130; z += 20) [-1, 1].forEach((d) => put('tower', d * 24, 0, z, d > 0 ? -90 : 90, 1, { w: 14, h: 16 + r() * 30, c: { a: ['grey', 'tan', 'brick', 'silver'][Math.floor(r() * 4)] } })); for (let z = 6; z < 120; z += 18) [-1, 1].forEach((d) => put('lamp', d * 7, 0, z, 0, 1)); } };
+
+// ---------- cameras ----------
+const CAMS = ['static', 'dolly', 'orbit', 'track', 'crane'];
+function aim(t, A) { if (typeof t === 'string') { const a = A[t]; return a ? [a.x, a.y + a.h * 0.55, a.z] : [0, 1, 10]; } return t || [0, 1, 10]; }
+function camFor(b, p, A) {
+  const c = b.cam || { mode: 'orbit', target: b.actors && b.actors[0] ? b.actors[0].id : [0, 1, 10], r: 8, h: 2.5 }, e = ez(p);
+  if (c.mode === 'static') return { pos: c.at, tg: aim(c.look, A) };
+  if (c.mode === 'dolly' || c.mode === 'crane') return { pos: lerp3(c.from, c.to, e), tg: aim(c.look, A) };
+  if (c.mode === 'track') { const t = aim(c.target, A); return { pos: [t[0] + c.off[0], t[1] + c.off[1], t[2] + c.off[2]], tg: c.look ? aim(c.look, A) : t }; }
+  const t = aim(c.target, A), a = (lerp(c.a0 == null ? -30 : c.a0, c.a1 == null ? 30 : c.a1, p) * Math.PI) / 180, r = c.r || 8; return { pos: [t[0] + Math.sin(a) * r, t[1] + (c.h == null ? 1.5 : c.h), t[2] - Math.cos(a) * r], tg: t };
+}
+// ---------- actors ----------
+function actorState(a, p, T, idx) {
+  const f = a.from == null ? 0 : a.from, u = a.until == null ? 1 : a.until, at = a.at || [0, 0], to = a.to || at, raw = wn(p, f, u), k = a.loop ? (raw * a.loop) % 1 : ez(raw);
+  const x = lerp(at[0], to[0], k), z = lerp(at[1], to[1], k), travels = to[0] !== at[0] || to[1] !== at[1], moving = travels && raw > 0.001 && raw < 0.999;
+  const yy = Array.isArray(a.y) ? lerp(a.y[0], a.y[1], k) : a.y || 0, s = Array.isArray(a.s) ? lerp(a.s[0], a.s[1], ez(raw)) : a.s == null ? 1 : a.s;
+  let face = typeof a.face === 'number' ? a.face : travels ? (Math.atan2(to[0] - at[0], to[1] - at[1]) * 180) / Math.PI : 180;
+  const anim = raw >= 0.999 && a.end ? a.end : a.anim || (moving ? 'walk' : 'stand'), vis = a.vis || [0, 1];
+  return { x, y: yy, z, s, face, moving, anim, seed: idx * 1.7, show: p >= vis[0] && p <= vis[1], h: (MINFO[a.m] ? MINFO[a.m].h || 2 : 2) * s };
+}
+// ---------- effects drawn on top (screen space) ----------
+const FXS = ['snow', 'rain', 'dust', 'sparks', 'confetti'];
+function drawFx(c, names, T) {
+  names.forEach((n) => {
+    const q = rng(hashS(n));
+    if (n === 'snow') { c.fillStyle = 'rgba(255,255,255,.85)'; for (let i = 0; i < 130; i++) { const sp = 90 + q() * 160, r = 1.5 + q() * 3.4; c.beginPath(); c.arc((q() * W + Math.sin(T * 1.3 + i) * 24 + T * 40) % W, (q() * HH + T * sp) % HH, r, 0, TAU); c.fill(); } }
+    if (n === 'rain') { c.strokeStyle = 'rgba(210,225,245,.6)'; c.lineWidth = 2; c.beginPath(); for (let i = 0; i < 110; i++) { const x = q() * (W + 200) - 100, y = (q() * HH + T * 1500 * (0.8 + q() * 0.5)) % HH; c.moveTo(x, y); c.lineTo(x - 14, y + 46); } c.stroke(); }
+    if (n === 'dust') { for (let i = 0; i < 46; i++) { c.fillStyle = `rgba(240,225,190,${0.15 + q() * 0.2})`; c.beginPath(); c.arc((q() * W + T * (10 + q() * 20)) % W, (q() * HH + Math.sin(T + i) * 18) % HH, 2 + q() * 4, 0, TAU); c.fill(); } }
+    if (n === 'sparks') { for (let i = 0; i < 40; i++) { const t = (T * (0.6 + q() * 0.8) + q() * 3) % 1; c.fillStyle = `rgba(255,${150 + (q() * 90) | 0},60,${1 - t})`; c.beginPath(); c.arc(W * (0.2 + q() * 0.6) + Math.sin(i + T * 3) * 20, HH * 0.8 - t * 700 * (0.5 + q()), 2 + q() * 3, 0, TAU); c.fill(); } }
+    if (n === 'confetti') { for (let i = 0; i < 70; i++) { const t = (T * (0.3 + q() * 0.4) + q()) % 1; c.save(); c.translate(q() * W + Math.sin(T * 3 + i) * 30, -30 + t * (HH + 60)); c.rotate(T * 4 + i); c.fillStyle = ['#ff7060', '#ffd23f', '#7cf2c0', '#7aa8ff', '#ff9bd0'][i % 5]; c.fillRect(-6, -3, 12, 6); c.restore(); } }
+  });
+}
+// ---------- validator: what an AI-written story must satisfy ----------
+const SFX_NAMES = ['whoosh', 'thud', 'heart', 'chime', 'bell', 'wind', 'waves', 'rumble', 'wavebig', 'train', 'steps', 'crowd', 'gulls', 'birds', 'engine', 'stall', 'splash', 'alarm', 'drill', 'cheer', 'snowwind', 'clack', 'radio', 'boom'];
+const MUS = { sad: ['A2', 'E3', 'C4'], hope: ['C3', 'G3', 'E4'], tense: ['D3', 'A3', 'F4'], wonder: ['F3', 'C4', 'A4'], cold: ['E3', 'B3', 'G4'] };
+const ALLANIM = ANIMS.concat(['lie']);
+function validateStory(s) {
+  const E = [], wordsOf = (t) => t.split(/\s+/).filter(Boolean).length; if (!s || typeof s !== 'object') return ['story is not an object'];
+  if (!/^[a-z0-9_]+$/.test(s.id || '')) E.push('id must be lowercase letters/digits/_'); if (!s.title || s.title.length > 32) E.push('title missing or longer than 32 chars'); if (!s.caption) E.push('caption missing'); if (!s.tags) E.push('tags missing');
+  if (!SETS[s.set]) E.push('unknown set: ' + s.set); if (!MUS[s.music]) E.push('unknown music: ' + s.music);
+  const bs = s.beats || []; if (bs.length < 4 || bs.length > 7) E.push('needs 4 to 7 beats'); let total = 0;
+  bs.forEach((b, i) => {
+    const L = 'beat ' + (i + 1) + ': '; if (!b.ar) { E.push(L + 'ar text missing'); return; } const w = wordsOf(b.ar); total += w; if (w < 4 || w > 24) E.push(L + 'Arabic text must be 4 to 24 words (is ' + w + ')');
+    if (b.set && !SETS[b.set]) E.push(L + 'unknown set ' + b.set); if (b.time && !TIMES[b.time]) E.push(L + 'unknown time ' + b.time);
+    const ids = {}; (b.actors || []).forEach((a) => { if (!MODELS[a.m]) E.push(L + 'unknown model ' + a.m); if (!a.id) E.push(L + 'actor without id'); else if (ids[a.id]) E.push(L + 'duplicate actor id ' + a.id); ids[a.id] = 1; if (!Array.isArray(a.at) || a.at.length !== 2 || a.at.some((v) => typeof v !== 'number' || Math.abs(v) > 340)) E.push(L + 'actor ' + a.id + ': at must be [x,z] numbers (x +-160, z -60..340)'); if (a.anim && ALLANIM.indexOf(a.anim) < 0) E.push(L + 'unknown anim ' + a.anim); if (a.c) Object.values(a.c).forEach((v) => { if (typeof v === 'string' && !PAL[v]) E.push(L + 'unknown colour ' + v); }); });
+    if ((b.actors || []).length > 14) E.push(L + 'too many actors (max 14)');
+    const c = b.cam; if (c) { if (CAMS.indexOf(c.mode) < 0) E.push(L + 'unknown camera mode ' + c.mode); ['target', 'look'].forEach((k) => { if (typeof c[k] === 'string' && !ids[c[k]]) E.push(L + 'camera ' + k + ' "' + c[k] + '" is not an actor id'); }); }
+    (b.fx || []).forEach((f) => { if (FXS.indexOf(f) < 0) E.push(L + 'unknown fx ' + f); }); (b.sfx || []).forEach((f) => { if (SFX_NAMES.indexOf(f.split('@')[0]) < 0) E.push(L + 'unknown sfx ' + f); }); (b.tags || []).forEach((t) => { if ((t.text || '').length > 22) E.push(L + 'tag text too long'); });
+  });
+  if (total < 38 || total > 66) E.push('total narration must be 38 to 66 words (is ' + total + ')'); if (bs.length && bs[bs.length - 1].ar.indexOf('؟') < 0) E.push('last beat must end with a question to the viewer');
+  return E;
+}
+
+// =====================================================================
+//  RENDERER, TIMELINE, FRAME, CATALOG, PAGE
+// =====================================================================
+function renderScene(ctx, cam, env, view) {
+  const SUN = norm(env.sun || [0.45, 0.6, -0.65]), AMB = env.amb || [0.62, 0.62, 0.7], out = [];
+  for (const t of TRI) {
+    const [a, b, c] = t.p; let n = norm(cross(sub(b, a), sub(c, a))); const cen = scl(add3(add3(a, b), c), 1 / 3);
+    if (t.terrain || t.water) { if (n[1] < 0) n = scl(n, -1); } else if (t.center) { if (dot(n, sub(cen, t.center)) < 0) n = scl(n, -1); }
+    const toCam = sub(cam.pos, cen);
+    if (t.twoSided) { if (dot(n, toCam) < 0) n = scl(n, -1); } else if (dot(n, toCam) <= 0) continue;
+    let vp = [cam.view(a), cam.view(b), cam.view(c)]; if (vp.every((v) => v[2] < 0.5)) continue; if (vp.some((v) => v[2] < 0.5)) vp = clipNear(vp, 0.5); if (vp.length < 3) continue;
+    const pts = vp.map((v) => [W / 2 + (F * v[0]) / v[2], HH / 2 - (F * v[1]) / v[2]]), xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+    if (Math.max(...xs) < -30 || Math.min(...xs) > W + 30 || Math.max(...ys) < -30 || Math.min(...ys) > HH + 30) continue;
+    const depth = vp.reduce((q, v) => q + v[2], 0) / vp.length + (t.bias || 0); let col;
+    if (t.emissive) col = t.col; else { const lam = Math.max(0, dot(n, SUN)); col = [0, 1, 2].map((i) => t.col[i] * (AMB[i] * 0.78 + (env.sunCol[i] / 255) * lam * 0.62) * (env.bright || 1)); }
+    const fk = cl(Math.pow(wn(depth, env.fogNear || 40, env.fogFar || 260), 1.1) * 0.92) * (t.emissive ? 0.4 : 1); col = mixc(col, env.fog, fk);
+    out.push({ pts, depth, col, a: t.alpha || 1 });
+  }
+  out.sort((p, q) => q.depth - p.depth); ctx.lineJoin = 'round';
+  for (const o of out) {
+    const fs = `rgb(${o.col[0] | 0},${o.col[1] | 0},${o.col[2] | 0})`; ctx.fillStyle = fs; ctx.strokeStyle = fs; ctx.lineWidth = 0.9; ctx.globalAlpha = o.a;
+    ctx.beginPath(); o.pts.forEach((q, k) => { const X = view ? view.ox + (q[0] - W / 2) * view.k : q[0], Y = view ? view.oy + (q[1] - HH / 2) * view.k : q[1]; k ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.closePath(); ctx.fill(); if (o.a === 1) ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+function skyDraw(ctx, env) {
+  const hz = HH * 0.5, br = env.bright || 1, g = ctx.createLinearGradient(0, 0, 0, hz + 160); g.addColorStop(0, `rgb(${env.top.map((v) => (v * br) | 0)})`); g.addColorStop(1, `rgb(${env.bot.map((v) => (v * br) | 0)})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, HH);
+  if (env.stars) { const q = rng(77); for (let i = 0; i < 90; i++) { const a = 0.4 + 0.5 * q(); ctx.fillStyle = `rgba(255,245,230,${a})`; ctx.fillRect(q() * W, q() * HH * 0.6, q() < 0.12 ? 3 : 2, q() < 0.12 ? 3 : 2); } }
+  else { const gl = ctx.createRadialGradient(W * 0.62, hz - 20, 20, W * 0.62, hz - 20, 420); gl.addColorStop(0, `rgba(${env.glow || '255,230,180'},.5)`); gl.addColorStop(1, `rgba(${env.glow || '255,230,180'},0)`); ctx.fillStyle = gl; ctx.fillRect(0, 0, W, HH); }
+}
+// ---------- timeline ----------
+const VOICE_OFF = 0.1, VOICE_TAIL = 0.28, END_HOLD = 1.1, CUT = 0.14;
+let STORY = null, TL = null, VD = null, VAR = null; const SETC = {};
+const wordsIn = (t) => t.split(/\s+/).filter(Boolean).length;
+function buildTL(v) { const n = STORY.beats.length, E = [], R = [], starts = []; let t = 0; for (let i = 0; i < n; i++) { const d = Math.max(3, wordsIn(STORY.beats[i].ar) / 2.5 + 0.6), r = v && v[i] > 0 ? Math.max(1.6, VOICE_OFF + v[i] + VOICE_TAIL) : d; E.push(t); R.push(r); starts.push(t + VOICE_OFF); t += r; } return { E, R, starts, total: t + END_HOLD }; }
+function loadTopic(id) { STORY = STORIES.find((x) => x.id === id) || STORIES[0]; VD = null; TL = buildTL(null); const r = rng(hashS(STORY.id + new Date().toISOString().slice(0, 10))); VAR = { hi: ['#ffd23f', '#7cf2c0', '#ff9f43'][Math.floor(r() * 3)] }; return { id: STORY.id, title: STORY.title, vo: STORY.beats.map((b) => b.ar), caption: STORY.caption, tags: STORY.tags, footer: STORY.footer || 'قصة موثقة. تُروى هنا باختصار.', kind: 'story', tr: [] }; }
+function setVoiceDurations(v) { VD = v; TL = buildTL(v); return { starts: TL.starts, total: TL.total }; }
+// ---------- one frame ----------
+let GRAIN = null;
+function explainer(ctx, T) {
+  const S = STORY; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0; ctx.clearRect(0, 0, W, HH);
+  let i = S.beats.length - 1; for (let k = 0; k < S.beats.length; k++) if (T < TL.E[k] + TL.R[k]) { i = k; break; }
+  const bt = T - TL.E[i], p = cl(bt / TL.R[i]), b = S.beats[i], setName = b.set || S.set, SET = SETS[setName];
+  TRI = (SETC[setName] || (SETC[setName] = (TRI = [], SET.build(), TRI))).slice();
+  const A = {}; (b.actors || []).forEach((a, k) => { const st = actorState(a, p, T, k); A[a.id] = st; if (st.show) MODELS[a.m](st.x, st.y, st.z, a.face == null || typeof a.face === 'number' ? st.face : st.face, st.s, Object.assign({}, a.o || {}, { c: a.c }), T, st); });
+  if (SET.dyn) SET.dyn(b, T, p);
+  const env = Object.assign({ amb: [0.62, 0.62, 0.7], bright: 1, fogNear: 40, fogFar: 260 }, TIMES[b.time || SET.time]), cv = camFor(b, p, A);
+  const sh = bt < 0.25 && i > 0 ? Math.sin(bt * 90) * (1 - bt / 0.25) * 0.12 : 0, cam = lookCam([cv.pos[0] + sh, cv.pos[1] + sh * 0.6, cv.pos[2]], cv.tg);
+  skyDraw(ctx, env); renderScene(ctx, cam, env); drawFx(ctx, b.fx || [], T);
+  tag(ctx, 150, 78, 'قصة حقيقية', { size: 34, bg: '#ff7060', col: '#fff' });
+  if (i === 0) tag(ctx, W / 2, 210, S.title, { size: 64, k: bk(wn(bt, 0.1, 0.45)) * (1 - wn(bt, 2.2, 2.7)) });
+  (b.tags || []).forEach((tg) => { const a = tg.t[0], e = tg.t[1], k = bk(wn(p, a, a + 0.1)) * (1 - wn(p, e - 0.08, e)); const txt = tg.count ? Math.round(lerp(tg.count[0], tg.count[1], eo(wn(p, a + 0.02, e - 0.1)))) + (tg.suffix || '') : tg.text; tag(ctx, W / 2, tg.y || 330, txt, { size: tg.size || 76, k, bg: tg.bg, col: tg.col }); });
+  if (b.flash === 'red') { ctx.fillStyle = `rgba(255,40,30,${0.22 * (0.5 + 0.5 * Math.sin(T * 10))})`; ctx.fillRect(0, 0, W, HH); }
+  drawSubtitle(ctx, T, VAR.hi);
+  if (T > TL.total - END_HOLD + 0.1) tag(ctx, W / 2, 1090, 'اكتب رأيك في التعليقات', { size: 44, k: bk(wn(T, TL.total - END_HOLD + 0.1, TL.total - END_HOLD + 0.45)), bg: '#2a1f4f', col: '#fff' });
+  if (i > 0 && bt < CUT) { ctx.fillStyle = `rgba(255,255,255,${0.55 * (1 - bt / CUT)})`; ctx.fillRect(0, 0, W, HH); }
+  finishFx(ctx, T);
+}
+function finishFx(ctx, T) {
+  const g = ctx.createRadialGradient(W / 2, HH / 2, 380, W / 2, HH / 2, 900); g.addColorStop(0, 'rgba(10,5,30,0)'); g.addColorStop(1, 'rgba(10,5,30,.4)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, HH);
+  if (!GRAIN) { GRAIN = document.createElement('canvas'); GRAIN.width = GRAIN.height = 128; const x = GRAIN.getContext('2d'), im = x.createImageData(128, 128), d = im.data, q = rng(9); for (let k = 0; k < d.length; k += 4) { const v = (q() * 255) | 0; d[k] = d[k + 1] = d[k + 2] = v; d[k + 3] = 255; } x.putImageData(im, 0, 0); GRAIN.pat = ctx.createPattern(GRAIN, 'repeat'); }
+  const f = Math.floor(T * 12); ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = 0.14; ctx.translate((f * 37) % 128, (f * 91) % 128); ctx.fillStyle = GRAIN.pat; ctx.fillRect(-128, -128, W + 256, HH + 256); ctx.restore();
+}
+// ---------- catalog: every model in the kit, turning slowly ----------
+const CAT_PER = 12;
+function catalogNames() { return Object.keys(MODELS).sort((a, b) => ((MINFO[a] || {}).cat || '').localeCompare((MINFO[b] || {}).cat || '') || a.localeCompare(b)); }
+function drawCatalog(ctx, page, T) {
+  const names = catalogNames(), cw = 240, ch = 320; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.fillStyle = '#1b1636'; ctx.fillRect(0, 0, W, HH);
+  const env = Object.assign({ amb: [0.66, 0.66, 0.74], bright: 1, fogNear: 400, fogFar: 900 }, TIMES.day);
+  for (let k = 0; k < CAT_PER; k++) {
+    const nm = names[page * CAT_PER + k]; if (!nm) break; const col = k % 3, row = Math.floor(k / 3), cx = col * cw, cy = row * ch;
+    ctx.save(); ctx.beginPath(); ctx.rect(cx + 4, cy + 4, cw - 8, ch - 8); ctx.clip(); const gr = ctx.createLinearGradient(0, cy, 0, cy + ch); gr.addColorStop(0, '#9fc4ee'); gr.addColorStop(1, '#eef4fa'); ctx.fillStyle = gr; ctx.fillRect(cx, cy, cw, ch);
+    TRI = []; const info = MINFO[nm] || {}, hh = Math.max(info.h || 2, 1), R = Math.max(hh, (info.r || 1) * 1.4); ground(-R * 3, R * 3, -R * 3, R * 3, Math.max(1, R / 2), () => 0, () => [150, 190, 130], 3);
+    const st = { anim: ['person'].indexOf(info.cat) >= 0 ? 'walk' : 'stand', moving: false, seed: 1 }; if (info.cat === 'people') st.anim = 'wave'; try { MODELS[nm](0, 0, 0, T * 40, 1, {}, T, st); } catch (e) { /* skip */ }
+    const d = R * 2.6 + hh * 0.4; renderScene(ctx, lookCam([d * 0.35, hh * 0.75, -d], [0, hh * 0.42, 0]), env, { ox: cx + cw / 2, oy: cy + ch * 0.46, k: cw / W * 1.5 });
+    ctx.restore(); ctx.fillStyle = '#fff'; ctx.font = '700 22px Cairo, Arial'; ctx.textAlign = 'center'; ctx.fillText(nm, cx + cw / 2, cy + ch - 14); ctx.fillStyle = '#ffb08a'; ctx.font = '600 15px Cairo, Arial'; ctx.fillText(info.cat || '', cx + cw / 2, cy + ch - 36);
+  }
+}
+window.catalogPages = () => Math.ceil(catalogNames().length / CAT_PER); window.catalogNames = catalogNames; window.validateStory = validateStory; window.KIT = { MODELS: Object.keys(MODELS), SETS: Object.keys(SETS), TIMES: Object.keys(TIMES), FX: FXS, ANIMS: ALLANIM, CAMS, COLORS: Object.keys(PAL), SFX: SFX_NAMES, MUSIC: Object.keys(MUS) };
+
+// ---------- cut-corner tags (the on-screen labels) ----------
+function tag(c, x, y, text, o) {
+  o = o || {}; const size = o.size || 44, k = o.k == null ? 1 : o.k; if (k <= 0) return;
+  c.save(); c.font = `800 ${size}px ${FA}`; const w = c.measureText(text).width + size * 1.2, h = size * 1.7, ch = h * 0.3; c.translate(x, y); c.scale(k, k);
+  const pts = [[-w / 2 + ch, -h / 2], [w / 2, -h / 2], [w / 2, h / 2 - ch], [w / 2 - ch, h / 2], [-w / 2, h / 2], [-w / 2, -h / 2 + ch]], path = (dx) => { c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p[0] + dx, p[1] + dx) : c.moveTo(p[0] + dx, p[1] + dx))); c.closePath(); };
+  c.fillStyle = 'rgba(20,10,50,.4)'; path(5); c.fill(); c.fillStyle = o.bg || '#fff6f0'; path(0); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.45)'; c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); c.lineTo(pts[1][0], pts[1][1]); c.lineTo(w / 2 - h * 0.6, 0); c.lineTo(-w / 2, 0); c.lineTo(pts[5][0], pts[5][1]); c.closePath(); c.fill();
+  c.fillStyle = o.col || '#2a1f4f'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, 0, 3); c.restore();
+}
+// ---------- live subtitles: word-by-word, current word highlighted ----------
+function subtitleChunks(text) {
+  const words = text.split(/\s+/).filter(Boolean), chunks = []; let cur = [];
+  words.forEach((w) => { cur.push(w); if (cur.length >= 4 || /[.،؟!:]$/.test(w)) { chunks.push(cur); cur = []; } }); if (cur.length) chunks.push(cur); return chunks;
+}
+function drawSubtitle(c, T, hi) {
+  const B = STORY.beats; let idx = -1;
+  for (let i = 0; i < B.length; i++) { const s = TL.starts[i], dur = VD ? VD[i] : Math.max(1, TL.R[i] - 0.4); if (T >= s - 0.02 && T <= s + dur + 0.25) { idx = i; break; } }
+  if (idx < 0) return;
+  const s = TL.starts[idx], dur = VD ? VD[idx] : Math.max(1, TL.R[idx] - 0.4), chunks = subtitleChunks(B[idx].ar), tot = chunks.reduce((a, ch) => a + ch.join(' ').length, 0) || 1; let t0 = s, ci = chunks.length - 1, wi = 0, cs = s, cd = dur;
+  for (let k = 0; k < chunks.length; k++) { const d = (dur * chunks[k].join(' ').length) / tot; if (T < t0 + d || k === chunks.length - 1) { ci = k; cs = t0; cd = d; break; } t0 += d; }
+  const ch = chunks[ci], chars = ch.reduce((a, w) => a + w.length, 0) || 1; let acc = 0;
+  for (let k = 0; k < ch.length; k++) { if (T >= cs + (cd * acc) / chars) wi = k; acc += ch[k].length; }
+  let size = 58; c.save(); c.textBaseline = 'alphabetic'; c.textAlign = 'right'; c.direction = 'ltr';
+  const measure = () => { c.font = `800 ${size}px ${FA}`; return ch.map((w) => c.measureText(w).width); };
+  let ws = measure(), gap = size * 0.3, total = ws.reduce((a, b) => a + b, 0) + gap * (ch.length - 1);
+  if (total > W - 60) { size = Math.floor((size * (W - 60)) / total); ws = measure(); gap = size * 0.3; total = ws.reduce((a, b) => a + b, 0) + gap * (ch.length - 1); }
+  const y = 960, pop = 1 + 0.08 * Math.max(0, 1 - (T - cs) / 0.15); let x = W / 2 + total / 2;
+  c.translate(W / 2, y - size * 0.3); c.scale(pop, pop); c.translate(-W / 2, -(y - size * 0.3));
+  c.fillStyle = 'rgba(14,8,36,.5)'; const bw = total + 50, bh = size * 1.55, bx = W / 2 - bw / 2, by = y - size * 1.1; c.beginPath(); c.moveTo(bx + 16, by); c.lineTo(bx + bw, by); c.lineTo(bx + bw, by + bh - 16); c.lineTo(bx + bw - 16, by + bh); c.lineTo(bx, by + bh); c.lineTo(bx, by + 16); c.closePath(); c.fill();
+  ch.forEach((w, k) => { c.lineJoin = 'round'; c.lineWidth = size * 0.16; c.strokeStyle = '#140a30'; c.strokeText(w, x, y); c.fillStyle = k === wi ? hi : '#ffffff'; c.fillText(w, x, y); x -= ws[k] + gap; });
+  c.restore();
+}
+
+
+// =====================================================================
+//  THE 10 STORIES. Pure data: they only use names from the kit (see the catalog page).
+//  An AI writer later produces exactly this shape; validateStory() checks it before anything is rendered.
+// =====================================================================
+const STORIES = [
+  { id: 'hachiko', title: 'وفاء هاتشيكو', caption: 'قصة حقيقية: كلب انتظر صاحبه عند محطة القطار نحو تسع سنوات. هل رأيت وفاءً مثل هذا؟', tags: '#قصص_حقيقية #هاتشيكو #وفاء #قصص_قصيرة #معلومات', set: 'plaza', music: 'sad', beats: [
+    { ar: 'كلب انتظر صاحبه تسع سنوات، ولم يعد صاحبه أبدًا.', time: 'dusk', cam: { mode: 'dolly', from: [2, 0.6, 17.2], to: [5, 2.4, 10.5], look: 'dog' }, actors: [{ id: 'dog', m: 'dog', at: [2.2, 20.5], anim: 'sit', s: 1.15, face: 180 }], sfx: ['chime', 'wind'] },
+    { ar: 'في طوكيو، كان هاتشيكو يرافق صاحبه إلى المحطة كل صباح، ويعود لاستقباله مساءً.', time: 'day', cam: { mode: 'track', target: 'man', off: [6, 1.4, -8] }, tags: [{ t: [0.05, 0.4], text: 'طوكيو', y: 330, size: 60 }], actors: [{ id: 'man', m: 'elder', at: [-14, 16], to: [0, 33], vis: [0, 0.9] }, { id: 'dog', m: 'dog', at: [-12.8, 15.4], to: [2.2, 20.5], until: 0.7, end: 'sit', s: 1.15 }], sfx: ['train', 'steps'] },
+    { ar: 'ثم في عام ألف وتسعمئة وخمسة وعشرين، مات صاحبه في عمله ولم يعد.', time: 'dusk', cam: { mode: 'dolly', from: [-1.5, 1.1, 16], to: [0.8, 1.1, 18.4], look: [1, 1.6, 32] }, tags: [{ t: [0.1, 0.9], text: '1925', y: 330, size: 92 }], actors: [{ id: 'dog', m: 'dog', at: [2.2, 20.5], anim: 'sit', s: 1.15, face: 0 }, { id: 'crowd', m: 'crowd', at: [-3, 33], to: [-3, 9], loop: 2, o: { n: 6, spread: 10 } }], sfx: ['bell', 'crowd'] },
+    { ar: 'لكن هاتشيكو ظل يعود إلى المحطة كل يوم في الموعد نفسه، قرابة تسع سنوات.', time: 'dawn', cam: { mode: 'orbit', target: 'dog', r: 6, h: 1.6, a0: -40, a1: 40 }, tags: [{ t: [0.12, 1], count: [3, 9], suffix: ' سنوات', y: 330, size: 84 }], fx: ['dust'], actors: [{ id: 'dog', m: 'dog', at: [2.2, 20.5], anim: 'sit', s: 1.15, face: 0 }, { id: 'c1', m: 'crowd', at: [-6, 33], to: [-6, 9], loop: 3, o: { n: 5, spread: 8 } }, { id: 'c2', m: 'crowd', at: [8, 9], to: [8, 33], loop: 2, o: { n: 4, spread: 8 } }], sfx: ['crowd', 'chime'] },
+    { ar: 'واليوم يقف له تمثال عند المحطة. هل رأيت وفاءً مثل هذا؟', time: 'dawn', cam: { mode: 'orbit', target: 'st', r: 7, h: 2.4, a0: -40, a1: 50 }, actors: [{ id: 'st', m: 'statue', at: [2.2, 20.5], face: 180, o: { kind: 'dog' } }, { id: 'p1', m: 'elder', at: [-1.4, 23], face: 150 }, { id: 'p2', m: 'woman', at: [5.6, 22.4], face: 210 }, { id: 'p3', m: 'boy', at: [0, 17.5], face: 20, anim: 'point' }, { id: 'f1', m: 'flower', at: [0.6, 18.8], s: 1.8, c: { a: 'red' } }, { id: 'f2', m: 'flower', at: [3.8, 18.8], s: 1.8, c: { a: 'yellow' } }], sfx: ['chime@0.2', 'chime@0.4', 'chime@0.6'] },
+  ] },
+  { id: 'tilly', title: 'الطفلة والموجة', caption: 'قصة حقيقية: طفلة عمرها عشر سنوات عرفت علامة التسونامي فأنقذت من حولها. ماذا كنت ستفعل؟', tags: '#قصص_حقيقية #تسونامي #طفلة #قصص_قصيرة #معلومات', set: 'beach', music: 'hope', beats: [
+    { ar: 'طفلة عمرها عشر سنوات أنقذت عشرات الأشخاص من موجة قاتلة.', cam: { mode: 'crane', from: [0, 10, -6], to: [3, 2.2, 3], look: [4, 1, 16] }, tags: [{ t: [0.2, 0.95], text: '10 سنوات', y: 330, size: 76 }], actors: [{ id: 'girl', m: 'girl', at: [4, 12], face: 0 }, { id: 'dad', m: 'man', at: [7, 12.5], face: 0 }, { id: 'mom', m: 'woman', at: [8.8, 12.2], face: 0 }, { id: 'um', m: 'umbrella', at: [9, 10] }], sfx: ['chime', 'waves'] },
+    { ar: 'في ديسمبر عام ألفين وأربعة، كانت مع أسرتها على شاطئ في تايلاند.', cam: { mode: 'dolly', from: [-8, 2, 9], to: [-2, 2, 13], look: [6, 1, 12] }, tags: [{ t: [0.1, 0.95], text: 'ديسمبر 2004', y: 330, size: 66 }], actors: [{ id: 'girl', m: 'girl', at: [4, 12], face: 0 }, { id: 'dad', m: 'man', at: [7, 12.5], face: 0 }, { id: 'mom', m: 'woman', at: [8.8, 12.2], face: 0 }, { id: 'um', m: 'umbrella', at: [9, 10] }, { id: 'ball', m: 'ball', at: [5.6, 11], s: 1.4 }], sfx: ['waves', 'gulls'] },
+    { ar: 'فجأة، تراجع البحر بعيدًا وظهرت فقاعات على الماء.', sea: [0, -2], cam: { mode: 'dolly', from: [-3, 0.9, 10], to: [3, 0.9, 10], look: [0, 0.4, 50] }, actors: [{ id: 'girl', m: 'girl', at: [4, 12], face: 0 }], sfx: ['waves', 'rumble'] },
+    { ar: 'تذكرت درسًا في الجغرافيا قبل أسبوعين، فصرخت لأهلها: هذه موجة تسونامي!', sea: [-2, -2], cam: { mode: 'static', at: [3.2, 1.3, 8.5], look: [6, 1, 30] }, tags: [{ t: [0.55, 1], text: 'تسونامي!', y: 330, size: 84, bg: '#ff5a4a', col: '#fff' }], actors: [{ id: 'girl', m: 'girl', at: [4, 12], face: 0, anim: 'point' }, { id: 'dad', m: 'man', at: [7, 9.5], face: 180 }, { id: 'mom', m: 'woman', at: [8.8, 9.8], face: 200, anim: 'wave' }], sfx: ['heart', 'chime@0.6'] },
+    { ar: 'أُخلي الشاطئ قبل وصول الموجة، ونجا كثيرون. ماذا كنت ستفعل لو كنت هناك؟', sea: [-2, -2], cam: { mode: 'dolly', from: [34, 4, -4], to: [34, 5, 0], look: [8, 5, 70] }, actors: [{ id: 'wave', m: 'wave', at: [0, 130], to: [0, 62], o: { w: 170, h: 10 } }, { id: 'run', m: 'crowd', at: [-2, 40], to: [30, 6], anim: 'run', o: { n: 9, spread: 10 } }, { id: 'hotel', m: 'house', at: [48, 4], s: 3, face: 270 }], sfx: ['rumble', 'steps', 'wavebig'] },
+  ] },
+  { id: 'hudson', title: 'الهبوط على النهر', caption: 'قصة حقيقية: طائرة هبطت على نهر وخرج جميع ركابها أحياء. ماذا كنت ستفعل مكان الطيار؟', tags: '#قصص_حقيقية #طيار #نهر_هدسون #قصص_قصيرة #معلومات', set: 'river', music: 'tense', beats: [
+    { ar: 'طيار هبط بطائرة ركاب على نهر، ونجا الجميع.', cam: { mode: 'static', at: [40, 6, 12], look: 'plane' }, actors: [{ id: 'plane', m: 'plane', at: [0, -40], to: [0, 80], y: [14, 8], face: 0, o: { pitch: 2, roll: 3 } }], sfx: ['whoosh', 'engine'] },
+    { ar: 'في يناير عام ألفين وتسعة، أقلعت طائرة من نيويورك وفيها مئة وخمسة وخمسون شخصًا.', cam: { mode: 'track', target: 'plane', off: [22, 6, -32] }, tags: [{ t: [0.15, 0.95], text: '155 شخصًا', y: 330, size: 76 }], actors: [{ id: 'plane', m: 'plane', at: [0, -70], to: [0, 40], y: [2, 62], face: 0, o: { pitch: 17 } }], sfx: ['engine', 'crowd@0.5'] },
+    { ar: 'وبعد دقائق قليلة، اصطدم سرب طيور بمحركيها فتوقفا.', cam: { mode: 'track', target: 'plane', off: [13, 3, -6] }, actors: [{ id: 'plane', m: 'plane', at: [0, 60], to: [0, 110], y: 66, face: 0, o: { pitch: 4 } }, { id: 'flock', m: 'flock', at: [28, 112], to: [6, 80], until: 0.4, y: [70, 64], vis: [0, 0.4], o: { n: 14 } }, { id: 'boom', m: 'puff', at: [5.6, 80], y: 64, s: [0.1, 2], vis: [0.38, 0.62], c: { a: 'orange' }, o: { glow: 1 } }, { id: 'smoke', m: 'puff', at: [5.6, 80], y: 64, s: [0.3, 1.4], vis: [0.5, 1], c: { a: 'grey' } }], sfx: ['birds@0.1', 'thud@0.55', 'stall@0.6'] },
+    { ar: 'لم يكن هناك مدرج قريب، فقرر الطيار الهبوط على نهر هدسون.', cam: { mode: 'track', target: 'plane', off: [0, 6, -34], look: [0, 20, 250] }, tags: [{ t: [0.35, 0.95], text: 'نهر هدسون', y: 330, size: 70 }], actors: [{ id: 'plane', m: 'plane', at: [0, 110], to: [4, 180], y: [62, 28], face: 0, o: { pitch: -4, smoke: true } }], sfx: ['wind', 'heart'] },
+    { ar: 'ووقف الركاب على الجناحين حتى وصل الإنقاذ، ونجا الجميع. ماذا كنت ستفعل مكانه؟', cam: { mode: 'static', at: [-46, 13, 208], look: [0, 2, 230] }, actors: [{ id: 'p1', m: 'plane', at: [0, 180], to: [0, 234], until: 0.5, y: [28, 0.9], vis: [0, 0.5], face: 0, o: { pitch: 6, smoke: true } }, { id: 'p2', m: 'plane', at: [0, 234], y: 0.9, vis: [0.5, 1], face: 0, o: { people: true } }, { id: 's1', m: 'puff', at: [-4, 232], y: 0.5, s: [0.2, 1.6], vis: [0.48, 0.85], c: { a: 'white' } }, { id: 's2', m: 'puff', at: [4, 232], y: 0.5, s: [0.2, 1.6], vis: [0.48, 0.85], c: { a: 'white' } }, { id: 'b1', m: 'boat', at: [-34, 176], to: [-14, 226], from: 0.2, face: 0 }, { id: 'b2', m: 'boat', at: [34, 176], to: [14, 226], from: 0.2, face: 0 }], sfx: ['rumble@0.3', 'splash@0.45', 'chime@0.75'] },
+  ] },
+  { id: 'miners', title: 'عمال المنجم', caption: 'قصة حقيقية: ثلاثة وثلاثون عاملًا علقوا تحت الأرض تسعة وستين يومًا وخرجوا جميعًا أحياء. ماذا كنت ستفعل معهم؟', tags: '#قصص_حقيقية #تشيلي #منجم #قصص_قصيرة #معلومات', set: 'desert', music: 'tense', beats: [
+    { ar: 'ثلاثة وثلاثون عاملًا علقوا تحت الأرض تسعة وستين يومًا، وخرجوا جميعًا أحياء.', cam: { mode: 'dolly', from: [0, 6, -4], to: [0, 2.4, 10], look: [0, 2, 30] }, tags: [{ t: [0.15, 0.95], text: '33 عاملًا', y: 330, size: 76 }], actors: [{ id: 'gate', m: 'minegate', at: [0, 30], face: 180, s: 1.3 }, { id: 't1', m: 'tent', at: [-14, 22], face: 160 }, { id: 't2', m: 'tent', at: [14, 24], face: 200, c: { a: 'blue' } }, { id: 'fl', m: 'flag', at: [10, 18], c: { a: 'white', b: 'red', c: 'red' } }, { id: 'cr', m: 'crowd', at: [-4, 14], o: { n: 6, spread: 8 } }], sfx: ['chime', 'wind'] },
+    { ar: 'في أغسطس عام ألفين وعشرة، انهار منجم في تشيلي وحبس العمال تحت سبعمئة متر.', set: 'cave', cam: { mode: 'orbit', target: [0, 1.2, 16], r: 9, h: 2, a0: -30, a1: 30 }, fx: ['dust'], tags: [{ t: [0.2, 0.95], text: '700 مترًا', y: 330, size: 76 }], actors: [{ id: 'pile', m: 'rock', at: [0, 28], s: 5 }, { id: 'pile2', m: 'rock', at: [6, 26], s: 3.5 }, { id: 'm1', m: 'miner', at: [-4, 16], face: 180 }, { id: 'm2', m: 'miner', at: [0, 14], face: 180, anim: 'sit' }, { id: 'm3', m: 'miner', at: [4, 16], face: 200 }, { id: 'm4', m: 'miner', at: [2, 11], face: 160, anim: 'point' }], sfx: ['rumble', 'boom@0.1'] },
+    { ar: 'لم يعرف أحد أنهم أحياء، حتى وصلت إلى الأعلى ورقة: نحن بخير في الملجأ.', cam: { mode: 'orbit', target: 'rig', r: 18, h: 3, a0: -30, a1: 30 }, tags: [{ t: [0.2, 0.95], text: '17 يومًا', y: 330, size: 76 }], actors: [{ id: 'rig', m: 'drillrig', at: [0, 26], face: 180, s: 0.6 }, { id: 'e1', m: 'engineer', at: [-6, 18], face: 180, anim: 'celebrate' }, { id: 'e2', m: 'engineer', at: [6, 18], face: 180, anim: 'celebrate' }, { id: 'e3', m: 'worker', at: [0, 14], face: 180, anim: 'carry' }, { id: 'nt', m: 'book', at: [0, 15.4], y: 1.1, s: 1.6, c: { a: 'cream' } }], sfx: ['drill', 'cheer@0.7'] },
+    { ar: 'ثم حفر المنقذون ثقبًا ضيقًا، وأنزلوا إليهم الطعام عبر أنبوب صغير.', time: 'dusk', cam: { mode: 'dolly', from: [-10, 3, 4], to: [6, 3, 10], look: [0, 3, 22] }, actors: [{ id: 'rig', m: 'drillrig', at: [0, 26], face: 180, s: 0.6 }, { id: 'w1', m: 'engineer', at: [-4, 16], face: 180, anim: 'work' }, { id: 'w2', m: 'worker', at: [4, 15], face: 180, anim: 'work' }, { id: 'c1', m: 'crate', at: [-7, 14] }, { id: 'c2', m: 'crate', at: [-8.4, 13] }, { id: 'c3', m: 'medbox', at: [7, 14] }, { id: 'tt', m: 'tent', at: [14, 20], face: 200 }], sfx: ['drill', 'clack@0.5'] },
+    { ar: 'وفي أكتوبر، رفعتهم كبسولة واحدًا تلو الآخر. ماذا كنت ستفعل معهم؟', cam: { mode: 'dolly', from: [-6, 3, 6], to: [-2, 3.4, 8], look: [0, 2, 18] }, fx: ['confetti'], actors: [{ id: 'sh', m: 'shaft', at: [0, 18] }, { id: 'cap', m: 'capsule', at: [0, 18], y: [0.2, 2.6], o: { pitch: 90 } }, { id: 'mm', m: 'miner', at: [3.5, 18], face: 200, anim: 'celebrate' }, { id: 'cr', m: 'crowd', at: [-6, 12], anim: 'celebrate', o: { n: 8, spread: 9 } }, { id: 'fl', m: 'flag', at: [9, 16], c: { a: 'white', b: 'red', c: 'red' } }, { id: 'fl2', m: 'flag', at: [-9, 16], c: { a: 'white', b: 'red', c: 'red' } }], sfx: ['rumble@0.1', 'cheer@0.5', 'chime@0.7'] },
+  ] },
+  { id: 'apollo13', title: 'العودة من القمر', caption: 'قصة حقيقية: انفجار في مركبة فضائية وثلاثة رواد وطريق طويل نحو الأرض. هل كنت ستحافظ على هدوئك؟', tags: '#قصص_حقيقية #أبولو13 #فضاء #قصص_قصيرة #معلومات', set: 'space', music: 'wonder', beats: [
+    { ar: 'ثلاثة رواد فضاء كادوا لا يعودون إلى الأرض أبدًا.', cam: { mode: 'orbit', target: 'ship', r: 16, h: 3, a0: -35, a1: 25 }, tags: [{ t: [0.2, 0.95], text: '3 رواد', y: 330, size: 80 }], actors: [{ id: 'ship', m: 'spacecraft', at: [0, 30], to: [0, 60], y: 8, face: 90 }, { id: 'earth', m: 'earth', at: [-50, 160], y: 10, s: 3 }], sfx: ['chime', 'wind'] },
+    { ar: 'في عام ألف وتسعمئة وسبعين، انفجر خزان أكسجين في مركبة أبولو ثلاثة عشر.', cam: { mode: 'dolly', from: [22, 12, 6], to: [18, 10, 12], look: 'ship' }, flash: 'red', tags: [{ t: [0.1, 0.9], text: '1970', y: 330, size: 84 }], actors: [{ id: 'ship', m: 'spacecraft', at: [0, 30], y: 8, face: 90, o: { roll: 4 } }, { id: 'bm', m: 'puff', at: [1.5, 28], y: 8, s: [0.2, 2.6], vis: [0.25, 0.8], c: { a: 'orange' }, o: { glow: 1 } }], sfx: ['boom@0.25', 'alarm@0.3'] },
+    { ar: 'فاستخدموا مركبة الهبوط كقارب نجاة، ودارت بهم حول القمر عائدين نحو الأرض.', cam: { mode: 'static', at: [0, 10, 0], look: [0, 8, 100] }, actors: [{ id: 'moon', m: 'moon', at: [0, 110], y: 10, s: 5 }, { id: 'ship', m: 'spacecraft', at: [-30, 50], to: [30, 80], y: 8, face: 60 }, { id: 'earth', m: 'earth', at: [-60, 170], y: 25, s: 1.5 }], sfx: ['wind', 'chime@0.5'] },
+    { ar: 'وعلى الأرض، صنع المهندسون من الأشرطة والكرتون وسيلة لتنقية الهواء.', set: 'room', cam: { mode: 'orbit', target: [0, 1.2, 11], r: 9, h: 2.6, a0: -35, a1: 35 }, actors: [{ id: 'c1', m: 'console', at: [-10, 24], face: 180 }, { id: 'c2', m: 'console', at: [10, 24], face: 180 }, { id: 'e1', m: 'engineer', at: [-10, 21], face: 180, anim: 'type' }, { id: 'e2', m: 'engineer', at: [10, 21], face: 180, anim: 'type' }, { id: 'tb', m: 'table', at: [0, 12], s: 1.4 }, { id: 'e3', m: 'engineer', at: [-3, 10], face: 90, anim: 'work' }, { id: 'e4', m: 'engineer', at: [3, 10], face: 270, anim: 'work' }, { id: 'bx', m: 'crate', at: [0, 12], y: 1.2, s: 0.5 }], sfx: ['radio', 'clack'] },
+    { ar: 'وبعد ستة أيام، هبطت المركبة في المحيط، ونجا الرواد الثلاثة. هل كنت ستبقى هادئًا؟', set: 'ocean', cam: { mode: 'static', at: [-8, 6, 14], look: 'cap' }, actors: [{ id: 'pc', m: 'parachute', at: [0, 40], y: [27.6, 4.1], c: { a: 'orange', b: 'white' } }, { id: 'cap', m: 'capsule', at: [0, 40], y: [24, 0.5], o: { pitch: 90 } }, { id: 'sp', m: 'puff', at: [0, 40], y: 0.5, s: [0.2, 2], vis: [0.8, 1], c: { a: 'white' } }, { id: 'sh', m: 'ship', at: [34, 90], face: 270, s: 1 }], sfx: ['wind', 'splash@0.85', 'cheer@0.9'] },
+  ] },
+  { id: 'windmill', title: 'الطاحونة من الخردة', caption: 'قصة حقيقية: فتى في ملاوي بنى طاحونة هوائية من الخردة فأضاء بيته. ماذا كنت ستصنع لو لم يكن لديك شيء؟', tags: '#قصص_حقيقية #ملاوي #ابتكار #قصص_قصيرة #معلومات', set: 'village', music: 'hope', beats: [
+    { ar: 'فتى عمره أربعة عشر عامًا أضاء قريته بطاحونة صنعها من الخردة.', cam: { mode: 'dolly', from: [-8, 2, 0], to: [-3, 2, 4], look: 'wm' }, tags: [{ t: [0.2, 0.95], text: '14 عامًا', y: 330, size: 76 }], actors: [{ id: 'wm', m: 'windmill', at: [14, 30], face: 180 }, { id: 'boy', m: 'boy', at: [-1, 8], face: 0 }, { id: 'hh', m: 'hut', at: [-16, 22], face: 160 }], sfx: ['chime', 'wind'] },
+    { ar: 'ضربت المجاعة قريته في ملاوي، وتوقف عن الدراسة لأن أسرته لم تملك المال.', time: 'dusk', cam: { mode: 'orbit', target: 'boy', r: 6, h: 1.8, a0: -30, a1: 30 }, fx: ['dust'], actors: [{ id: 'boy', m: 'boy', at: [0, 12], face: 190, anim: 'sit' }, { id: 'eld', m: 'elder', at: [4, 14], face: 220 }, { id: 'hh', m: 'hut', at: [-8, 22], face: 170 }, { id: 'rk', m: 'rock', at: [6, 10] }], sfx: ['wind', 'heart'] },
+    { ar: 'فذهب إلى مكتبة صغيرة، وقرأ كتابًا عن الطاقة وعرف كيف تصنع الريح كهرباء.', set: 'room', cam: { mode: 'orbit', target: 'boy', r: 6, h: 1.8, a0: -50, a1: -10 }, actors: [{ id: 'sh', m: 'shelf', at: [0, 38.5], face: 180, s: 2 }, { id: 'boy', m: 'boy', at: [0, 34], face: 0, anim: 'carry' }, { id: 'bk', m: 'book', at: [0, 35.3], y: 1.0, s: 1.4, c: { a: 'red' } }], sfx: ['chime@0.5'] },
+    { ar: 'وجمع قطعًا من الدراجات والأنابيب والأشجار وبنى طاحونة هوائية فوق منزله.', cam: { mode: 'orbit', target: [0, 4, 20], r: 14, h: 4, a0: -40, a1: 40 }, actors: [{ id: 'wm', m: 'windmill', at: [0, 22], s: [0.2, 1], face: 180, o: { spin: 3 } }, { id: 'boy', m: 'boy', at: [3, 16], face: 180, anim: 'work' }, { id: 'man', m: 'man', at: [-3, 16], face: 180, anim: 'work' }, { id: 'c1', m: 'crate', at: [6, 14] }, { id: 'c2', m: 'crate', at: [-6, 15] }, { id: 'bike', m: 'bicycle', at: [-8, 12], face: 90 }], sfx: ['clack', 'steps'] },
+    { ar: 'فأضاء مصباحًا في بيته لأول مرة. ماذا كنت ستصنع لو لم يكن لديك شيء؟', time: 'night', cam: { mode: 'dolly', from: [-8, 2, 6], to: [-2, 2.4, 10], look: [-2, 1.5, 19] }, actors: [{ id: 'wm', m: 'windmill', at: [10, 28], face: 180, o: { spin: 5 } }, { id: 'hh', m: 'hut', at: [-4, 22], face: 180, o: { lit: 1 } }, { id: 'bl', m: 'bulb', at: [-4, 18.4], s: 0.8 }, { id: 'boy', m: 'boy', at: [0, 16], face: 180, anim: 'celebrate' }], sfx: ['chime@0.3', 'cheer@0.6'] },
+  ] },
+  { id: 'forest', title: 'الرجل والغابة', caption: 'قصة حقيقية: رجل زرع غابة واسعة وحده شجرة بعد شجرة. ماذا كنت ستفعل لو بدأت وحدك؟', tags: '#قصص_حقيقية #الهند #غابة #قصص_قصيرة #معلومات', set: 'island', music: 'hope', beats: [
+    { ar: 'رجل واحد زرع غابة كاملة، شجرة بعد شجرة.', cam: { mode: 'crane', from: [0, 9, 0], to: [2, 2.6, 6], look: 'man' }, actors: [{ id: 'man', m: 'farmer', at: [0, 16], face: 180 }, { id: 'sap', m: 'tree', at: [2, 16], s: 0.4 }], sfx: ['chime', 'wind'] },
+    { ar: 'في الهند، على جزيرة رملية في نهر براهمابوترا، بدأ شاب يزرع الشجر قبل عقود.', cam: { mode: 'orbit', target: 'man', r: 6, h: 1.6, a0: -40, a1: 20 }, actors: [{ id: 'man', m: 'farmer', at: [0, 14], face: 0, anim: 'plant' }, { id: 'sap', m: 'tree', at: [1.5, 17], s: [0.15, 0.7] }], sfx: ['waves', 'birds'] },
+    { ar: 'كان يزرع كل يوم، ويحمل الشتلات ويسقيها، ولم يتوقف لسنوات طويلة.', time: 'day', cam: { mode: 'dolly', from: [-12, 2, 4], to: [8, 2, 6], look: [0, 1.5, 14] }, tags: [{ t: [0.2, 0.95], text: 'سنوات طويلة', y: 330, size: 66 }], actors: [{ id: 'man', m: 'farmer', at: [-10, 12], to: [10, 12], anim: 'carry' }, { id: 't1', m: 'tree', at: [-8, 15], s: [0.2, 0.5] }, { id: 't2', m: 'tree', at: [-4, 15], s: [0.2, 0.5] }, { id: 't3', m: 'tree', at: [0, 15], s: [0.2, 0.5] }, { id: 't4', m: 'tree', at: [4, 15], s: [0.2, 0.5] }, { id: 't5', m: 'tree', at: [8, 15], s: [0.2, 0.5] }], sfx: ['steps', 'wind'] },
+    { ar: 'ومع الزمن، تحولت الرمال إلى غابة واسعة تعيش فيها طيور وغزلان وفيلة.', time: 'day', cam: { mode: 'dolly', from: [-14, 3, 2], to: [10, 4, 6], look: [0, 3, 18] }, actors: [{ id: 'a1', m: 'tree', at: [-10, 16], s: 1.4 }, { id: 'a2', m: 'tree', at: [-3, 22], s: 1.5 }, { id: 'a3', m: 'tree', at: [6, 18], s: 1.3 }, { id: 'a4', m: 'tree', at: [12, 24], s: 1.6 }, { id: 'a5', m: 'tree', at: [-14, 26], s: 1.4 }, { id: 'a6', m: 'tree', at: [2, 28], s: 1.5 }, { id: 'dr', m: 'deer', at: [-6, 13], face: 150, anim: 'stand' }, { id: 'el', m: 'elephant', at: [10, 14], face: 200 }, { id: 'fk', m: 'flock', at: [0, 12], y: 12, o: { n: 10 } }, { id: 'bs', m: 'bush', at: [-2, 12], s: 1.5 }], sfx: ['birds', 'wind'] },
+    { ar: 'غابة مساحتها مئات الهكتارات اليوم. ماذا كنت ستفعل لو بدأت وحدك؟', time: 'day', cam: { mode: 'crane', from: [0, 45, -10], to: [0, 20, 10], look: [0, 3, 30] }, tags: [{ t: [0.2, 0.95], text: 'مئات الهكتارات', y: 330, size: 66 }], actors: [{ id: 'a1', m: 'tree', at: [-12, 18], s: 1.5 }, { id: 'a2', m: 'tree', at: [-4, 24], s: 1.6 }, { id: 'a3', m: 'tree', at: [6, 20], s: 1.4 }, { id: 'a4', m: 'tree', at: [14, 28], s: 1.7 }, { id: 'a5', m: 'tree', at: [-16, 30], s: 1.5 }, { id: 'a6', m: 'tree', at: [2, 32], s: 1.6 }, { id: 'a7', m: 'tree', at: [-8, 36], s: 1.5 }, { id: 'a8', m: 'tree', at: [10, 38], s: 1.6 }, { id: 'a9', m: 'tree', at: [-2, 42], s: 1.7 }, { id: 'a10', m: 'tree', at: [16, 44], s: 1.5 }], sfx: ['chime', 'birds'] },
+  ] },
+  { id: 'petrov', title: 'القرار الهادئ', caption: 'قصة حقيقية: ضابط قرر ألا يصدق جهاز إنذار فمنع كارثة. ماذا كنت ستفعل في مكانه؟', tags: '#قصص_حقيقية #قرار #1983 #قصص_قصيرة #معلومات', set: 'room', music: 'tense', beats: [
+    { ar: 'رجل واحد قرر ألا يصدق جهازًا، فمنع حربًا عالمية.', cam: { mode: 'dolly', from: [-6, 2.4, 6], to: [0, 2.4, 10], look: 'off' }, actors: [{ id: 'off', m: 'officer', at: [0, 18], face: 180 }, { id: 'c1', m: 'console', at: [0, 24], face: 180 }, { id: 'c2', m: 'console', at: [-8, 24], face: 180 }, { id: 'c3', m: 'console', at: [8, 24], face: 180 }], sfx: ['chime', 'clack'] },
+    { ar: 'في عام ألف وتسعمئة وثلاثة وثمانين، أنذر نظام سوفييتي بأن صواريخ أمريكية قد أُطلقت.', set: 'space', cam: { mode: 'orbit', target: 'sat', r: 14, h: 3, a0: -50, a1: 30 }, flash: 'red', tags: [{ t: [0.1, 0.9], text: '1983', y: 330, size: 92 }], actors: [{ id: 'sat', m: 'satellite', at: [-10, 30], to: [-4, 34], y: 6, face: 0, s: 1.6 }, { id: 'earth', m: 'earth', at: [10, 100], y: 0, s: 4 }, { id: 'rp', m: 'puff', at: [6, 86], y: 4, s: [0.2, 2.4], vis: [0.4, 1], c: { a: 'red' }, o: { glow: 1 } }], sfx: ['radio', 'alarm@0.4'] },
+    { ar: 'كان الضابط المناوب يعلم أن الهجوم الحقيقي سيكون بمئات الصواريخ، لا بخمسة فقط.', cam: { mode: 'dolly', from: [3, 2, 8], to: [1, 1.9, 10], look: 'off' }, flash: 'red', tags: [{ t: [0.15, 0.95], text: '5 صواريخ', y: 330, size: 70 }], actors: [{ id: 'off', m: 'officer', at: [0, 18], face: 180 }, { id: 'c1', m: 'console', at: [0, 24], face: 180, o: { alarm: 1 } }, { id: 'c2', m: 'console', at: [-8, 24], face: 180, o: { alarm: 1 } }, { id: 'al', m: 'alarm', at: [7, 24], y: 5, s: 2 }, { id: 'al2', m: 'alarm', at: [-7, 24], y: 5, s: 2 }], sfx: ['alarm', 'heart'] },
+    { ar: 'فقرر أن الإنذار خطأ، ولم يبلغ قيادته بوجود هجوم.', cam: { mode: 'orbit', target: 'off', r: 5, h: 1.8, a0: -30, a1: 30 }, actors: [{ id: 'off', m: 'officer', at: [0, 18], face: 180, anim: 'look' }, { id: 'ds', m: 'desk', at: [0, 20.5], face: 180, s: 1.3 }, { id: 'ph', m: 'phone', at: [0.6, 20.2], y: 1.4, s: 2, face: 180 }, { id: 'c1', m: 'console', at: [-8, 24], face: 180 }], sfx: ['chime@0.4', 'wind'] },
+    { ar: 'وتبين لاحقًا أن الأقمار رأت انعكاس الشمس على الغيوم. ماذا كنت ستفعل في مكانه؟', set: 'meadow', cam: { mode: 'crane', from: [0, 3, 0], to: [0, 10, 10], look: [0, 28, 70] }, actors: [{ id: 'sun', m: 'sun', at: [20, 120], y: 34, s: 2 }, { id: 'c1', m: 'cloud', at: [0, 70], y: 24, s: 3 }, { id: 'c2', m: 'cloud', at: [-25, 80], y: 28, s: 3.5 }, { id: 'c3', m: 'cloud', at: [30, 90], y: 30, s: 3 }, { id: 'sat', m: 'satellite', at: [-5, 50], y: 44, s: 3 }], sfx: ['chime', 'wind'] },
+  ] },
+  { id: 'serum', title: 'سباق الدواء', caption: 'قصة حقيقية: كلاب الزلاجات حملت الدواء عبر عاصفة ثلجية لتنقذ مدينة كاملة. هل كنت ستتحمل هذه العاصفة؟', tags: '#قصص_حقيقية #ألاسكا #كلاب #قصص_قصيرة #معلومات', set: 'snow', music: 'cold', beats: [
+    { ar: 'كلاب الزلاجات قطعت عاصفة ثلجية لتنقذ مدينة كاملة.', cam: { mode: 'track', target: 'team', off: [10, 3, -12] }, fx: ['snow'], actors: [{ id: 'team', m: 'dogteam', at: [0, 0], to: [0, 60], o: { n: 4 } }], sfx: ['snowwind', 'steps'] },
+    { ar: 'في شتاء عام ألف وتسعمئة وخمسة وعشرين، انتشر مرض الدفتيريا بين أطفال مدينة نوم في ألاسكا.', time: 'night', cam: { mode: 'dolly', from: [0, 6, 0], to: [0, 3, 18], look: [0, 4, 48] }, fx: ['snow'], tags: [{ t: [0.1, 0.9], text: '1925', y: 330, size: 92 }], actors: [{ id: 'h1', m: 'house', at: [-12, 24], face: 180, o: { lit: 1 } }, { id: 'h2', m: 'house', at: [12, 26], face: 180, o: { lit: 1 } }, { id: 'h3', m: 'house', at: [-6, 40], face: 180, o: { lit: 1 } }, { id: 'hs', m: 'hospital', at: [0, 52], face: 180 }, { id: 'lp', m: 'lamp', at: [-4, 12] }], sfx: ['snowwind', 'bell'] },
+    { ar: 'وكان الدواء بعيدًا، والطائرات لا تستطيع الطيران في البرد الشديد.', time: 'storm', cam: { mode: 'orbit', target: 'pl', r: 38, h: 8, a0: -30, a1: 30 }, fx: ['snow'], tags: [{ t: [0.2, 0.95], text: 'عاصفة ثلجية', y: 330, size: 66 }], actors: [{ id: 'pl', m: 'plane', at: [0, 26], face: 90, s: 0.8 }, { id: 'p1', m: 'pine', at: [-14, 22], s: 1.4, o: { snow: 1 } }, { id: 'p2', m: 'pine', at: [14, 30], s: 1.6, o: { snow: 1 } }], sfx: ['snowwind', 'wind'] },
+    { ar: 'فنقله عشرون سائق زلاجة وأكثر من مئة كلب عبر أكثر من ألف كيلومتر.', cam: { mode: 'crane', from: [0, 30, -20], to: [0, 14, -6], look: [0, 2, 30] }, fx: ['snow'], tags: [{ t: [0.2, 0.95], text: '+100 كلب', y: 330, size: 70 }], actors: [{ id: 't1', m: 'dogteam', at: [-12, 0], to: [-12, 40], o: { n: 4 } }, { id: 't2', m: 'dogteam', at: [-4, 10], to: [-4, 50], o: { n: 4 } }, { id: 't3', m: 'dogteam', at: [4, 20], to: [4, 60], o: { n: 4 } }, { id: 't4', m: 'dogteam', at: [12, 30], to: [12, 70], o: { n: 4 } }], sfx: ['snowwind', 'steps', 'chime@0.7'] },
+    { ar: 'ووصل الدواء بعد خمسة أيام ونصف، وأُنقذت المدينة. هل كنت ستتحمل العاصفة؟', time: 'night', cam: { mode: 'dolly', from: [8, 3, 10], to: [4, 3, 22], look: [0, 3, 48] }, fx: ['snow'], actors: [{ id: 'hs', m: 'hospital', at: [0, 54], face: 180 }, { id: 'team', m: 'dogteam', at: [0, 4], to: [0, 42], until: 0.8, o: { n: 4 } }, { id: 'cr', m: 'crowd', at: [-6, 46], anim: 'celebrate', o: { n: 7, spread: 9 } }, { id: 'h1', m: 'house', at: [-14, 40], face: 180, o: { lit: 1 } }], sfx: ['cheer@0.6', 'bell@0.7'] },
+  ] },
+  { id: 'penicillin', title: 'خطأ غيّر الطب', caption: 'قصة حقيقية: عفن على طبق في مختبر أدى إلى اكتشاف أول مضاد حيوي واسع الاستخدام. هل تعتقد أن المصادفة تصنع العلماء؟', tags: '#قصص_حقيقية #البنسلين #علم #قصص_قصيرة #معلومات', set: 'room', music: 'wonder', beats: [
+    { ar: 'خطأ بسيط في مختبر غيّر الطب إلى الأبد.', cam: { mode: 'orbit', target: 'pd', r: 4.5, h: 2.4, a0: -40, a1: 40 }, actors: [{ id: 'tb', m: 'table', at: [0, 24], s: 1.6 }, { id: 'pd', m: 'petri', at: [0, 24], y: 1.4, s: 1.0 }], sfx: ['chime', 'wind'] },
+    { ar: 'في عام ألف وتسعمئة وثمانية وعشرين، عاد عالم إلى مختبره في لندن بعد إجازة.', cam: { mode: 'dolly', from: [-8, 3, 2], to: [-2, 2.6, 8], look: 'sci' }, tags: [{ t: [0.1, 0.95], text: '1928', y: 330, size: 92 }], actors: [{ id: 'sci', m: 'scientist', at: [-12, 12], to: [0, 18] }, { id: 'sh1', m: 'shelf', at: [-12, 38.5], face: 180, s: 1.8 }, { id: 'sh2', m: 'shelf', at: [12, 38.5], face: 180, s: 1.8 }, { id: 'tb', m: 'table', at: [0, 24], s: 1.6 }, { id: 'ms', m: 'microscope', at: [3.4, 24], y: 1.3, s: 1.4 }], sfx: ['steps', 'chime@0.7'] },
+    { ar: 'ووجد على أحد الأطباق عفنًا، وحوله مساحة خالية من البكتيريا.', cam: { mode: 'dolly', from: [0, 3, 10], to: [0, 2.6, 19], look: [0, 1.4, 24] }, actors: [{ id: 'sci', m: 'scientist', at: [0, 20], face: 180, anim: 'look' }, { id: 'tb', m: 'table', at: [0, 24], s: 1.6 }, { id: 'pd', m: 'petri', at: [0, 24], y: 1.4, s: [0.9, 1.3] }], sfx: ['heart', 'chime@0.5'] },
+    { ar: 'فأدرك أن هذا العفن يفرز مادة تقتل الجراثيم، وأسماها البنسلين.', cam: { mode: 'orbit', target: [0, 2, 22], r: 8, h: 2.4, a0: 20, a1: -30 }, actors: [{ id: 'sci', m: 'scientist', at: [3, 20], face: 200, anim: 'point' }, { id: 'tb', m: 'table', at: [0, 24], s: 1.6 }, { id: 'pd', m: 'petri', at: [0, 24], y: 1.4, s: 1.1 }, { id: 'bt', m: 'bottle', at: [-2.4, 24], y: 1.3, s: 1.6 }, { id: 'bk', m: 'book', at: [2.6, 24.4], y: 1.3, s: 1.2 }], sfx: ['chime@0.3', 'chime@0.5'] },
+    { ar: 'وبعد سنوات، صار أول مضاد حيوي واسع الاستخدام، وأنقذ ملايين الأرواح. هل تعتقد أن المصادفة تصنع العلماء؟', set: 'meadow', cam: { mode: 'crane', from: [0, 12, 2], to: [0, 5, 12], look: [0, 4, 34] }, fx: ['confetti'], tags: [{ t: [0.25, 0.95], text: 'ملايين الأرواح', y: 330, size: 66 }], actors: [{ id: 'hp', m: 'hospital', at: [0, 38], face: 180 }, { id: 'cr', m: 'crowd', at: [0, 24], anim: 'celebrate', o: { n: 8, spread: 10 } }, { id: 'ns', m: 'nurse', at: [-6, 28], face: 180, anim: 'wave' }], sfx: ['chime', 'cheer@0.5'] },
+  ] },
+];
+
+// =====================================================================
+//  SOUND: low drone and soft plucks, a whoosh on every cut, and effects for each beat
+// =====================================================================
+function noteHz(n) { const m = /^([A-G])([#b]?)(\d)$/.exec(n), S = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }; return 440 * Math.pow(2, (S[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + (m[3] - 4) * 12 - 9) / 12); }
+function buildAudio(ctx, vo) {
+  const T = TL.total, sr = ctx.sampleRate, id = hashS(STORY.id);
+  const comp2 = ctx.createDynamicsCompressor(); comp2.threshold.value = -18; comp2.ratio.value = 3; comp2.connect(ctx.destination);
+  const dry = ctx.createGain(); dry.gain.value = vo ? 0.62 : 0.9; dry.connect(comp2);
+  const verb = ctx.createConvolver(); { const n = Math.floor(sr * 1.6), ir = ctx.createBuffer(2, n, sr); for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch), q = rng(7 + ch); let lp = 0; for (let k = 0; k < n; k++) { const u = k / n; lp += (0.5 - 0.35 * u) * ((q() * 2 - 1) - lp); d[k] = lp * Math.pow(1 - u, 3); } } verb.buffer = ir; }
+  const wet = ctx.createGain(); wet.gain.value = 0.35; wet.connect(verb); verb.connect(comp2);
+  const nb = ctx.createBuffer(1, sr * 2, sr); { const d = nb.getChannelData(0), q = rng(99); for (let k = 0; k < d.length; k++) d[k] = q() * 2 - 1; }
+  const out = (node, pan, vb) => { const p = ctx.createStereoPanner(); p.pan.value = pan || 0; node.connect(p); p.connect(dry); if (vb) { const s = ctx.createGain(); s.gain.value = vb; p.connect(s); s.connect(wet); } };
+  function tone(t, f, dur, o) { o = o || {}; if (t > T) return; t = Math.max(t, 0); const os = ctx.createOscillator(); os.type = o.type || 'sine'; if (Array.isArray(f)) { os.frequency.setValueAtTime(f[0], t); os.frequency.exponentialRampToValueAtTime(f[1], t + dur * 0.8); } else os.frequency.value = f; const g = ctx.createGain(), gn = o.g || 0.2; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gn, t + (o.a || 0.004)); g.gain.exponentialRampToValueAtTime(1e-4, t + dur); let nd = os; if (o.lp) { const f2 = ctx.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = o.lp; os.connect(f2); nd = f2; } nd.connect(g); out(g, o.pan, o.vb); os.start(t); os.stop(t + dur + 0.05); }
+  function noise(t, dur, o) { o = o || {}; if (t > T) return; t = Math.max(t, 0); const s = ctx.createBufferSource(); s.buffer = nb; s.loop = true; const f = ctx.createBiquadFilter(); f.type = o.type || 'bandpass'; f.Q.value = o.q || 1; if (Array.isArray(o.f)) { f.frequency.setValueAtTime(o.f[0], t); f.frequency.linearRampToValueAtTime(o.f[1], t + dur); } else f.frequency.value = o.f || 1000; const g = ctx.createGain(), gn = o.g || 0.1; g.gain.setValueAtTime(0, t); if (o.swell) { g.gain.linearRampToValueAtTime(gn, t + dur * 0.5); g.gain.linearRampToValueAtTime(0, t + dur); } else { g.gain.linearRampToValueAtTime(gn, t + (o.a || 0.005)); g.gain.exponentialRampToValueAtTime(1e-4, t + dur); } s.connect(f); f.connect(g); out(g, o.pan, o.vb); s.start(t); s.stop(t + dur + 0.05); }
+  const FX = {
+    whoosh: (t) => noise(t, 0.4, { f: [300, 3200], q: 0.8, g: 0.16, swell: true }),
+    thud: (t) => { tone(t, [120, 42], 0.35, { g: 0.55 }); noise(t, 0.15, { f: 420, type: 'lowpass', g: 0.3 }); },
+    heart: (t) => { [0, 0.42, 1.2, 1.62].forEach((d) => tone(t + d, [90, 48], 0.22, { g: 0.4 })); },
+    chime: (t, n) => { const f = noteHz(n || 'D5'); tone(t, f, 2.6, { g: 0.13, vb: 0.6 }); tone(t, f * 2.76, 0.9, { g: 0.04, vb: 0.5 }); },
+    bell: (t, n) => { const f = noteHz(n || 'A3'); tone(t, f, 3.2, { g: 0.16, vb: 0.6 }); tone(t, f * 2.4, 1.4, { g: 0.05, vb: 0.4 }); },
+    wind: (t, d) => noise(t, d || 3, { f: [400, 900], q: 0.4, g: 0.07, swell: true }),
+    waves: (t, d) => { for (let k = 0; k < (d || 4) / 2; k++) noise(t + k * 2, 2.4, { f: [500, 1400], q: 0.5, g: 0.09, swell: true }); },
+    rumble: (t) => noise(t, 2.6, { f: 160, type: 'lowpass', g: 0.22, swell: true }),
+    wavebig: (t) => { noise(t, 3.6, { f: [200, 700], q: 0.5, g: 0.2, swell: true }); tone(t + 1.2, [70, 36], 1.8, { g: 0.3 }); },
+    train: (t) => { noise(t, 3.2, { f: 220, type: 'lowpass', g: 0.2, swell: true }); for (let k = 0; k < 14; k++) noise(t + k * 0.2, 0.05, { f: 900, g: 0.08 }); },
+    steps: (t) => { for (let k = 0; k < 8; k++) noise(t + k * 0.27, 0.05, { f: 1100, type: 'lowpass', g: 0.1, pan: (k % 2) * 0.3 }); },
+    crowd: (t, d) => noise(t, d || 3, { f: [500, 800], q: 0.6, g: 0.06, swell: true }),
+    alarm: (t) => { for (let k = 0; k < 6; k++) tone(t + k * 0.32, 880, 0.18, { type: 'square', g: 0.06, lp: 2400 }); },
+    drill: (t) => { tone(t, 70, 2.2, { type: 'sawtooth', g: 0.09, lp: 300, a: 0.3 }); for (let k = 0; k < 14; k++) noise(t + k * 0.15, 0.08, { f: 700, q: 2, g: 0.08 }); },
+    cheer: (t) => { noise(t, 2.4, { f: [900, 1500], q: 0.5, g: 0.1, swell: true }); for (let k = 0; k < 10; k++) noise(t + 0.2 + k * 0.17, 0.04, { f: 2200, q: 1.5, g: 0.1, pan: (k % 3) - 1 }); },
+    snowwind: (t, d) => noise(t, d || 4, { f: [300, 700], q: 0.4, g: 0.1, swell: true }),
+    clack: (t) => { for (let k = 0; k < 10; k++) noise(t + k * 0.11 + (k % 3) * 0.03, 0.02, { f: 3000, q: 3, g: 0.12 }); },
+    radio: (t) => { for (let k = 0; k < 4; k++) tone(t + k * 0.5, 1400 + (k % 2) * 300, 0.1, { g: 0.04 }); noise(t, 2, { f: 2400, q: 0.5, g: 0.02, swell: true }); },
+    boom: (t) => { tone(t, [90, 30], 1.2, { g: 0.6 }); noise(t, 1.4, { f: [1800, 200], q: 0.4, g: 0.25 }); },
+    gulls: (t) => { for (let k = 0; k < 5; k++) tone(t + k * 0.4, [2600, 1700], 0.25, { g: 0.04, a: 0.03, pan: (k % 2) - 0.5 }); },
+    birds: (t) => { for (let k = 0; k < 14; k++) tone(t + k * 0.09, [3200 + (k % 4) * 300, 4400], 0.08, { g: 0.04, pan: (k % 5) * 0.4 - 0.8 }); },
+    engine: (t, d) => { tone(t, [110, 104], d || 3, { type: 'sawtooth', g: 0.06, lp: 500, a: 0.4 }); noise(t, d || 3, { f: 1200, q: 0.4, g: 0.03, swell: true }); },
+    stall: (t) => { tone(t, [120, 30], 1.4, { type: 'sawtooth', g: 0.1, lp: 400 }); noise(t, 1.2, { f: [1500, 300], g: 0.08 }); },
+    splash: (t) => { noise(t, 1.6, { f: 3500, type: 'highpass', g: 0.2, a: 0.01 }); tone(t, [160, 50], 0.5, { g: 0.4 }); },
+  };
+  const R0 = MUS[STORY.music || 'hope'].map(noteHz);
+  R0.forEach((f, k) => { const o = ctx.createOscillator(); o.type = k ? 'triangle' : 'sine'; o.frequency.value = f; const g = ctx.createGain(), gn = [0.05, 0.03, 0.02][k] * (vo ? 0.7 : 1); g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(gn, 1.5); g.gain.setValueAtTime(gn, Math.max(1.5, T - 1.5)); g.gain.linearRampToValueAtTime(0, T); o.connect(g); out(g, 0, 0.25); o.start(0); o.stop(T + 0.1); });
+  const q = rng(id);
+  for (let t = 0.6; t < T - 1; t += 1.1) if (q() < 0.7) tone(t, R0[Math.floor(q() * 3)] * (q() < 0.5 ? 2 : 4), 1.8, { type: 'triangle', g: (vo ? 0.025 : 0.045), vb: 0.5, pan: q() - 0.5 });
+  STORY.beats.forEach((b, i) => {
+    const e0 = TL.E[i], R = TL.R[i]; if (i > 0) FX.whoosh(e0 - 0.05);
+    (b.sfx || []).forEach((sp) => { const [n, fr] = sp.split('@'), long = ['wind', 'waves', 'engine', 'snowwind', 'crowd'].indexOf(n) >= 0, t = e0 + (long ? 0.05 : (fr ? +fr : 0.3) * R); if (FX[n]) FX[n](t, long ? R : undefined); });
+  });
+  FX.chime(T - END_HOLD + 0.15, 'A5');
+}
+window.renderAudioBase64 = async function (vo) {
+  const sr = 48000, len = Math.ceil(TL.total * sr), ctx = new OfflineAudioContext(2, len, sr); buildAudio(ctx, !!vo);
+  const buf = await ctx.startRendering(), L = buf.getChannelData(0), R = buf.getChannelData(1), o = new Int16Array(len * 2);
+  for (let k = 0; k < len; k++) { o[2 * k] = cl(L[k], -1, 1) * 32767; o[2 * k + 1] = cl(R[k], -1, 1) * 32767; }
+  const bytes = new Uint8Array(o.buffer); let s = ''; for (let k = 0; k < bytes.length; k += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(k, k + 0x8000)); return btoa(s);
+};
+
+
+
+const STORY_IDS = STORIES.map((s) => s.id);
+window.TOPIC_IDS = STORY_IDS; window.TOPIC_KINDS = Object.fromEntries(STORY_IDS.map((i) => [i, 'story'])); window.loadTopic = loadTopic; window.setVoiceDurations = setVoiceDurations;
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+window.frameJPEG = function (t) { explainer(ctx, t); return cv.toDataURL('image/jpeg', 0.92).split(',')[1]; };
+(function ui() {
+  const $ = (id) => document.getElementById(id); let T = 0, playing = false, tPrev = 0, snd = true, loop = true, catMode = false, AC = null, SRC = null, BUF = null, BUFKEY = '';
+  const fmt = (s) => Math.floor(s / 60) + ':' + (s % 60).toFixed(1).padStart(4, '0');
+  function draw() { if (catMode) { drawCatalog(ctx, +$('catpage').value || 0, T); return; } explainer(ctx, T); $('seek').max = TL.total; $('seek').value = T; $('time').textContent = fmt(T) + ' / ' + fmt(TL.total); }
+  function audioStop() { try { if (SRC) SRC.stop(); } catch (e) {} SRC = null; }
+  async function audioStart(off) { audioStop(); if (!snd || catMode) return; const key = STORY.id + TL.total; if (BUFKEY !== key) { const oc = new OfflineAudioContext(2, Math.ceil(TL.total * 44100), 44100); buildAudio(oc, false); BUF = await oc.startRendering(); BUFKEY = key; } if (!playing) return; AC = AC || new (window.AudioContext || window.webkitAudioContext)(); SRC = AC.createBufferSource(); SRC.buffer = BUF; SRC.connect(AC.destination); SRC.start(0, Math.min(off, TL.total - 0.05)); }
+  function frame(now) { if (!playing) return; T += (now - tPrev) / 1000; tPrev = now; if (!catMode && T >= TL.total) { if (loop) { T = 0; audioStart(0); } else { playing = false; $('play').textContent = 'Play'; T = TL.total - 0.01; audioStop(); } } draw(); requestAnimationFrame(frame); }
+  function play() { playing = true; $('play').textContent = 'Pause'; tPrev = performance.now(); audioStart(T); requestAnimationFrame(frame); }
+  function pause() { playing = false; $('play').textContent = 'Play'; audioStop(); }
+  $('play').onclick = () => (playing ? pause() : play()); $('seek').oninput = () => { T = parseFloat($('seek').value); draw(); if (playing) audioStart(T); };
+  $('snd').onclick = () => { snd = !snd; $('snd').setAttribute('aria-pressed', snd); if (!snd) audioStop(); else if (playing) audioStart(T); };
+  $('loop').onclick = () => { loop = !loop; $('loop').setAttribute('aria-pressed', loop); };
+  $('topic').onchange = () => { pause(); loadTopic($('topic').value); T = 0; draw(); };
+  $('cat').onclick = () => { catMode = !catMode; $('cat').setAttribute('aria-pressed', catMode); $('catpage').style.display = catMode ? '' : 'none'; if (catMode && !playing) play(); if (!catMode) { T = 0; } draw(); };
+  $('catpage').onchange = draw;
+  STORIES.forEach((s) => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title; $('topic').appendChild(o); });
+  (async () => { try { await document.fonts.load('800 40px Cairo', 'مرحبا'); await document.fonts.ready; } catch (e) { /* render anyway */ }
+    for (const s of STORIES) { const er = validateStory(s); if (er.length) console.warn('STORY PROBLEMS', s.id, er); }
+    for (let i = 0; i < Math.ceil(catalogNames().length / CAT_PER); i++) { const o = document.createElement('option'); o.value = i; o.textContent = 'Catalog ' + (i + 1); $('catpage').appendChild(o); }
+    loadTopic(STORIES[0].id); draw(); $('loading').style.display = 'none'; window._ready = true; })();
+})();
+
+</script>
+</body>
+</html>
