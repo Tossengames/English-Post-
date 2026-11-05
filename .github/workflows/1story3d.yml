@@ -298,7 +298,7 @@ jobs:
           kinds = driver.execute_script("return window.TOPIC_KINDS;")
           forced = os.environ.get("FORCE_TOPIC", "").strip()
           topic_id = forced if forced in ids else pick_topic(ids, kinds, hist)
-          problems = driver.execute_script("return validateStory(STORIES.find(function(s){return s.id===arguments[0];}));".replace("arguments[0]", JSON.stringify(topic_id)))
+          problems = driver.execute_script("var id = arguments[0]; return validateStory(STORIES.find(function(s){ return s.id === id; }));", topic_id)
           if problems:
             driver.quit(); raise RuntimeError("Story failed validation: " + "; ".join(problems))
           info = driver.execute_script("return window.loadTopic(arguments[0]);", topic_id)
