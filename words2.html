@@ -49,7 +49,7 @@ body.land #title{text-align:left;padding-left:18px}
 #roll .spin::before{opacity:1}
 #roll .spin{border-color:#fff !important;box-shadow:0 0 0 3px rgba(255,255,255,.85),0 0 24px rgba(255,255,255,.95) !important;background-image:none}
 #roll .spin::after{display:none}
-#roll .spin .tag,#roll .spin .w,#roll .spin .p{display:none}
+#roll .spin .tag,#roll .spin .txt{display:none}
 #roll .flag{display:none;font-size:calc(var(--ch)*.52);line-height:1;filter:drop-shadow(0 3px 0 rgba(0,0,0,.25))}
 #roll .spin .flag{display:block}
 #roll .q{position:absolute;inset:0;display:none;place-items:center;font-style:normal;font-weight:800;font-size:calc(var(--ch)*.95);color:rgba(255,255,255,.5);z-index:0;font-family:var(--disp)}
@@ -65,12 +65,21 @@ body.land #title{text-align:left;padding-left:18px}
 @keyframes wave{0%,100%{translate:0 0}50%{translate:0 -.08em}}
 .sp{display:inline-block;width:.28em}
 
-/* ---------- CTA ---------- */
-#cta{position:absolute;inset:0;z-index:50;display:none;place-items:center;pointer-events:none;background:radial-gradient(circle,rgba(0,0,0,.15),rgba(0,0,0,.5))}
-#cta.on{display:grid}
-#ctaBox{text-align:center;font-family:var(--disp);font-weight:700;line-height:1.02;color:#ffd400;text-shadow:-.04em -.04em 0 #111,.04em -.04em 0 #111,-.04em .04em 0 #111,.04em .04em 0 #111,0 .09em 0 #111,.07em .14em 0 #111;animation:ctaw 1.1s ease-in-out infinite}
-#ctaBox div{display:block;width:max-content;margin:0 auto;white-space:nowrap}
-@keyframes ctaw{0%,100%{rotate:-3deg;scale:1}50%{rotate:3deg;scale:1.07}}
+/* ---------- Like / Follow badge ---------- */
+#ctaPill{position:absolute;left:0;top:0;z-index:45;display:none;transform:translate(-50%,-50%);pointer-events:none;white-space:nowrap;font-family:var(--disp);font-weight:700;font-size:20px;line-height:1;padding:.5em .9em;border-radius:99px;color:#111;background:#ffd400;border:3px solid #111;box-shadow:0 4px 0 #111;animation:pillw 1.1s ease-in-out infinite}
+#ctaPill.plain{background:none;border:0;box-shadow:none;padding:.2em .3em;color:#ffd400;text-shadow:-.05em -.05em 0 #111,.05em -.05em 0 #111,-.05em .05em 0 #111,.05em .05em 0 #111,0 .1em 0 #111,.06em .14em 0 #111}
+@keyframes pillw{0%,100%{rotate:-3deg;scale:1}50%{rotate:3deg;scale:1.07}}
+body[data-theme=mario] #ctaPill{font-weight:400}
+
+/* ---------- card inner layout + sentence rows ---------- */
+.tag i{font-style:normal}
+.txt{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0}
+#stage.sent #word{flex-wrap:wrap;white-space:normal;gap:.08em .26em;line-height:1.12}
+#stage.sent .inner{flex-direction:row;justify-content:flex-start;gap:10px;padding:0 12px 0 10px}
+#stage.sent .tag{flex:0 0 64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;white-space:normal;text-align:center;line-height:1.05;padding:3px 2px;font-size:11px}
+#stage.sent .tag .fl{font-size:28px;line-height:1}
+#stage.sent .txt{flex:1;align-items:stretch}
+#stage.sent .w,#stage.sent .p{display:block;white-space:normal;text-align:start}
 
 /* ---------- UI ---------- */
 #toast,#bar,#unclean{z-index:60}
@@ -131,7 +140,7 @@ body[data-theme=jungle] .p{color:#9a5a22}
 body[data-theme=mario]{--bg:linear-gradient(180deg,#5c94fc 0%,#a6caff 100%);--disp:"Press Start 2P",monospace;--ink:#000;--hint:#fff;--bar-bg:#fff;--bar-sh:4px 4px 0 #000;--chip-on:#fcb800;--chip-ring:#000;--rip:#fff;--spoke:#fff;--spoke-w:4;--dash:.025 .03;--amp:6px;--ol:#000;--tc:#fff;--tsc:#fff;--tsbg:#000}
 body[data-theme=mario] #deco{height:48px;border-top:4px solid #000;background:linear-gradient(transparent 21px,#000 21px 24px,transparent 24px) 0 0/100% 48px no-repeat,linear-gradient(90deg,#000 3px,transparent 3px) 0 0/48px 24px repeat-x,linear-gradient(90deg,#000 3px,transparent 3px) 24px 24px/48px 24px repeat-x,#d65a1c}
 body[data-theme=mario] #deco::before{content:'';position:absolute;left:0;right:0;bottom:44px;height:120px;background:radial-gradient(ellipse 130px 100px at 18% 100%,#2cc02c 0 96%,transparent 98%),radial-gradient(ellipse 100px 70px at 40% 100%,#1fa31f 0 96%,transparent 98%),radial-gradient(ellipse 170px 120px at 84% 100%,#2cc02c 0 96%,transparent 98%)}
-body[data-theme=mario] #word,body[data-theme=mario] #title b,body[data-theme=mario] #ctaBox{font-weight:400}
+body[data-theme=mario] #word,body[data-theme=mario] #title b{font-weight:400}
 body[data-theme=mario] #hint{text-shadow:2px 2px 0 #000}
 body[data-theme=mario] .inner{background:#fff;border:4px solid #000;border-radius:4px;box-shadow:inset 0 0 0 4px var(--c),5px 5px 0 #000;color:#000}
 body[data-theme=mario] .tag{background:#000;color:#fff;padding:0 6px;border-radius:2px;font-weight:700}
@@ -162,7 +171,7 @@ body[data-theme=diner] #word{filter:drop-shadow(.04em .07em 0 #e63946)}
 /* 10 Comic Pop */
 body[data-theme=comic]{--bg:radial-gradient(rgba(255,120,0,.28) 2.2px,transparent 2.8px) 0 0/16px 16px,repeating-conic-gradient(from 0deg at 50% 42%,#ffe14d 0 6deg,#ffd000 6deg 12deg);--disp:"Bangers","Fredoka",cursive;--ink:#111;--hint:#111;--bar-bg:#fff;--bar-sh:4px 4px 0 #111;--chip-on:#ffe14d;--chip-ring:#111;--rip:#111;--spoke:#111;--spoke-w:3;--dash:.02 .03;--amp:6px;--ol:#111;--tc:#fff;--tsc:#111;--tsbg:#fff}
 body[data-theme=comic] *{font-weight:400 !important}
-body[data-theme=comic] #title b,body[data-theme=comic] #word,body[data-theme=comic] #ctaBox{letter-spacing:.03em}
+body[data-theme=comic] #title b,body[data-theme=comic] #word,body[data-theme=comic] #ctaPill{letter-spacing:.03em}
 body[data-theme=comic] .inner{background:#fff;border:3px solid #111;border-radius:26px / 22px;box-shadow:4px 4px 0 #111;color:#111;padding-bottom:7px}
 body[data-theme=comic] .inner::after{content:'';position:absolute;bottom:-10px;left:24%;width:16px;height:16px;background:#fff;border:solid #111;border-width:0 3px 3px 0;transform:rotate(45deg) skew(8deg,8deg)}
 body[data-theme=comic] .tag{background:var(--c);color:#111;border:2px solid #111;border-radius:4px;padding:0 6px;font-weight:700}
@@ -172,7 +181,7 @@ body[data-theme=comic] #center::before,body[data-theme=comic] #center::after{con
 body[data-theme=comic] #center::before{inset:-52% -20%;background:#111}
 body[data-theme=comic] #center::after{inset:-44% -13%;background:#ff3b3b}
 
-@media (prefers-reduced-motion:reduce){.bob,.w2,#hint,#ctaBox{animation:none}}
+@media (prefers-reduced-motion:reduce){.bob,.w2,#hint,#ctaPill{animation:none}}
 </style>
 </head>
 <body data-theme="candy">
@@ -183,7 +192,7 @@ body[data-theme=comic] #center::after{inset:-44% -13%;background:#ff3b3b}
   <div id="title"><div><b></b></div><div><small></small></div></div>
   <div id="ring"></div>
   <div id="center"><div id="word"></div></div>
-  <div id="cta"><div id="ctaBox"><div class="l1"></div><div class="l2"></div></div></div>
+  <div id="ctaPill"></div>
   <canvas id="fx"></canvas>
   <div id="toast"></div>
   <div id="hint">Tap anywhere to spin 🎰</div>
@@ -199,14 +208,14 @@ body[data-theme=comic] #center::after{inset:-44% -13%;background:#ff3b3b}
 
 <script>
 /* ================= EDIT ME ================= */
-const PICKS=6;                                   // languages revealed per word (max 12)
-const TITLE=`One Word, ${PICKS} Languages`;      // top title
+const WORD_PICKS=4, SENT_PICKS=3;                // languages revealed per word / per sentence
 const SUB='Spin the roulette and learn how to say it';
-const CTAS=[['LIKE','❤️'],['FOLLOW','➕'],['LIKE &','FOLLOW'],['LIKE','👍']];   // big end-of-run call to action (one picked at random)
-const EXPORT=/export/.test(location.search);   // set by the video pipeline: deterministic frame-by-frame mode
-const FPS=30,CTA_HOLD=1.8;                      // CTA_HOLD = seconds the Like/Follow stays on screen at the end of the video
+const CTAS=['👍 LIKE','➕ FOLLOW','👍 LIKE & FOLLOW'];   // small badge that pops up once, at a random moment and spot
+const CTA_SECONDS=2.2;                           // how long the badge stays on screen
+const EXPORT=/export/.test(location.search);     // set by the video pipeline: deterministic frame-by-frame mode
+const FPS=30;
 let CTA_LIST=CTAS;
-const PACE=1;                                    // 1 = ~8.5s per run. Lower = faster, higher = slower
+const PACE=1;                                    // 1 = normal speed. Lower = faster, higher = slower
 
 /* ================= DATA ================= */
 const LANGS=[
@@ -215,41 +224,92 @@ const LANGS=[
  ['ru','Russian','🇷🇺','ru-RU'],['ar','Arabic','🇸🇦','ar-SA'],['hi','Hindi','🇮🇳','hi-IN'],
  ['zh','Chinese','🇨🇳','zh-CN'],['ja','Japanese','🇯🇵','ja-JP'],['ko','Korean','🇰🇷','ko-KR']];
 const PAL=['#ff5d8f','#ff8a3d','#ffc400','#7bd33f','#18c29c','#22b8f0','#5b7cfa','#9b5de5','#f15bb5','#00bbf9','#ef476f','#06d6a0'];
-// english | es fr de it pt tr ru ar hi zh ja ko   (word~how to read it) — add more rows any time
+// english | es fr de it pt tr ru ar hi zh ja ko   (text~how to read it). Add more rows any time.
 const RAW=`
 hello|hola~OH-lah|bonjour~bohn-ZHOOR|hallo~HAH-loh|ciao~chow|olá~oh-LAH|merhaba~mer-HAH-bah|привет~pree-VYET|مرحبا~MAR-ha-ba|नमस्ते~na-ma-STAY|你好~nǐ hǎo|こんにちは~kon-ni-chi-wa|안녕하세요~an-nyeong-ha-se-yo
-thank you|gracias~GRAH-see-ahs|merci~mer-SEE|danke~DAHN-kuh|grazie~GRAHT-see-eh|obrigado~oh-bree-GAH-doo|teşekkürler~teh-shek-kur-LER|спасибо~spa-SEE-ba|شكرا~SHOK-ran|धन्यवाद~dhan-ya-VAAD|谢谢~xièxie|ありがとう~a-ri-ga-tō|감사합니다~gam-sa-ham-ni-da
-water|agua~AH-gwah|eau~oh|Wasser~VAH-ser|acqua~AHK-kwah|água~AH-gwah|su~soo|вода~va-DAH|ماء~maa|पानी~PAA-nee|水~shuǐ|水~mi-zu|물~mul
-love|amor~ah-MOR|amour~ah-MOOR|Liebe~LEE-buh|amore~ah-MOH-reh|amor~ah-MOR|aşk~ahshk|любовь~lyu-BOF|حب~hub|प्यार~pyaar|爱~ài|愛~ai|사랑~sa-rang
-friend|amigo~ah-MEE-go|ami~ah-MEE|Freund~froynt|amico~ah-MEE-ko|amigo~ah-MEE-goo|arkadaş~ar-ka-DASH|друг~drook|صديق~sa-DEEQ|दोस्त~dost|朋友~péngyou|友達~to-mo-da-chi|친구~chin-gu
-yes|sí~see|oui~wee|ja~yah|sì~see|sim~seem|evet~eh-VET|да~dah|نعم~NA-am|हाँ~haan|是~shì|はい~hai|네~neh
-no|no~noh|non~nohn|nein~nine|no~noh|não~nowng|hayır~HAH-yuhr|нет~nyet|لا~laa|नहीं~na-HEEN|不~bù|いいえ~ii-e|아니요~a-ni-yo
+goodbye|adiós~ah-DYOS|au revoir~oh ruh-VWAR|Tschüss~chooss|arrivederci~ar-ree-veh-DEHR-chee|tchau~chow|hoşça kal~HOSH-cha kal|до свидания~da svee-DAH-nya|مع السلامة~ma-as-sa-LAA-ma|अलविदा~al-vi-DAA|再见~zàijiàn|さようなら~sa-yō-na-ra|안녕히 가세요~an-nyeong-hi ga-se-yo
+good morning|buenos días~BWEH-nos DEE-ahs|bonjour~bohn-ZHOOR|guten Morgen~GOO-ten MOR-gen|buongiorno~bwon-JOR-no|bom dia~bohm JEE-ah|günaydın~gun-eye-DUHN|доброе утро~DOH-bro-ye OO-tra|صباح الخير~sa-BAAH al-KHAYR|सुप्रभात~su-pra-BHAAT|早上好~zǎoshang hǎo|おはよう~o-ha-yō|좋은 아침~jo-eun a-chim
+good night|buenas noches~BWEH-nahs NO-chehs|bonne nuit~bon NWEE|gute Nacht~GOO-tuh nakht|buonanotte~bwo-na-NOT-teh|boa noite~BO-ah NOY-chee|iyi geceler~ee-YEE geh-jeh-LER|спокойной ночи~spa-KOY-noy NO-chee|تصبح على خير~tus-BIH-ha ala KHAYR|शुभ रात्रि~shubh RAA-tri|晚安~wǎn'ān|おやすみ~o-ya-su-mi|잘 자요~jal ja-yo
 please|por favor~por fah-VOR|s'il vous plaît~seel voo PLEH|bitte~BIT-tuh|per favore~per fah-VOH-reh|por favor~poor fa-VOR|lütfen~LOOT-fen|пожалуйста~pa-ZHAL-sta|من فضلك~min FAD-lak|कृपया~KRI-pa-yaa|请~qǐng|お願いします~o-ne-gai-shi-mas|부탁합니다~bu-tak-ham-ni-da
+thank you|gracias~GRAH-see-ahs|merci~mer-SEE|danke~DAHN-kuh|grazie~GRAHT-see-eh|obrigado~oh-bree-GAH-doo|teşekkürler~teh-shek-kur-LER|спасибо~spa-SEE-ba|شكرا~SHOK-ran|धन्यवाद~dhan-ya-VAAD|谢谢~xièxie|ありがとう~a-ri-ga-tō|감사합니다~gam-sa-ham-ni-da
+sorry|lo siento~lo SYEN-to|désolé~day-zo-LAY|Entschuldigung~ent-SHOOL-dee-goong|scusa~SKOO-zah|desculpa~dis-KOOL-pa|üzgünüm~uz-gu-NUM|извините~eez-vee-NEE-tye|آسف~AA-sif|माफ़ करना~maaf KAR-naa|对不起~duìbuqǐ|ごめんなさい~go-men-na-sai|죄송합니다~jwe-song-ham-ni-da
+excuse me|perdón~per-DOHN|excusez-moi~ek-skew-zay MWAH|Entschuldigen Sie~ent-SHOOL-dee-gen zee|scusi~SKOO-zee|com licença~kom lee-SEN-sa|affedersiniz~af-feh-der-see-NEEZ|простите~pra-STEE-tye|عفوا~AF-wan|माफ़ कीजिए~maaf KEE-jee-ay|打扰一下~dǎrǎo yíxià|すみません~su-mi-ma-sen|실례합니다~sil-lye-ham-ni-da
+yes|sí~see|oui~wee|ja~yah|sì~see|sim~seem|evet~eh-VET|да~dah|نعم~NA-am|हाँ~haan|对~duì|はい~hai|네~neh
+no|no~noh|non~nohn|nein~nine|no~noh|não~nowng|hayır~HAH-yuhr|нет~nyet|لا~laa|नहीं~na-HEEN|不~bù|いいえ~ii-e|아니요~a-ni-yo
+cheers|salud~sa-LOOD|santé~sahn-TAY|Prost~prohst|salute~sa-LOO-teh|saúde~sa-OO-jee|şerefe~sheh-reh-FEH|за здоровье~za zda-ROH-vye|في صحتك~fee SIH-hah-tak|चियर्स~cheers|干杯~gānbēi|乾杯~kan-pai|건배~gun-bae
+water|agua~AH-gwah|eau~oh|Wasser~VAH-ser|acqua~AHK-kwah|água~AH-gwah|su~soo|вода~va-DAH|ماء~maa|पानी~PAA-nee|水~shuǐ|水~mi-zu|물~mul
+food|comida~ko-MEE-dah|nourriture~noo-ree-TYUR|Essen~ES-sen|cibo~CHEE-bo|comida~ko-MEE-da|yemek~yeh-MEK|еда~yee-DAH|طعام~ta-AAM|खाना~KHAA-naa|食物~shíwù|食べ物~ta-be-mo-no|음식~eum-sik
+coffee|café~kah-FEH|café~ka-FAY|Kaffee~KAH-fay|caffè~kaf-FEH|café~ka-FEH|kahve~kah-VEH|кофе~KO-fye|قهوة~QAH-wa|कॉफ़ी~KOH-fee|咖啡~kāfēi|コーヒー~kō-hī|커피~kuh-pi
+bathroom|baño~BAH-nyo|toilettes~twa-LET|Toilette~twa-LET-tuh|bagno~BAH-nyo|banheiro~ban-YAY-roo|tuvalet~too-va-LET|туалет~too-a-LYET|حمام~ham-MAAM|टॉयलेट~TOY-let|洗手间~xǐshǒujiān|トイレ~toi-re|화장실~hwa-jang-sil
+help!|¡ayuda!~ah-YOO-dah|au secours !~oh suh-KOOR|Hilfe!~HIL-fuh|aiuto!~ah-YOO-to|socorro!~so-KOH-hoo|imdat!~eem-DAHT|помогите!~pa-ma-GEE-tye|النجدة!~an-NAJ-da|बचाओ!~ba-CHAA-o|救命!~jiùmìng|助けて!~ta-su-ke-te|도와주세요!~do-wa-ju-se-yo
+hospital|hospital~os-pee-TAL|hôpital~o-pee-TAL|Krankenhaus~KRAHN-ken-house|ospedale~os-peh-DAH-leh|hospital~os-pee-TAHL|hastane~has-ta-NEH|больница~bal-NEE-tsa|مستشفى~mus-tash-FAA|अस्पताल~as-pa-TAAL|医院~yīyuàn|病院~byō-in|병원~byeong-won
+police|policía~po-lee-SEE-ah|police~po-LEES|Polizei~po-li-TSY|polizia~po-lee-TSEE-ah|polícia~po-LEE-see-a|polis~po-LEES|полиция~pa-LEE-tsi-ya|شرطة~SHUR-ta|पुलिस~pu-LIS|警察~jǐngchá|警察~kei-sa-tsu|경찰~gyeong-chal
+doctor|médico~MEH-dee-ko|médecin~mayd-SAN|Arzt~artst|medico~MEH-dee-ko|médico~MEH-jee-koo|doktor~dok-TOR|врач~vrach|طبيب~ta-BEEB|डॉक्टर~DOK-tar|医生~yīshēng|医者~i-sha|의사~ui-sa
+money|dinero~dee-NEH-ro|argent~ar-ZHAHN|Geld~gelt|soldi~SOL-dee|dinheiro~jeen-YAY-roo|para~pa-RAH|деньги~DYEN-gee|مال~maal|पैसे~PAI-say|钱~qián|お金~o-ka-ne|돈~don
+where|dónde~DOHN-deh|où~oo|wo~voh|dove~DOH-veh|onde~ON-jee|nerede~NEH-reh-deh|где~gdyeh|أين~ayn|कहाँ~ka-HAAN|哪里~nǎlǐ|どこ~do-ko|어디~uh-di
+what|qué~keh|quoi~kwah|was~vahs|che cosa~keh KO-za|o que~oo keh|ne~neh|что~shto|ماذا~MAA-tha|क्या~kyaa|什么~shénme|何~na-ni|뭐~mwo
+how much|cuánto~KWAHN-to|combien~kom-BYAN|wie viel~vee feel|quanto~KWAHN-to|quanto~KWAN-too|ne kadar~neh ka-DAR|сколько~SKOL-ka|بكم~bi-KAM|कितना~KIT-naa|多少~duōshao|いくら~i-ku-ra|얼마~ul-ma
 good|bueno~BWEH-no|bon~bohn|gut~goot|buono~BWOH-no|bom~bohm|iyi~ee-YEE|хорошо~kha-ra-SHOH|جيد~JAY-yid|अच्छा~ACH-chaa|好~hǎo|良い~yo-i|좋다~jot-da
-house|casa~KAH-sah|maison~meh-ZOHN|Haus~house|casa~KAH-zah|casa~KAH-zah|ev~ev|дом~dom|بيت~bayt|घर~ghar|房子~fángzi|家~i-e|집~jip
-food|comida~ko-MEE-dah|nourriture~noo-ree-TYUR|Essen~ES-sen|cibo~CHEE-bo|comida~ko-MEE-da|yiyecek~yee-yeh-JEK|еда~yee-DAH|طعام~ta-AAM|भोजन~BHO-jan|食物~shíwù|食べ物~ta-be-mo-no|음식~eum-sik
-sun|sol~sol|soleil~so-LAY|Sonne~ZON-nuh|sole~SOH-leh|sol~sol|güneş~gu-NESH|солнце~SON-tse|شمس~shams|सूरज~SOO-raj|太阳~tàiyáng|太陽~tai-yō|태양~tae-yang
-moon|luna~LOO-nah|lune~lyun|Mond~mohnt|luna~LOO-nah|lua~LOO-ah|ay~eye|луна~loo-NAH|قمر~QA-mar|चाँद~chaand|月亮~yuèliang|月~tsu-ki|달~dal
-family|familia~fah-MEE-lyah|famille~fa-MEE|Familie~fa-MEE-lee-uh|famiglia~fa-MEE-lya|família~fa-MEE-lee-a|aile~AH-ee-leh|семья~sem-YAH|عائلة~AA-i-la|परिवार~pa-ri-VAAR|家庭~jiātíng|家族~ka-zo-ku|가족~ga-jok
-happy|feliz~feh-LEES|heureux~uh-RUH|glücklich~GLUK-likh|felice~feh-LEE-cheh|feliz~feh-LEESH|mutlu~moot-LOO|счастливый~shas-LEE-vyy|سعيد~sa-EED|खुश~khush|开心~kāixīn|幸せ~shi-a-wa-se|행복~haeng-bok
-cat|gato~GAH-to|chat~shah|Katze~KAT-suh|gatto~GAHT-to|gato~GAH-too|kedi~keh-DEE|кот~kot|قطة~QIT-ta|बिल्ली~BIL-lee|猫~māo|猫~ne-ko|고양이~go-yang-i
-dog|perro~PEH-rro|chien~shyan|Hund~hoont|cane~KAH-neh|cachorro~ka-SHOH-hoo|köpek~kuh-PEK|собака~sa-BAH-ka|كلب~kalb|कुत्ता~KUT-taa|狗~gǒu|犬~i-nu|개~gae
-book|libro~LEE-bro|livre~LEE-vruh|Buch~bookh|libro~LEE-bro|livro~LEE-vroo|kitap~kee-TAP|книга~KNEE-ga|كتاب~ki-TAAB|किताब~ki-TAAB|书~shū|本~hon|책~chaek
-time|tiempo~TYEM-po|temps~tahn|Zeit~tsite|tempo~TEM-po|tempo~TEM-poo|zaman~za-MAN|время~VRAY-mya|وقت~waqt|समय~sa-MAY|时间~shíjiān|時間~ji-kan|시간~si-gan
-night|noche~NO-cheh|nuit~nwee|Nacht~nakht|notte~NOT-teh|noite~NOY-chee|gece~geh-JEH|ночь~noch|ليل~layl|रात~raat|夜晚~yèwǎn|夜~yo-ru|밤~bam
-big|grande~GRAHN-deh|grand~grahn|groß~gross|grande~GRAHN-deh|grande~GRAHN-jee|büyük~bu-YUK|большой~bal-SHOY|كبير~ka-BEER|बड़ा~ba-RAA|大~dà|大きい~ō-ki-i|크다~keu-da
-small|pequeño~peh-KEH-nyo|petit~puh-TEE|klein~kline|piccolo~PEEK-ko-lo|pequeno~peh-KEH-noo|küçük~ku-CHUK|маленький~MAH-len-kee|صغير~sa-GHEER|छोटा~CHO-taa|小~xiǎo|小さい~chii-sa-i|작다~jak-da
+bad|malo~MAH-lo|mauvais~mo-VEH|schlecht~shlekht|cattivo~kat-TEE-vo|ruim~hoo-EEM|kötü~kur-TU|плохо~PLO-kha|سيء~SAY-yi|बुरा~bu-RAA|不好~bù hǎo|悪い~wa-ru-i|나쁘다~na-ppeu-da
+hot|caliente~kah-LYEN-teh|chaud~sho|heiß~hice|caldo~KAL-do|quente~KEN-chee|sıcak~suh-JAK|горячо~ga-rya-CHO|حار~haar|गरम~ga-RAM|热~rè|熱い~a-tsu-i|뜨겁다~tteu-geop-da
+cold|frío~FREE-oh|froid~frwah|kalt~kalt|freddo~FRED-do|frio~FREE-oo|soğuk~so-OOK|холодно~KHO-lad-na|بارد~BAA-rid|ठंडा~TAN-daa|冷~lěng|寒い~sa-mu-i|춥다~chup-da
+expensive|caro~KAH-ro|cher~shair|teuer~TOY-er|caro~KAH-ro|caro~KAH-roo|pahalı~pa-ha-LUH|дорого~DO-ra-ga|غالي~GHAA-lee|महंगा~ma-HAN-gaa|贵~guì|高い~ta-ka-i|비싸다~bi-ssa-da
+cheap|barato~ba-RAH-to|bon marché~bon mar-SHAY|billig~BIL-likh|economico~eh-ko-NO-mee-ko|barato~ba-RAH-too|ucuz~oo-JOOZ|дёшево~DYO-sheh-va|رخيص~ra-KHEES|सस्ता~SAS-taa|便宜~piányi|安い~ya-su-i|싸다~ssa-da
+delicious|delicioso~deh-lee-SYO-so|délicieux~day-lee-SYUH|lecker~LEK-er|delizioso~deh-lee-TSYO-zo|delicioso~deh-lee-SYO-zoo|lezzetli~lez-zet-LEE|вкусно~FKOOS-na|لذيذ~la-DHEEDH|स्वादिष्ट~svaa-DISHT|好吃~hǎochī|おいしい~o-i-shii|맛있다~ma-sit-da
 beautiful|hermoso~er-MO-so|beau~boh|schön~shurn|bello~BEL-lo|bonito~bo-NEE-too|güzel~gu-ZEL|красивый~kra-SEE-vyy|جميل~ja-MEEL|सुंदर~SUN-dar|美丽~měilì|美しい~u-tsu-ku-shii|아름답다~a-reum-dap-da
 eat|comer~ko-MER|manger~mahn-ZHAY|essen~ES-sen|mangiare~mahn-JAH-reh|comer~ko-MER|yemek~yeh-MEK|есть~yest|يأكل~ya-KUL|खाना~KHAA-naa|吃~chī|食べる~ta-be-ru|먹다~muk-da
+drink|beber~beh-BER|boire~bwar|trinken~TRIN-ken|bere~BEH-reh|beber~beh-BER|içmek~eech-MEK|пить~peet|يشرب~yash-RAB|पीना~PEE-naa|喝~hē|飲む~no-mu|마시다~ma-shi-da
 go|ir~eer|aller~ah-LAY|gehen~GAY-en|andare~ahn-DAH-reh|ir~eer|gitmek~geet-MEK|идти~eet-TEE|يذهب~yaz-HAB|जाना~JAA-naa|去~qù|行く~i-ku|가다~ga-da
-help|ayuda~ah-YOO-dah|aide~ed|Hilfe~HIL-fuh|aiuto~ah-YOO-to|ajuda~ah-ZHOO-da|yardım~yar-DUHM|помощь~PO-mosh|مساعدة~mu-SAA-ad-a|मदद~ma-DAD|帮助~bāngzhù|助け~ta-su-ke|도움~do-um
-sorry|lo siento~lo SYEN-to|désolé~day-zo-LAY|Entschuldigung~ent-SHOOL-dee-goong|scusa~SKOO-zah|desculpa~dis-KOOL-pa|üzgünüm~uz-gu-NUM|извините~eez-vee-NEE-tye|آسف~AA-sif|माफ़ करना~maaf KAR-naa|对不起~duìbuqǐ|ごめんなさい~go-men-na-sai|죄송합니다~jwe-song-ham-ni-da
-goodbye|adiós~ah-DYOS|au revoir~oh ruh-VWAR|Tschüss~chooss|arrivederci~ar-ree-veh-DEHR-chee|tchau~chow|hoşça kal~HOSH-cha kal|до свидания~da svee-DAH-nya|مع السلامة~ma-as-sa-LAA-ma|अलविदा~al-vi-DAA|再见~zàijiàn|さようなら~sa-yō-na-ra|안녕히 가세요~an-nyeong-hi ga-se-yo
-school|escuela~es-KWEH-lah|école~ay-KOL|Schule~SHOO-luh|scuola~SKWOH-lah|escola~es-KOH-la|okul~o-KOOL|школа~SHKO-la|مدرسة~mad-RA-sa|स्कूल~skool|学校~xuéxiào|学校~gak-kō|학교~hak-gyo
-star|estrella~es-TREH-yah|étoile~ay-TWAL|Stern~shtern|stella~STEL-lah|estrela~es-TRAY-la|yıldız~YUL-duz|звезда~zvyez-DAH|نجمة~NAJ-ma|तारा~TAA-raa|星星~xīngxing|星~ho-shi|별~byeol
-coffee|café~kah-FEH|café~ka-FAY|Kaffee~KAH-fay|caffè~kaf-FEH|café~ka-FEH|kahve~kah-VEH|кофе~KO-fye|قهوة~QAH-wa|कॉफ़ी~KOH-fee|咖啡~kāfēi|コーヒー~kō-hī|커피~kuh-pee
+want|querer~keh-RER|vouloir~voo-LWAR|wollen~VOL-len|volere~vo-LEH-reh|querer~keh-REHR|istemek~ees-teh-MEK|хотеть~kha-TYET|يريد~yu-REED|चाहना~CHAAH-naa|想要~xiǎng yào|欲しい~ho-shii|원하다~won-ha-da
+love|amor~ah-MOR|amour~ah-MOOR|Liebe~LEE-buh|amore~ah-MOH-reh|amor~ah-MOR|aşk~ahshk|любовь~lyu-BOF|حب~hub|प्यार~pyaar|爱~ài|愛~ai|사랑~sa-rang
+friend|amigo~ah-MEE-go|ami~ah-MEE|Freund~froynt|amico~ah-MEE-ko|amigo~ah-MEE-goo|arkadaş~ar-ka-DASH|друг~drook|صديق~sa-DEEQ|दोस्त~dost|朋友~péngyou|友達~to-mo-da-chi|친구~chin-gu
+family|familia~fah-MEE-lyah|famille~fa-MEE|Familie~fa-MEE-lee-uh|famiglia~fa-MEE-lya|família~fa-MEE-lee-a|aile~AH-ee-leh|семья~sem-YAH|عائلة~AA-i-la|परिवार~pa-ri-VAAR|家人~jiārén|家族~ka-zo-ku|가족~ga-jok
+stop|alto~AL-to|arrête~ah-RET|Stopp~shtop|fermati~fer-MAH-tee|pare~PAH-ree|dur~door|стоп~stop|قف~qif|रुको~ru-KO|停~tíng|止まれ~to-ma-re|멈춰~mum-chwo
+wait|espera~es-PEH-rah|attends~ah-TAHN|warte~VAR-tuh|aspetta~as-PET-ta|espera~es-PEH-ra|bekle~BEK-leh|подождите~pa-dazh-DEE-tye|انتظر~in-TA-zir|रुकिए~ru-KEE-ay|等一下~děng yíxià|待って~ma-t-te|기다려~gi-da-ryuh
+left|izquierda~ees-KYER-dah|gauche~gohsh|links~links|sinistra~see-NEE-stra|esquerda~es-KER-da|sol~sol|налево~na-LYE-va|يسار~ya-SAAR|बाएँ~BAA-ayn|左~zuǒ|左~hi-da-ri|왼쪽~wen-jjok
+right|derecha~deh-REH-chah|droite~drwat|rechts~rekhts|destra~DEH-stra|direita~jee-RAY-ta|sağ~saa|направо~na-PRAH-va|يمين~ya-MEEN|दाएँ~DAA-ayn|右~yòu|右~mi-gi|오른쪽~o-reun-jjok
+today|hoy~oy|aujourd'hui~oh-zhoor-DWEE|heute~HOY-tuh|oggi~OD-jee|hoje~O-zhee|bugün~boo-GUN|сегодня~see-VOD-nya|اليوم~al-YAWM|आज~aaj|今天~jīntiān|今日~kyō|오늘~o-neul
+tomorrow|mañana~ma-NYAH-nah|demain~duh-MAN|morgen~MOR-gen|domani~do-MAH-nee|amanhã~a-man-YAH|yarın~ya-RUHN|завтра~ZAF-tra|غدا~GHAD-an|कल~kal|明天~míngtiān|明日~a-shi-ta|내일~nae-il
+now|ahora~ah-OH-rah|maintenant~mant-NAHN|jetzt~yetst|adesso~ah-DES-so|agora~a-GO-ra|şimdi~sheem-DEE|сейчас~say-CHAS|الآن~al-AAN|अभी~a-BHEE|现在~xiànzài|今~i-ma|지금~ji-geum
+hotel|hotel~o-TEL|hôtel~o-TEL|Hotel~ho-TEL|hotel~o-TEL|hotel~o-TEL|otel~o-TEL|отель~a-TEL|فندق~FUN-duq|होटल~HO-tal|酒店~jiǔdiàn|ホテル~ho-te-ru|호텔~ho-tel
+airport|aeropuerto~ah-eh-ro-PWER-to|aéroport~ah-ay-ro-POR|Flughafen~FLOOK-hah-fen|aeroporto~ah-eh-ro-POR-to|aeroporto~a-eh-ro-POR-too|havalimanı~ha-va-lee-ma-NUH|аэропорт~a-eh-ra-PORT|مطار~ma-TAAR|हवाई अड्डा~ha-VAA-ee AD-daa|机场~jīchǎng|空港~kū-kō|공항~gong-hang
+taxi|taxi~TAHK-see|taxi~tak-SEE|Taxi~TAK-see|taxi~TAHK-see|táxi~TAK-see|taksi~TAK-see|такси~tak-SEE|تاكسي~TAK-see|टैक्सी~TAK-see|出租车~chūzūchē|タクシー~tak-shī|택시~taek-si
+bus|autobús~ow-to-BOOS|bus~byoos|Bus~boos|autobus~ow-to-BOOS|ônibus~O-nee-boos|otobüs~o-to-BUS|автобус~af-TO-boos|حافلة~HAA-fi-la|बस~bus|公交车~gōngjiāochē|バス~ba-su|버스~buh-seu
+ticket|billete~bee-YEH-teh|billet~bee-YEH|Ticket~TI-ket|biglietto~beel-YET-to|bilhete~beel-YEH-chee|bilet~bee-LET|билет~bee-LYET|تذكرة~tadh-KI-ra|टिकट~ti-KAT|票~piào|チケット~chi-ket-to|표~pyo
 `;
-const WORDS=RAW.trim().split('\n').map(l=>{const p=l.split('|');return{en:p[0],t:p.slice(1).map(s=>{const [w,r]=s.split('~');return{w,r}})}});
+const RAWS=`
+How much is this?|¿Cuánto cuesta esto?~KWAHN-to KWES-ta ES-to|C'est combien ?~seh kom-BYAN|Wie viel kostet das?~vee feel KOS-tet dahs|Quanto costa?~KWAHN-to KO-sta|Quanto custa isso?~KWAN-too KOOS-ta EE-soo|Bu ne kadar?~boo neh ka-DAR|Сколько это стоит?~SKOL-ka EH-ta STO-eet|بكم هذا؟~bi-KAM HAA-dha|यह कितने का है?~yeh KIT-nay kaa hai|这个多少钱?~zhège duōshao qián|これはいくらですか?~ko-re wa i-ku-ra des-ka|이거 얼마예요?~i-geo ul-ma-ye-yo
+Where is the bathroom?|¿Dónde está el baño?~DOHN-deh es-TAH el BAH-nyo|Où sont les toilettes ?~oo son lay twa-LET|Wo ist die Toilette?~voh ist dee twa-LET-tuh|Dov'è il bagno?~do-VEH eel BAH-nyo|Onde fica o banheiro?~ON-jee FEE-ka oo ban-YAY-roo|Tuvalet nerede?~too-va-LET NEH-reh-deh|Где туалет?~gdyeh too-a-LYET|أين الحمام؟~ayn al-ham-MAAM|टॉयलेट कहाँ है?~TOY-let ka-HAAN hai|洗手间在哪里?~xǐshǒujiān zài nǎlǐ|トイレはどこですか?~toi-re wa do-ko des-ka|화장실이 어디예요?~hwa-jang-si-ri uh-di-ye-yo
+I don't understand.|No entiendo.~no en-TYEN-do|Je ne comprends pas.~zhuh nuh kom-PRAHN pah|Ich verstehe nicht.~ikh fer-SHTAY-uh nikht|Non capisco.~non ka-PEES-ko|Eu não entendo.~eh-oo nowng en-TEN-doo|Anlamıyorum.~an-la-muh-yo-ROOM|Я не понимаю.~ya nyeh pa-nee-MAH-yu|لا أفهم.~laa AF-ham|मुझे समझ नहीं आया।~mu-JHAY sa-MAJH na-HEEN AA-yaa|我听不懂。~wǒ tīng bù dǒng|わかりません。~wa-ka-ri-ma-sen|이해 못 해요.~i-hae mot hae-yo
+Do you speak English?|¿Habla inglés?~AH-bla een-GLES|Parlez-vous anglais ?~par-lay voo ahn-GLEH|Sprechen Sie Englisch?~SHPREH-khen zee ENG-lish|Parla inglese?~PAR-la een-GLEH-zeh|Você fala inglês?~vo-SEH FA-la een-GLESH|İngilizce biliyor musunuz?~een-gee-LEEZ-jeh bee-lee-YOR moo-soo-nooz|Вы говорите по-английски?~vy ga-va-REE-tye pa an-GLEE-skee|هل تتكلم الإنجليزية؟~hal ta-ta-KAL-lam al-in-glee-ZEE-ya|क्या आप अंग्रेज़ी बोलते हैं?~kyaa aap an-gre-ZEE bol-TAY hain|你会说英语吗?~nǐ huì shuō yīngyǔ ma|英語を話せますか?~ei-go o ha-na-se-mas-ka|영어 할 수 있어요?~yeong-eo hal su i-sseo-yo
+Can you help me?|¿Puede ayudarme?~PWEH-deh ah-yoo-DAR-meh|Pouvez-vous m'aider ?~poo-vay voo meh-DAY|Können Sie mir helfen?~KUR-nen zee meer HEL-fen|Può aiutarmi?~pwo ah-yoo-TAR-mee|Pode me ajudar?~PO-jee mee a-zhoo-DAR|Bana yardım edebilir misiniz?~ba-NA yar-DUHM eh-deh-bee-LEER mee-see-neez|Вы можете мне помочь?~vy MO-zhe-tye mnye pa-MOCH|هل يمكنك مساعدتي؟~hal yum-KI-nuk mu-saa-ad-A-tee|क्या आप मेरी मदद कर सकते हैं?~kyaa aap MAY-ree ma-DAD kar sak-TAY hain|你能帮我吗?~nǐ néng bāng wǒ ma|手伝ってもらえますか?~te-tsu-da-t-te mo-ra-e-mas-ka|도와주실 수 있어요?~do-wa-ju-sil su i-sseo-yo
+Nice to meet you.|Mucho gusto.~MOO-cho GOOS-to|Enchanté.~ahn-shahn-TAY|Freut mich.~froyt mikh|Piacere.~pya-CHEH-reh|Prazer.~pra-ZEHR|Memnun oldum.~mem-NOON ol-DOOM|Приятно познакомиться.~pree-YAT-na paz-na-KO-meet-sa|تشرفنا.~ta-shar-RAF-na|आपसे मिलकर खुशी हुई।~aap-SAY mil-KAR khu-SHEE hu-EE|很高兴认识你。~hěn gāoxìng rènshi nǐ|はじめまして。~ha-ji-me-ma-shi-te|만나서 반가워요.~man-na-seo ban-ga-wo-yo
+How are you?|¿Cómo estás?~KO-mo es-TAHS|Ça va ?~sah vah|Wie geht's?~vee gayts|Come stai?~KO-meh STAI|Tudo bem?~TOO-doo beng|Nasılsın?~na-suhl-SUHN|Как дела?~kak dee-LAH|كيف حالك؟~kayf HAA-lak|आप कैसे हैं?~aap KAI-say hain|你好吗?~nǐ hǎo ma|お元気ですか?~o-gen-ki des-ka|잘 지내요?~jal ji-nae-yo
+I'm fine, thank you.|Estoy bien, gracias.~es-TOY byen GRAH-syahs|Je vais bien, merci.~zhuh veh byan mer-SEE|Mir geht's gut, danke.~meer gayts goot DAHN-kuh|Sto bene, grazie.~sto BEH-neh GRAHT-see-eh|Estou bem, obrigado.~es-TOH beng oh-bree-GAH-doo|İyiyim, teşekkürler.~ee-yee-YEEM teh-shek-kur-LER|Хорошо, спасибо.~kha-ra-SHO spa-SEE-ba|بخير، شكرا.~bi-KHAYR SHOK-ran|मैं ठीक हूँ, धन्यवाद।~main theek hoon dhan-ya-VAAD|我很好，谢谢。~wǒ hěn hǎo xièxie|元気です、ありがとう。~gen-ki des a-ri-ga-tō|잘 지내요, 감사합니다.~jal ji-nae-yo gam-sa-ham-ni-da
+I'm lost.|Estoy perdido.~es-TOY per-DEE-do|Je suis perdu.~zhuh swee per-DU|Ich habe mich verlaufen.~ikh HAH-buh mikh fer-LOW-fen|Mi sono perso.~mee SO-no PER-so|Estou perdido.~es-TOH per-DEE-doo|Kayboldum.~kai-bol-DOOM|Я заблудился.~ya za-bloo-DEEL-sya|أنا ضائع.~a-NAA DAA-i|मैं खो गया हूँ।~main kho ga-YAA hoon|我迷路了。~wǒ mílù le|道に迷いました。~mi-chi ni ma-yo-i-ma-shi-ta|길을 잃었어요.~gi-reul i-reo-sseo-yo
+I need a doctor.|Necesito un médico.~neh-seh-SEE-to oon MEH-dee-ko|J'ai besoin d'un médecin.~zhay buh-ZWAN dun mayd-SAN|Ich brauche einen Arzt.~ikh BROW-khuh EYE-nen artst|Ho bisogno di un medico.~o bee-ZO-nyo dee oon MEH-dee-ko|Preciso de um médico.~preh-SEE-zoo jee oong MEH-jee-koo|Doktora ihtiyacım var.~dok-to-RA eeh-tee-ya-JUHM var|Мне нужен врач.~mnyeh NOO-zhen vrach|أحتاج إلى طبيب.~ah-TAAJ i-la ta-BEEB|मुझे डॉक्टर चाहिए।~mu-JHAY DOK-tar CHAA-hi-ay|我需要医生。~wǒ xūyào yīshēng|医者が必要です。~i-sha ga hi-tsu-yō des|의사가 필요해요.~ui-sa-ga pi-ryo-hae-yo
+The bill, please.|La cuenta, por favor.~la KWEN-ta por fah-VOR|L'addition, s'il vous plaît.~la-dee-SYOHN seel voo PLEH|Die Rechnung, bitte.~dee REKH-noong BIT-tuh|Il conto, per favore.~eel KON-to per fah-VOH-reh|A conta, por favor.~a KON-ta poor fa-VOR|Hesap, lütfen.~heh-SAP LOOT-fen|Счёт, пожалуйста.~shchyot pa-ZHAL-sta|الحساب من فضلك.~al-hi-SAAB min FAD-lak|बिल दीजिए, कृपया।~bil dee-JEE-ay KRI-pa-yaa|请买单。~qǐng mǎidān|お会計お願いします。~o-kai-kei o-ne-gai-shi-mas|계산서 주세요.~gye-san-seo ju-se-yo
+A coffee, please.|Un café, por favor.~oon kah-FEH por fah-VOR|Un café, s'il vous plaît.~uhn ka-FAY seel voo PLEH|Einen Kaffee, bitte.~EYE-nen KAH-fay BIT-tuh|Un caffè, per favore.~oon kaf-FEH per fah-VOH-reh|Um café, por favor.~oong ka-FEH poor fa-VOR|Bir kahve, lütfen.~beer kah-VEH LOOT-fen|Кофе, пожалуйста.~KO-fye pa-ZHAL-sta|قهوة من فضلك.~QAH-wa min FAD-lak|एक कॉफ़ी, कृपया।~ek KOH-fee KRI-pa-yaa|请给我一杯咖啡。~qǐng gěi wǒ yì bēi kāfēi|コーヒーをお願いします。~kō-hī o o-ne-gai-shi-mas|커피 한 잔 주세요.~kuh-pi han jan ju-se-yo
+Water, please.|Agua, por favor.~AH-gwah por fah-VOR|De l'eau, s'il vous plaît.~duh LOH seel voo PLEH|Wasser, bitte.~VAH-ser BIT-tuh|Acqua, per favore.~AHK-kwah per fah-VOH-reh|Água, por favor.~AH-gwah poor fa-VOR|Su, lütfen.~soo LOOT-fen|Воды, пожалуйста.~va-DY pa-ZHAL-sta|ماء من فضلك.~maa min FAD-lak|पानी, कृपया।~PAA-nee KRI-pa-yaa|请给我水。~qǐng gěi wǒ shuǐ|お水をお願いします。~o-mi-zu o o-ne-gai-shi-mas|물 주세요.~mul ju-se-yo
+I'm hungry.|Tengo hambre.~TEN-go AHM-breh|J'ai faim.~zhay fan|Ich habe Hunger.~ikh HAH-buh HOONG-er|Ho fame.~o FAH-meh|Estou com fome.~es-TOH kom FOH-mee|Acıktım.~a-juhk-TUHM|Я голоден.~ya GO-lo-den|أنا جائع.~a-NAA JAA-i|मुझे भूख लगी है।~mu-JHAY bhookh la-GEE hai|我饿了。~wǒ è le|お腹が空きました。~o-na-ka ga su-ki-ma-shi-ta|배고파요.~bae-go-pa-yo
+It's delicious!|¡Está delicioso!~es-TAH deh-lee-SYO-so|C'est délicieux !~seh day-lee-SYUH|Es ist lecker!~es ist LEK-er|È buonissimo!~eh bwo-NEES-see-mo|Está delicioso!~es-TAH deh-lee-SYO-zoo|Çok lezzetli!~chok lez-zet-LEE|Очень вкусно!~O-chen FKOOS-na|لذيذ جدا!~la-DHEEDH JID-dan|बहुत स्वादिष्ट है!~ba-HOOT svaa-DISHT hai|太好吃了!~tài hǎochī le|おいしい!~o-i-shii|맛있어요!~ma-si-sseo-yo
+Do you have Wi-Fi?|¿Tienen wifi?~TYEH-nen WEE-fee|Vous avez le wifi ?~voo za-VAY luh wee-FEE|Gibt es WLAN?~gipt es VEE-lahn|Avete il wifi?~ah-VEH-teh eel WEE-fee|Vocês têm wi-fi?~vo-SESS tayng WEE-fee|Wi-Fi var mı?~WEE-fee var muh|У вас есть вайфай?~oo vas yest vai-FAI|هل يوجد واي فاي؟~hal YOO-jad waay-FAAY|क्या यहाँ वाईफ़ाई है?~kyaa ya-HAAN waa-ee-FAA-ee hai|有WiFi吗?~yǒu wai-fai ma|Wi-Fiはありますか?~wai-fai wa a-ri-mas-ka|와이파이 있어요?~wa-i-pa-i i-sseo-yo
+What time is it?|¿Qué hora es?~keh O-ra es|Quelle heure est-il ?~kel UR eh-TEEL|Wie spät ist es?~vee shpet ist es|Che ore sono?~keh O-reh SO-no|Que horas são?~kee O-ras sowng|Saat kaç?~sa-AT kach|Который час?~ka-TO-ryy chas|كم الساعة؟~kam as-SAA-a|क्या समय हुआ है?~kyaa sa-MAY hu-AA hai|现在几点?~xiànzài jǐ diǎn|今何時ですか?~i-ma nan-ji des-ka|지금 몇 시예요?~ji-geum myeot si-ye-yo
+Where is the station?|¿Dónde está la estación?~DOHN-deh es-TAH la es-ta-SYOHN|Où est la gare ?~oo eh la gar|Wo ist der Bahnhof?~voh ist dair BAHN-hohf|Dov'è la stazione?~do-VEH la sta-TSYO-neh|Onde fica a estação?~ON-jee FEE-ka a es-ta-SOWNG|İstasyon nerede?~ees-tas-YON NEH-reh-deh|Где вокзал?~gdyeh vak-ZAL|أين المحطة؟~ayn al-ma-HAT-ta|स्टेशन कहाँ है?~STAY-shan ka-HAAN hai|车站在哪里?~chēzhàn zài nǎlǐ|駅はどこですか?~e-ki wa do-ko des-ka|역이 어디예요?~yeo-gi uh-di-ye-yo
+See you tomorrow.|Hasta mañana.~AS-ta ma-NYAH-na|À demain.~ah duh-MAN|Bis morgen.~bis MOR-gen|A domani.~ah do-MAH-nee|Até amanhã.~a-TEH a-man-YAH|Yarın görüşürüz.~ya-RUHN gur-oo-shoo-ROOZ|До завтра.~da ZAF-tra|أراك غدا.~a-RAA-ka GHAD-an|कल मिलते हैं।~kal mil-TAY hain|明天见。~míngtiān jiàn|また明日。~ma-ta a-shi-ta|내일 봐요.~nae-il bwa-yo
+Have a nice day.|Que tengas un buen día.~keh TEN-gas oon bwen DEE-ah|Bonne journée !~bon zhoor-NAY|Einen schönen Tag!~EYE-nen SHUR-nen tahg|Buona giornata!~BWO-na jor-NAH-ta|Tenha um bom dia!~TEN-ya oong bom JEE-a|İyi günler!~ee-YEE gun-LER|Хорошего дня!~kha-RO-shee-va dnya|أتمنى لك يوما سعيدا.~a-ta-MAN-na lak YAW-man sa-EE-dan|आपका दिन शुभ हो!~AAP-kaa din shubh ho|祝你今天愉快!~zhù nǐ jīntiān yúkuài|良い一日を!~yoi i-chi-ni-chi o|좋은 하루 보내세요!~jo-eun ha-ru bo-nae-se-yo
+No problem.|No hay problema.~no eye pro-BLEH-ma|Pas de problème.~pah duh pro-BLEM|Kein Problem.~kine pro-BLEM|Nessun problema.~nes-SOON pro-BLEH-ma|Sem problema.~sayng pro-BLEH-ma|Sorun değil.~so-ROON deh-EEL|Без проблем.~byez prab-LYEM|لا مشكلة.~laa MUSH-ki-la|कोई बात नहीं।~ko-EE baat na-HEEN|没问题。~méi wèntí|問題ありません。~mon-dai a-ri-ma-sen|문제없어요.~mun-je-eop-seo-yo
+Speak slowly, please.|Hable despacio, por favor.~AH-bleh des-PAH-syo por fah-VOR|Parlez lentement, s'il vous plaît.~par-lay lahnt-MAHN seel voo PLEH|Sprechen Sie langsam, bitte.~SHPREH-khen zee LAHNG-zahm BIT-tuh|Parli lentamente, per favore.~PAR-lee len-ta-MEN-teh per fah-VOH-reh|Fale devagar, por favor.~FAH-lee de-va-GAR poor fa-VOR|Yavaş konuşun, lütfen.~ya-VASH ko-noo-SHOON LOOT-fen|Говорите медленнее, пожалуйста.~ga-va-REE-tye MYED-len-ne-ye pa-ZHAL-sta|تكلم ببطء من فضلك.~ta-KAL-lam bi-BUT min FAD-lak|कृपया धीरे बोलिए।~KRI-pa-yaa DHEE-ray bo-LEE-ay|请说慢一点。~qǐng shuō màn yìdiǎn|ゆっくり話してください。~yuk-ku-ri ha-na-shi-te ku-da-sai|천천히 말해 주세요.~cheon-cheon-hi mal-hae ju-se-yo
+Can you repeat that?|¿Puede repetirlo?~PWEH-deh reh-peh-TEER-lo|Pouvez-vous répéter ?~poo-vay voo ray-pay-TAY|Können Sie das wiederholen?~KUR-nen zee dahs vee-der-HOH-len|Può ripeterlo?~pwo ree-peh-TER-lo|Pode repetir?~PO-jee heh-peh-CHEER|Tekrar eder misiniz?~tek-RAR eh-DER mee-see-neez|Повторите, пожалуйста.~paf-ta-REE-tye pa-ZHAL-sta|هل يمكنك الإعادة؟~hal yum-KI-nuk al-i-AA-da|क्या आप दोहरा सकते हैं?~kyaa aap doh-RAA sak-TAY hain|你能再说一遍吗?~nǐ néng zài shuō yí biàn ma|もう一度お願いします。~mō i-chi-do o-ne-gai-shi-mas|다시 말해 주세요.~da-si mal-hae ju-se-yo
+Good luck!|¡Buena suerte!~BWEH-na SWER-teh|Bonne chance !~bon SHAHNS|Viel Glück!~feel glook|Buona fortuna!~BWO-na for-TOO-na|Boa sorte!~BO-a SOR-chee|İyi şanslar!~ee-YEE shans-LAR|Удачи!~oo-DA-chee|حظا سعيدا!~HAZ-zan sa-EE-dan|शुभकामनाएँ!~shubh-kaam-naa-AYN|祝你好运!~zhù nǐ hǎoyùn|頑張って!~gan-ba-t-te|행운을 빌어요!~haeng-un-eul bi-reo-yo
+Thank you very much.|Muchas gracias.~MOO-chahs GRAH-syahs|Merci beaucoup.~mer-SEE boh-KOO|Vielen Dank.~FEE-len dahnk|Grazie mille.~GRAHT-see-eh MEEL-leh|Muito obrigado.~MOO-ee-too oh-bree-GAH-doo|Çok teşekkür ederim.~chok teh-shek-KUR eh-deh-REEM|Большое спасибо.~bal-SHO-ye spa-SEE-ba|شكرا جزيلا.~SHOK-ran ja-ZEE-lan|बहुत बहुत धन्यवाद।~ba-HOOT ba-HOOT dhan-ya-VAAD|非常感谢。~fēicháng gǎnxiè|どうもありがとうございます。~dō-mo a-ri-ga-tō go-zai-mas|정말 감사합니다.~jeong-mal gam-sa-ham-ni-da
+What is your name?|¿Cómo te llamas?~KO-mo teh YAH-mas|Comment vous appelez-vous ?~ko-MAHN voo za-play VOO|Wie heißen Sie?~vee HY-sen zee|Come ti chiami?~KO-meh tee KYAH-mee|Qual é o seu nome?~kwal eh oo SEH-oo NOH-mee|Adınız ne?~a-duh-NUHZ neh|Как вас зовут?~kak vas za-VOOT|ما اسمك؟~maa IS-muk|आपका नाम क्या है?~AAP-kaa naam kyaa hai|你叫什么名字?~nǐ jiào shénme míngzi|お名前は何ですか?~o-na-ma-e wa nan des-ka|이름이 뭐예요?~i-reu-mi mwo-ye-yo
+I like it.|Me gusta.~meh GOOS-ta|J'aime ça.~zhem sah|Das gefällt mir.~dahs ge-FELT meer|Mi piace.~mee PYAH-cheh|Eu gosto.~eh-oo GOS-too|Hoşuma gitti.~ho-shoo-MA geet-TEE|Мне нравится.~mnyeh NRA-veet-sa|يعجبني.~yu-AJ-ib-nee|मुझे यह पसंद है।~mu-JHAY yeh pa-SAND hai|我喜欢。~wǒ xǐhuan|好きです。~su-ki des|마음에 들어요.~ma-eu-me deu-reo-yo
+Where are you from?|¿De dónde eres?~deh DOHN-deh EH-res|Vous venez d'où ?~voo vuh-NAY DOO|Woher kommen Sie?~vo-HAIR KOM-men zee|Di dove sei?~dee DOH-veh SAY|De onde você é?~jee ON-jee vo-SEH eh|Nerelisiniz?~neh-reh-lee-see-NEEZ|Вы откуда?~vy at-KOO-da|من أين أنت؟~min ayn AN-ta|आप कहाँ से हैं?~aap ka-HAAN say hain|你是哪里人?~nǐ shì nǎlǐ rén|ご出身はどこですか?~go-shus-shin wa do-ko des-ka|어디서 왔어요?~uh-di-seo wa-sseo-yo
+`;
+const parse=raw=>raw.trim().split('\n').map(l=>{const p=l.split('|');return{en:p[0],t:p.slice(1).map(s=>{const [w,r]=s.split('~');return{w,r}})}});
+const WORDS=parse(RAW),SENTS=parse(RAWS).map(x=>{x.sent=true;return x;});
+const ITEMS=[];{let si=0;WORDS.forEach((w,i)=>{ITEMS.push(w);if(i%2===1&&si<SENTS.length)ITEMS.push(SENTS[si++]);});while(si<SENTS.length)ITEMS.push(SENTS[si++]);}
 
 const TH=[
  {id:'candy',n:'Candy Pop',i:'🍭',w:'triangle',lp:PAL},
@@ -266,10 +326,10 @@ const TH=[
 /* ================= helpers / state ================= */
 const $=s=>document.querySelector(s);
 const RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
-const stage=$('#stage'),ringEl=$('#ring'),spokesEl=$('#spokes'),centerEl=$('#center'),wordEl=$('#word'),ctaEl=$('#cta'),ctaBox=$('#ctaBox');
+const stage=$('#stage'),ringEl=$('#ring'),spokesEl=$('#spokes'),centerEl=$('#center'),wordEl=$('#word'),pillEl=$('#ctaPill');
 const EASE='cubic-bezier(.2,1.5,.35,1)';
-const INT=[50,50,55,62,72,88,108,135];          // roulette tick gaps (ms): fast -> slow
-let theme='candy',T=TH[0],W=0,H=0,cx=0,cy=0,cw=100,ch=80,land=false,cMaxW=300,cMaxH=100;
+const INT=[50,50,52,56,62,72,84,100,124,155];   // roulette tick gaps (ms): fast -> slow
+let theme='candy',T=TH[0],W=0,H=0,cx=0,cy=0,cw=100,ch=80,land=false,cMaxW=300,cMaxH=100,SENT=false,ctaSpots={};
 let cur=null,seq=0,bag=[],picks=[],pos=[],RB={x:0,y:0},hintGone=false,soundOn=true,voiceOn=false;
 let vnow=0,vseq=0;const vq=[];
 function sched(ms,fn){if(EXPORT){vq.push({t:vnow+ms/1000,n:vseq++,fn});vq.sort((a,b)=>a.t-b.t||a.n-b.n);}else setTimeout(fn,ms);}
@@ -288,12 +348,13 @@ const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;
 /* ================= build cards, roll box, spokes ================= */
 function makeCard(extra){
   const card=document.createElement('div');card.className='card';
-  card.innerHTML='<div class="bob"><div class="inner">'+(extra||'')+'<span class="tag"></span><span class="w"></span><span class="p"></span></div></div>';
+  card.innerHTML='<div class="bob"><div class="inner">'+(extra||'')+'<span class="tag"><i class="fl"></i> <i class="nm"></i></span><div class="txt"><span class="w" dir="auto"></span><span class="p"></span></div></div></div>';
   const q=s=>card.querySelector(s);
-  return{card,inner:q('.inner'),tag:q('.tag'),w:q('.w'),p:q('.p'),flag:q('.flag'),lang:null,vis:false};
+  return{card,inner:q('.inner'),tag:q('.tag'),fl:q('.fl'),nm:q('.nm'),w:q('.w'),p:q('.p'),flag:q('.flag'),lang:null,vis:false};
 }
+const MAXP=Math.max(WORD_PICKS,SENT_PICKS);
 const cards=[],spokes=[];
-for(let i=0;i<PICKS;i++){
+for(let i=0;i<MAXP;i++){
   const c=makeCard();c.card.style.setProperty('--i',i);c.card.style.setProperty('--rot',(((i*37)%7)-3)+'deg');
   ringEl.append(c.card);cards.push(c);
   const path=document.createElementNS('http://www.w3.org/2000/svg','path');
@@ -302,44 +363,83 @@ for(let i=0;i<PICKS;i++){
 const R=makeCard('<i class="q">?</i><span class="flag"></span>');
 R.card.id='roll';R.card.style.setProperty('--i',2);R.inner.classList.add('spin');stage.append(R.card);
 
-/* ================= layout ================= */
+/* ================= layout (word = ring of cards, sentence = stacked rows) ================= */
 function fit(el,base,max){el.style.fontSize=base+'px';const w=el.offsetWidth;if(w>max)el.style.fontSize=(base*max/w)+'px';}
+const titleFor=s=>s?`One Sentence, ${SENT_PICKS} Languages`:`One Word, ${WORD_PICKS} Languages`;
 function layout(){
   W=stage.clientWidth;H=stage.clientHeight;
   land=W/H>1.25;document.body.classList.toggle('land',land);
-  const topPad=land?12:66,botPad=land?84:(EXPORT?78:98),maxCw=land?150:132;
-  const compute=(c,force)=>{
-    const h=c*.78,aTop=topPad+h+14,ah=H-botPad-aTop;
-    const x0=W/2,y0=aTop+ah/2,rx=W/2-c/2-6,ry=ah/2-h/2-2;
-    if(!force&&(ah<h*1.5||rx<20||ry<20))return null;
-    const p=[];for(let k=0;k<PICKS;k++){const a=k*Math.PI*2/PICKS;p.push({x:x0+rx*Math.sin(a),y:y0-ry*Math.cos(a)});}
-    if(!force)for(let i=0;i<PICKS;i++)for(let j=i+1;j<PICKS;j++)if(Math.abs(p[i].x-p[j].x)<c+8&&Math.abs(p[i].y-p[j].y)<h+8)return null;
-    return{c,h,x0,y0,rx,ry,p,aTop};
-  };
-  let g=null;for(let c=maxCw;c>=62&&!g;c-=3)g=compute(c);
-  if(!g)g=compute(62,true);
-  cw=g.c;ch=g.h;cx=g.x0;cy=g.y0;pos=g.p;
-  const bandH=2*(g.ry*.5-ch/2)-10,roomH=2*(g.ry-ch/2-6);
-  if(PICKS===6&&bandH>=54){cMaxW=W-28;cMaxH=Math.min(bandH,roomH);}
-  else{cMaxW=Math.max(120,2*(g.rx*.866-cw/2)-14);cMaxH=roomH;}
-  RB={x:W/2,y:topPad+ch/2};
+  stage.classList.toggle('sent',SENT);
+  const n=SENT?SENT_PICKS:WORD_PICKS;
+  const topPad=land?12:66,botPad=land?84:(EXPORT?78:98);
+  if(!SENT){
+    const ANG={3:[0,120,240],4:[45,135,225,315],5:[0,72,144,216,288],6:[0,60,120,180,240,300]}[n]||[0,60,120,180,240,300];
+    const maxCw=land?150:(n<=4?118:132);
+    const compute=(c,force)=>{
+      const h=c*.78,aTop=topPad+h+14,ah=H-botPad-aTop;
+      const x0=W/2,y0=aTop+ah/2,rx=W/2-c/2-6,ry=ah/2-h/2-2;
+      if(!force&&(ah<h*1.5||rx<20||ry<20))return null;
+      const p=ANG.map(d=>{const a=d*Math.PI/180;return{x:x0+rx*Math.sin(a),y:y0-ry*Math.cos(a)};});
+      if(!force)for(let i=0;i<p.length;i++)for(let j=i+1;j<p.length;j++)if(Math.abs(p[i].x-p[j].x)<c+8&&Math.abs(p[i].y-p[j].y)<h+8)return null;
+      return{c,h,x0,y0,rx,ry,p};
+    };
+    let g=null;for(let c=maxCw;c>=62&&!g;c-=3)g=compute(c);
+    if(!g)g=compute(62,true);
+    cw=g.c;ch=g.h;cx=g.x0;cy=g.y0;pos=g.p;
+    const minDy=Math.min(...pos.map(p=>Math.abs(p.y-cy)));
+    const bandH=2*(minDy-ch/2)-10,roomH=2*(g.ry-ch/2-6);
+    if(bandH>=54){cMaxW=W-28;cMaxH=Math.min(bandH,roomH);}
+    else{const near=pos.filter(p=>Math.abs(p.y-cy)<ch);cMaxW=near.length?Math.max(120,2*(Math.min(...near.map(p=>Math.abs(p.x-cx)))-cw/2)-14):W-28;cMaxH=roomH;}
+    RB={x:W/2,y:topPad+ch/2};
+  }else{
+    const bannerH=land?64:96,gap=10;
+    cw=Math.min(W-32,520);
+    ch=Math.max(58,Math.min(96,(H-botPad-topPad-bannerH-8-14-2*gap)/4));
+    cx=W/2;cy=topPad+bannerH/2;
+    RB={x:W/2,y:topPad+bannerH+8+ch/2};
+    pos=[...Array(n)].map((_,k)=>({x:W/2,y:RB.y+ch+14+k*(ch+gap)}));
+    cMaxW=W-36;cMaxH=bannerH-6;
+  }
+  // where the little Like/Follow badge may appear
+  ctaSpots={bottom:{x:W/2,y:H-botPad+22,max:W-40}};
+  if(!SENT){const half=RB.x-cw/2-12;if(half>70){ctaSpots.topL={x:6+half/2,y:RB.y,max:half};ctaSpots.topR={x:W-6-half/2,y:RB.y,max:half};}}
   stage.style.setProperty('--cw',cw+'px');stage.style.setProperty('--ch',ch+'px');
-  cards.forEach((c,i)=>{c.card.style.transform=`translate(${pos[i].x}px,${pos[i].y}px)`;});
+  cards.forEach((c,i)=>{c.card.style.display=i<n?'':'none';if(i<n)c.card.style.transform=`translate(${pos[i].x}px,${pos[i].y}px)`;});
   R.card.style.transform=`translate(${RB.x}px,${RB.y}px)`;
-  spokes.forEach((p,i)=>{const dx=pos[i].x-cx,dy=pos[i].y-cy;p.setAttribute('d',`M${cx+dx*.28} ${cy+dy*.28} L${cx+dx*.8} ${cy+dy*.8}`);});
+  spokes.forEach((p,i)=>{
+    p.style.display=(i<n&&!SENT)?'':'none';
+    if(i<n&&!SENT){const dx=pos[i].x-cx,dy=pos[i].y-cy;p.setAttribute('d',`M${cx+dx*.28} ${cy+dy*.28} L${cx+dx*.8} ${cy+dy*.8}`);}
+  });
   centerEl.style.left=cx+'px';centerEl.style.top=cy+'px';
-  const tb=$('#title b');tb.textContent=TITLE;$('#title small').textContent=SUB;
-  const tmax=land?W/2-cw/2-30:W-28;
+  const tb=$('#title b');tb.textContent=titleFor(SENT);$('#title small').textContent=SUB;
+  const tmax=land?Math.max(200,W/2-(SENT?150:cw/2)-30):W-28;
   fit(tb,land?24:28,tmax);fit($('#title small'),14,tmax);
   sizeCanvas();renderStatic();
 }
-function fitCard(c){const m=cw-14;fit(c.tag,Math.max(9,cw*.1),m);fit(c.w,cw*.235,m);fit(c.p,cw*.125,m);}
+function fitCard(c){
+  if(SENT){
+    c.tag.style.fontSize='11px';fit(c.nm,11,58);
+    let fw=Math.min(21,ch*.24),fp=fw*.62;
+    for(let i=0;i<14;i++){
+      c.w.style.fontSize=fw+'px';c.p.style.fontSize=fp+'px';
+      if(c.w.offsetHeight+c.p.offsetHeight<=ch-14)break;
+      fw*=.93;fp*=.93;
+    }
+  }else{const m=cw-14;fit(c.tag,Math.max(9,cw*.1),m);fit(c.w,cw*.235,m);fit(c.p,cw*.125,m);}
+}
 function fillCard(c,l){
   const t=cur.t[l];c.lang=l;c.card.style.setProperty('--c',PAL[l]);
-  c.tag.textContent=LANGS[l][2]+' '+LANGS[l][1];c.w.textContent=t.w;c.p.textContent=t.r;fitCard(c);
+  c.fl.textContent=LANGS[l][2];c.nm.textContent=LANGS[l][1];c.w.textContent=t.w;c.p.textContent=t.r;fitCard(c);
 }
 function sizeCenter(){
   if(!cur)return;
+  if(SENT){
+    wordEl.style.width=cMaxW+'px';
+    let fs=Math.min(36,cMaxW/9);
+    for(let i=0;i<16;i++){wordEl.style.fontSize=fs+'px';if(wordEl.offsetHeight<=cMaxH)break;fs*=.92;}
+    return;
+  }
+  wordEl.style.width='';
   const len=Math.max(4,cur.en.length);
   let fs=Math.min(cMaxW/(len*.56),cMaxH/1.15,160);fs=Math.max(26,fs);
   wordEl.style.fontSize=fs+'px';
@@ -399,8 +499,8 @@ const sfx={
     else{tone(f*1.5,{dur:.28,vol:.26});tone(f*4.5,{dur:.07,vol:.06});}},
   intro(){arp(523,[0,4,7,12],.055,.3,theme==='sticker'?.08:.16);tone(90,{dur:.2,slide:.5,vol:.35});},
   cta(){
-    if(theme==='mario'){[659,784,1319,1046,1175,1568].forEach((f,k)=>tone(f,{t:k*.085,dur:.12,type:'square',vol:.1}));}
-    else{arp(523,[0,4,7,12,16,19],.07,.35,.15);tone(80,{dur:.3,slide:.5,vol:.4});}
+    if(theme==='mario'){[1319,1568,2093].forEach((f,k)=>tone(f,{t:k*.06,dur:.1,type:'square',vol:.1}));}
+    else arp(784,[0,7,12],.07,.22,.13);
   },
   ui(){tone(880,{dur:.08,type:'triangle',vol:.16});tone(1320,{t:.06,dur:.14,type:'triangle',vol:.16});tone(1760,{t:.12,dur:.16,vol:.1});}
 };
@@ -530,26 +630,34 @@ function fxFrame(dt,t){
 function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;fxFrame(dt,now/1000);requestAnimationFrame(loop);}
 
 /* ================= word + roulette run ================= */
+function plan(it){   // timing of one video: n languages, pause after each reveal, pause at the end
+  const n=it.sent?SENT_PICKS:WORD_PICKS,hold=it.sent?.55:.19,tail=it.sent?2.4:1.4;
+  const end=.75+n*(INT.reduce((a,b)=>a+b,0)/1000+hold+.12)+.52;
+  return{n,hold,tail,end,total:(end+tail)*PACE};
+}
 function draw(){
   if(!bag.length){
-    bag=shuffle(WORDS.map((_,i)=>i));
-    if(cur&&WORDS[bag[bag.length-1]]===cur)bag.unshift(bag.pop());
+    bag=shuffle(ITEMS.map((_,i)=>i));
+    if(cur&&ITEMS[bag[bag.length-1]]===cur)bag.unshift(bag.pop());
   }
-  return WORDS[bag.pop()];
+  return ITEMS[bag.pop()];
 }
 function setCenter(w){
   wordEl.getAnimations().forEach(a=>a.cancel());
   wordEl.innerHTML='';
   const txt=w.en[0].toUpperCase()+w.en.slice(1);
-  [...txt].forEach(chr=>{
+  const add=(s,k)=>{const o=document.createElement('span');o.className='ch';const i=document.createElement('span');i.className='w2';
+    i.style.setProperty('--k',k);i.textContent=s;o.append(i);wordEl.append(o);};
+  if(w.sent)txt.split(' ').forEach((s,k)=>add(s,k));
+  else [...txt].forEach(chr=>{
     if(chr===' '){const s=document.createElement('span');s.className='sp';wordEl.append(s);return;}
-    const o=document.createElement('span');o.className='ch';const i=document.createElement('span');i.className='w2';
-    i.style.setProperty('--k',wordEl.children.length);i.textContent=chr;o.append(i);wordEl.append(o);
+    add(chr,wordEl.children.length);
   });
   colorLetters();sizeCenter();
 }
 function playCenterIn(){
-  [...wordEl.querySelectorAll('.ch')].forEach((o,i)=>o.animate([{transform:'translateY(70px) scale(0) rotate(-28deg)',opacity:0},{transform:'none',opacity:1}],{duration:580,delay:i*45,easing:EASE,fill:'backwards'}));
+  const step=cur&&cur.sent?90:45;
+  [...wordEl.querySelectorAll('.ch')].forEach((o,i)=>o.animate([{transform:'translateY(70px) scale(0) rotate(-28deg)',opacity:0},{transform:'none',opacity:1}],{duration:580,delay:i*step,easing:EASE,fill:'backwards'}));
 }
 function animateOut(){
   cards.forEach((c,i)=>{
@@ -591,19 +699,29 @@ function fly(k,lang,my){
   sched(470,()=>c.card.classList.remove('fly'));
   sfx.whoosh();
   sched(300*PACE,()=>{if(my!==seq)return;sfx.pop(k);burst(pos[k].x,pos[k].y,9,.45,{small:1});});
-  const sp=spokes[k];sp.style.opacity=1;
-  sp.animate([{strokeDashoffset:1,opacity:0},{strokeDashoffset:0,opacity:1}],{duration:520,delay:220,easing:'ease-out',fill:'backwards'});
+  if(!SENT){
+    const sp=spokes[k];sp.style.opacity=1;
+    sp.animate([{strokeDashoffset:1,opacity:0},{strokeDashoffset:0,opacity:1}],{duration:520,delay:220,easing:'ease-out',fill:'backwards'});
+  }
 }
-function showCTA(){
-  const v=CTA_LIST[(Math.random()*CTA_LIST.length)|0],l1=ctaBox.querySelector('.l1'),l2=ctaBox.querySelector('.l2');
-  l1.textContent=v[0];l2.textContent=v[1];ctaEl.classList.add('on');
-  const base=Math.min(W*.3,170);fit(l1,base,W-40);fit(l2,parseFloat(l1.style.fontSize)*.8,W-40);
-  ctaEl.animate([{opacity:0},{opacity:1}],{duration:250});
-  ctaBox.animate([{transform:'scale(0) rotate(-25deg)'},{transform:'none'}],{duration:650,easing:EASE});
-  sfx.cta();burst(W/2,H/2,44,1.4,{emo:['❤️','💖','👍','⭐','🔔'],big:1});shake();
-  navigator.vibrate&&navigator.vibrate([20,40,20]);
+
+/* ---- small Like / Follow badge: pops up once, at a random moment and a random spot ---- */
+const cancelWA=el=>el.getAnimations().forEach(a=>{if(a.constructor===Animation)a.cancel();});
+const hideCTA=()=>{cancelWA(pillEl);pillEl.style.display='none';};
+function showPill(txt,spot,plain){
+  const s=ctaSpots[spot]||ctaSpots.bottom;
+  cancelWA(pillEl);
+  pillEl.textContent=txt;pillEl.className=plain?'plain':'';
+  pillEl.style.display='block';pillEl.style.left=s.x+'px';pillEl.style.top=s.y+'px';
+  fit(pillEl,20,s.max);
+  pillEl.animate([{transform:'translate(-50%,-50%) scale(0) rotate(-14deg)',opacity:0},{transform:'translate(-50%,-50%) scale(1)',opacity:1}],{duration:450,easing:EASE});
+  sfx.cta();burst(s.x,s.y,12,.55,{emo:['👍','❤️','⭐'],small:1});
 }
-const hideCTA=()=>ctaEl.classList.remove('on');
+function hidePill(my){
+  if(pillEl.style.display==='none')return;
+  pillEl.animate([{transform:'translate(-50%,-50%) scale(1)',opacity:1},{transform:'translate(-50%,-50%) scale(0)',opacity:0}],{duration:220,easing:'ease-in',fill:'forwards'});
+  sched(230,()=>{if(my===seq)hideCTA();});
+}
 
 async function run(w,my){
   const A=()=>my===seq;
@@ -613,21 +731,32 @@ async function run(w,my){
     clearSpeaking();animateOut();
     await sleep(210);if(!A())return;
   }
-  cur=w;picks=shuffle(LANGS.map((_,i)=>i)).slice(0,PICKS);
+  cur=w;SENT=!!w.sent;
+  const P=plan(w),n=P.n;
+  picks=shuffle(LANGS.map((_,i)=>i)).slice(0,n);
   cards.forEach(c=>{c.vis=false;c.lang=null;c.inner.style.opacity=0;c.inner.getAnimations().forEach(a=>a.cancel());});
+  spokes.forEach(p=>{p.style.opacity=0;});
+  layout();
+  if(CTA_LIST.length){   // choose when / where / what the badge shows (all from the seed, so a video is repeatable)
+    const lo=1.2,hi=Math.max(lo+.1,P.end-CTA_SECONDS-.2);
+    const at=lo+Math.random()*(hi-lo),txt=CTA_LIST[(Math.random()*CTA_LIST.length)|0],plain=Math.random()<.35;
+    const keys=Object.keys(ctaSpots).filter(k=>k==='bottom'||txt.length<=9);
+    const spot=keys[(Math.random()*keys.length)|0];
+    sched(at*1000*PACE,()=>{if(A())showPill(txt,spot,plain);});
+    sched((at+CTA_SECONDS)*1000*PACE,()=>{if(A())hidePill(my);});
+  }
   setCenter(w);playCenterIn();resetRoll(true);sfx.intro();burst(cx,cy,34,1.05);
   await sleep(750);if(!A())return;
-  for(let k=0;k<PICKS;k++){
+  for(let k=0;k<n;k++){
     const target=picks[k],pool=LANGS.map((_,i)=>i).filter(i=>!picks.slice(0,k).includes(i));
     if(!(await spin(target,pool,my)))return;
     reveal(target);
-    await sleep(190);if(!A())return;
+    await sleep(P.hold*1000);if(!A())return;
     fly(k,target,my);resetRoll(false);
     R.inner.animate([{transform:'scale(.85)'},{transform:'none'}],{duration:300,easing:EASE});
     await sleep(120);if(!A())return;
   }
   await sleep(520);if(!A())return;
-  if(CTA_LIST.length)showCTA();
   later_speak(w,my);
 }
 function later_speak(w,my){sched(900*PACE,()=>speakSeq(w,my));}
@@ -707,19 +836,19 @@ addEventListener('resize',()=>{layout();initAmb();});
 
 /* ================= go ================= */
 layout();
-bag=shuffle(WORDS.map((_,i)=>i).filter(i=>i>0));
+bag=shuffle(ITEMS.map((_,i)=>i).filter(i=>i>0));
 setTheme(0,true);
-cur=WORDS[0];setCenter(cur);renderStatic();
+cur=ITEMS[0];SENT=false;setCenter(cur);renderStatic();
 if(!EXPORT){setTimeout(()=>{playCenterIn();resetRoll(true);},200);requestAnimationFrame(loop);}
 
 /* ================= VIDEO EXPORT API (used by the GitHub workflow) =================
    window.TOPIC_IDS            seed ids r001 ... (same id = same video)
-   await window.loadTopic(id, {theme,word,cta})   -> info {caption,tags,footer,total,...}
+   await window.loadTopic(id, {theme,word,cta,kind})   -> info {caption,tags,footer,total,...}
    await window.stepTo(i)      jump to frame i (call 0,1,2,... in order), then take a screenshot
-   await window.renderAudioBase64(withMusic)      -> base64 s16le 48 kHz stereo, length = total
+   await window.renderAudioBase64(withMusic)           -> base64 s16le 48 kHz stereo, length = total
 ============================================================================ */
-window.TOPIC_IDS=Array.from({length:WORDS.length*10},(_,i)=>'r'+String(i+1).padStart(3,'0'));
-function plannedTotal(){return(0.75+PICKS*(INT.reduce((a,b)=>a+b,0)/1000+0.31)+0.52)*PACE+CTA_HOLD;}
+window.TOPIC_IDS=Array.from({length:ITEMS.length*4},(_,i)=>'r'+String(i+1).padStart(3,'0'));
+let TOTAL=8;
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 function strHash(s){let h=1779033703^s.length;for(let i=0;i<s.length;i++){h=Math.imul(h^s.charCodeAt(i),3432918353);h=h<<13|h>>>19;}return h>>>0;}
 const flush=()=>new Promise(r=>setTimeout(r,0));
@@ -746,24 +875,25 @@ window.loadTopic=async function(id,o){
   Math.random=mulberry32(strHash('word-roulette-'+id));
   seq++;vq.length=0;vnow=0;vseq=0;parts=[];nb=null;
   document.getAnimations().forEach(a=>{if(a.constructor===Animation)a.cancel();});
-  ctaEl.classList.remove('on');
-  const wantW=String(o.word||'').trim().toLowerCase();
-  const w=WORDS.find(x=>x.en.toLowerCase()===wantW)||WORDS[(n-1)%WORDS.length];
+  hideCTA();
+  const want=String(o.word||'').trim().toLowerCase(),kind=o.kind||'random';
+  const pool=kind==='word'?WORDS:kind==='sentence'?SENTS:ITEMS;
+  const it=ITEMS.find(x=>x.en.toLowerCase()===want)||pool[(n-1)%pool.length];
   const ti=TH.findIndex(t=>t.id===o.theme);
   const idx=ti>=0?ti:Math.floor(Math.random()*TH.length);
   const cta=o.cta||'random';
-  CTA_LIST=cta==='none'?[]:cta==='random'?CTAS:CTAS.filter(c=>cta==='like'?c[0]==='LIKE':cta==='follow'?c[0]==='FOLLOW':c[0]==='LIKE &');
-  const total=plannedTotal();
-  AC=new OfflineAudioContext(2,Math.ceil(total*48000),48000);
+  CTA_LIST=cta==='none'?[]:cta==='random'?CTAS:CTAS.filter(c=>cta==='like'?c==='👍 LIKE':cta==='follow'?c==='➕ FOLLOW':c==='👍 LIKE & FOLLOW');
+  TOTAL=plan(it).total;
+  AC=new OfflineAudioContext(2,Math.ceil(TOTAL*48000),48000);
   master=AC.createGain();master.gain.value=.55;master.connect(AC.destination);soundOn=true;
   setTheme(idx,true);
   sfx.tap();
-  const my=++seq;run(w,my);                       // in export mode run() sets everything up synchronously
+  const my=++seq;run(it,my);                       // in export mode run() sets everything up synchronously
   const cap=s=>s[0].toUpperCase()+s.slice(1);
-  const lines=picks.map(l=>`${LANGS[l][2]} ${LANGS[l][1]}: ${w.t[l].w} (${w.t[l].r})`);
-  return{id,kind:'word',word:w.en,theme:T.id,languages:picks.map(l=>LANGS[l][1]),total,
-    caption:`How do you say “${cap(w.en)}” in ${PICKS} languages? 🌍\n\n`+lines.join('\n'),
-    tags:'#learnlanguages #languagelearning #vocabulary #shorts #reels #'+picks.map(l=>LANGS[l][1].toLowerCase()).join(' #'),
+  const lines=picks.map(l=>`${LANGS[l][2]} ${LANGS[l][1]}: ${it.t[l].w} (${it.t[l].r})`);
+  return{id,kind:it.sent?'sentence':'word',word:it.en,theme:T.id,languages:picks.map(l=>LANGS[l][1]),total:TOTAL,
+    caption:`How do you say “${cap(it.en)}” in ${picks.length} languages? 🌍\n\n`+lines.join('\n'),
+    tags:'#learnlanguages #languagelearning #'+(it.sent?'travelphrases #everydayphrases':'vocabulary #everydaywords')+' #shorts #reels #'+picks.map(l=>LANGS[l][1].toLowerCase()).join(' #'),
     footer:'Like & follow for a new word every day 🎰'};
 };
 function bed(total){   // built-in happy backing track, used when no music file is supplied
@@ -777,7 +907,7 @@ function bed(total){   // built-in happy backing track, used when no music file 
   vnow=keep;
 }
 window.renderAudioBase64=async function(withMusic){
-  if(!withMusic)bed(plannedTotal());
+  if(!withMusic)bed(TOTAL);
   const buf=await AC.startRendering();
   const L=buf.getChannelData(0),Rr=buf.numberOfChannels>1?buf.getChannelData(1):L,n=buf.length,out=new Int16Array(n*2);
   for(let i=0;i<n;i++){out[2*i]=Math.max(-1,Math.min(1,L[i]))*32767;out[2*i+1]=Math.max(-1,Math.min(1,Rr[i]))*32767;}
