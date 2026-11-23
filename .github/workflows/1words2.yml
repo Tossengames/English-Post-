@@ -1,0 +1,307 @@
+name: 🎰 Post Word Roulette Short to Facebook
+
+# ─────────────────────────────────────────────────────────────
+#  EASY SETTINGS (change these here, no need to touch the code below)
+# ─────────────────────────────────────────────────────────────
+env:
+  BGMUSIC_DIR: bgmusic          # folder in the repo with your music files (mp3, wav, m4a...). Empty or missing = the built-in happy backing track is used
+  BGMUSIC_VOLUME: "0.18"        # music loudness (0.05 quiet ... 0.4 loud)
+  MAX_LEN: "10"                 # every video must stay under this many seconds (videos are about 8.7 s)
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Seed id r001 ... r310 (empty = auto-pick). Same seed = same video"
+        required: false
+        default: ""
+      theme:
+        description: "Look of the video (random = chosen by the seed)"
+        type: choice
+        options: [random, candy, neon, sticker, ocean, jungle, mario, rainbow, doodle, diner, comic]
+        default: random
+      word:
+        description: "English word to teach, e.g. hello (empty = chosen by the seed). Must be a word from the list inside words2.html"
+        required: false
+        default: ""
+      cta:
+        description: "Big call to action at the end: random, like, follow, both (Like & Follow), none"
+        type: choice
+        options: [random, like, follow, both, none]
+        default: random
+      dry_run:
+        description: "Render only: do not post and do not remember the topic"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "0 17 * * *"   # once a day at 17:00 UTC
+
+permissions:
+  contents: write
+
+concurrency:
+  group: word-roulette-short
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ffmpeg and fonts (emoji flags + Arabic, Hindi, Chinese, Japanese, Korean)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg fonts-noto-color-emoji fonts-noto-cjk fonts-noto-core
+          fc-cache -f
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Python deps
+        run: pip install selenium requests
+
+      - name: Render and Post to Facebook
+        run: |
+          python3 << 'PYEOF'
+          import os, sys, json, math, time, random, subprocess, base64, glob, datetime, shutil
+          from pathlib import Path
+          import requests
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+
+          FPS              = 30
+          MAX_LEN          = float(os.environ.get("MAX_LEN", "10") or 10)
+          TARGET_MB        = 40                        # aim for this file size
+          LIMIT_MB         = 48                        # hard limit: re-encode smaller if above this
+          AUDIO_BPS        = 128000
+          VIEW_W, VIEW_H, SCALE = 360, 640, 3          # 360x640 page at 3x = a crisp 1080x1920 reel
+          MUSIC_EXTENSIONS = ["mp3", "wav", "m4a", "mp4", "aac", "ogg", "flac", "wma", "opus"]
+          BGMUSIC_DIR      = (os.environ.get("BGMUSIC_DIR", "") or "").strip()
+          BGMUSIC_VOLUME   = float(os.environ.get("BGMUSIC_VOLUME", "0.18") or 0.18)
+          HTML_FILE        = "words2.html"
+          POSTED_FILE      = Path("posted_stories.json")
+          OUT_DIR          = Path("out"); OUT_DIR.mkdir(exist_ok=True)
+
+          # ── POSTED MEMORY ───────────────────────────────────────
+          def load_hist():
+            if POSTED_FILE.exists():
+              try: return json.loads(POSTED_FILE.read_text()).get("posted", [])
+              except Exception: return []
+            return []
+
+          def save_hist(hist):
+            POSTED_FILE.write_text(json.dumps({"posted": hist}, indent=2) + "\n")
+
+          def pick_topic(ids, hist):
+            used = []
+            for rec in reversed(hist):                # go through the whole pool before anything repeats
+              if rec.get("id") not in ids: continue
+              if rec.get("id") in used: break
+              used.append(rec.get("id"))
+            if len(set(used)) >= len(ids): used = []
+            remaining = [i for i in ids if i not in used] or ids
+            last_id = hist[-1].get("id") if hist else None
+            remaining = [i for i in remaining if i != last_id] or remaining      # never the video that was just posted
+            return random.choice(remaining)
+
+          def duration_of(path):
+            p = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path], capture_output=True, text=True)
+            try: return float(p.stdout.strip())
+            except Exception: return 0.0
+
+          def size_mb(path):
+            return os.path.getsize(path) / 1048576
+
+          # ── MUSIC (optional: your licensed tracks in the folder set at the top: BGMUSIC_DIR) ──
+          def pick_music(base="."):
+            found = []
+            if BGMUSIC_DIR:
+              for entry in os.scandir(base):
+                if entry.is_dir() and entry.name.lower() == BGMUSIC_DIR.lower():
+                  for ext in MUSIC_EXTENSIONS:
+                    found += glob.glob(os.path.join(entry.path, f"*.{ext}")) + glob.glob(os.path.join(entry.path, f"*.{ext.upper()}"))
+            if found:
+              m = random.choice(found); print(f"Music: {m} (folder '{BGMUSIC_DIR}', volume {BGMUSIC_VOLUME})"); return m
+            print(f"No music found in folder '{BGMUSIC_DIR}' (the page's built-in backing track is used)."); return None
+
+          def music_start(path):
+            d = duration_of(path)
+            return random.uniform(0, max(0, d - 12)) if d > 15 else 0
+
+          # ── DECIDE WHETHER TO RUN ─────────────────────────────
+          today = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+          event = os.environ.get("GITHUB_EVENT_NAME", "")
+          dry   = os.environ.get("DRY_RUN", "false").lower() == "true"
+          hist  = load_hist()
+          if event == "schedule" and any(r.get("date") == today for r in hist):
+            print(f"Already posted today ({today}). Nothing to do.")
+            sys.exit(0)
+
+          fb_token   = os.environ.get("FB_PAGE_TOKEN")
+          fb_page_id = os.environ.get("FB_PAGE_ID")
+          if not dry and (not fb_token or not fb_page_id):
+            raise RuntimeError("FB_PAGE_TOKEN or FB_PAGE_ID secret is missing")
+
+          # ── OPEN THE PAGE (export mode), PICK THE VIDEO ───────
+          opts = Options()
+          for a in ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--window-size=1280,900",
+                    "--force-device-scale-factor=1", "--autoplay-policy=no-user-gesture-required", "--hide-scrollbars",
+                    "--disable-background-timer-throttling", "--disable-renderer-backgrounding",
+                    "--disable-backgrounding-occluded-windows", "--no-first-run", "--allow-file-access-from-files"]:
+            opts.add_argument(a)
+          print("Starting Chrome...")
+          driver = webdriver.Chrome(options=opts)
+          driver.set_script_timeout(900)
+          # phone-shaped 9:16 viewport; screenshots come out at exactly 1080x1920
+          driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", {"width": VIEW_W, "height": VIEW_H, "deviceScaleFactor": SCALE, "mobile": False})
+          driver.get("file://" + os.path.abspath(HTML_FILE) + "?export=1")
+          for _ in range(120):
+            if driver.execute_script("return window._ready === true;"): break
+            time.sleep(1)
+          else:
+            driver.quit(); raise RuntimeError("Page never became ready")
+
+          ids = driver.execute_script("return window.TOPIC_IDS;")
+          forced = os.environ.get("FORCE_TOPIC", "").strip()
+          topic_id = forced if forced in ids else pick_topic(ids, hist)
+
+          # manual choices from the run form (empty or "random" = let the seed decide)
+          def opt(name):
+            v = (os.environ.get(name, "") or "").strip()
+            return None if v.lower() in ("", "random", "any") else v
+          page_opts = {"theme": opt("FORCE_THEME"), "word": opt("FORCE_WORD"), "cta": opt("FORCE_CTA")}
+          info = driver.execute_async_script(
+            "var d = arguments[arguments.length-1];"
+            "window.loadTopic(arguments[0], arguments[1]).then(d).catch(function(e){ d({error: String(e)}); });",
+            topic_id, page_opts)
+          if info.get("error"): raise RuntimeError("loadTopic failed: " + info["error"])
+          print(f"Video: {info['id']} | word={info['word']} theme={info['theme']} languages={info['languages']} | options={page_opts}")
+
+          total = float(info["total"])
+          print(f"Video length: {total:.1f}s")
+          if total > MAX_LEN: print(f"WARNING: longer than MAX_LEN ({MAX_LEN}s)")
+
+          # ── CAPTURE FRAMES (the page is scrubbed to each exact frame time, nothing runs in real time) ──
+          frames_dir = OUT_DIR / "frames"
+          shutil.rmtree(frames_dir, ignore_errors=True); frames_dir.mkdir(parents=True)
+          nframes = int(math.ceil(total * FPS))
+          print(f"Capturing {nframes} frames...")
+          for i in range(nframes):
+            driver.execute_async_script("var d = arguments[arguments.length-1]; window.stepTo(arguments[0]).then(function(){ d(1); });", i)
+            shot = driver.execute_cdp_cmd("Page.captureScreenshot", {"format": "jpeg", "quality": 92})
+            (frames_dir / f"{i:05d}.jpg").write_bytes(base64.b64decode(shot["data"]))
+            if i % 60 == 0: print(f"  frame {i}/{nframes}")
+
+          # ── MUSIC, THEN SOUND (effects are rendered offline at their exact times) ──
+          music = pick_music()
+          print("Rendering sound...")
+          b64a = driver.execute_async_script(
+            "var done = arguments[arguments.length-1];"
+            "window.renderAudioBase64(arguments[0]).then(done).catch(function(e){ done(null); });", bool(music))
+          driver.quit()
+          sfx_raw = os.path.join(OUT_DIR, "sfx.raw")
+          if b64a:
+            with open(sfx_raw, "wb") as f: f.write(base64.b64decode(b64a))
+          else:
+            print("Sound render failed - using silence")
+            subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", f"{total:.3f}", "-f", "s16le", sfx_raw], capture_output=True)
+
+          # ── ENCODE: frames + sound (+ music) -> 1080x1920 reel at a fixed bitrate so the file stays small ──
+          vbr = int(max(900000, min(6000000, (TARGET_MB * 8 * 1048576) / total - AUDIO_BPS)))
+          print(f"Video bitrate target: {vbr/1000:.0f} kbps")
+          cmd = ["ffmpeg", "-y", "-framerate", str(FPS), "-i", str(frames_dir / "%05d.jpg"),
+                 "-f", "s16le", "-ar", "48000", "-ac", "2", "-i", sfx_raw]
+          if music: cmd += ["-stream_loop", "-1", "-ss", f"{music_start(music):.2f}", "-t", f"{total:.3f}", "-i", music]
+          vf = "[0:v]scale=1080:1920:flags=lanczos,format=yuv420p[v]"
+          af = [f"[1:a]volume=0.8,apad=whole_dur={total:.3f}[sfx]"]; mix = ["[sfx]"]
+          if music:
+            af.append(f"[2:a]aresample=48000,aformat=channel_layouts=stereo,volume={BGMUSIC_VOLUME},afade=t=in:st=0:d=1.0,"
+                      f"afade=t=out:st={max(0.0, total - 1.5):.3f}:d=1.5,apad=whole_dur={total:.3f}[music]"); mix.append("[music]")
+          af.append("".join(mix) + f"amix=inputs={len(mix)}:duration=longest:dropout_transition=0,volume={len(mix)},alimiter=limit=0.95[a]")
+          final_mp4 = str(OUT_DIR / "reel.mp4")
+          cmd += ["-filter_complex", vf + ";" + ";".join(af), "-map", "[v]", "-map", "[a]", "-t", f"{total:.3f}",
+                  "-r", str(FPS), "-c:v", "libx264", "-preset", "medium",
+                  "-b:v", str(vbr), "-maxrate", str(int(vbr * 1.3)), "-bufsize", str(vbr * 2), "-pix_fmt", "yuv420p",
+                  "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", final_mp4]
+          with open(OUT_DIR / "ffmpeg.log", "wb") as log:
+            rc = subprocess.run(cmd, stderr=log).returncode
+          if rc != 0 or not os.path.exists(final_mp4) or os.path.getsize(final_mp4) < 10000:
+            print(open(OUT_DIR / "ffmpeg.log", errors="ignore").read()[-1500:])
+            raise RuntimeError("Encoding failed")
+          print(f"Reel: {size_mb(final_mp4):.1f} MB, {duration_of(final_mp4):.1f}s")
+          shutil.rmtree(frames_dir, ignore_errors=True)
+
+          # ── SAFETY NET: if it is still too big, squeeze it until it fits ──
+          tries = 0
+          while size_mb(final_mp4) > LIMIT_MB and tries < 5:
+            vbr = int(vbr * 0.7); tries += 1
+            small = str(OUT_DIR / "reel_small.mp4")
+            print(f"Too big ({size_mb(final_mp4):.1f} MB), re-encoding at {vbr/1000:.0f} kbps...")
+            subprocess.run(["ffmpeg", "-y", "-i", final_mp4, "-c:v", "libx264", "-preset", "medium",
+                            "-b:v", str(vbr), "-maxrate", str(int(vbr * 1.3)), "-bufsize", str(vbr * 2),
+                            "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", small], capture_output=True)
+            if os.path.exists(small): os.replace(small, final_mp4)
+          print(f"Final reel: {size_mb(final_mp4):.1f} MB")
+          if size_mb(final_mp4) > LIMIT_MB:
+            raise RuntimeError(f"Reel is still {size_mb(final_mp4):.1f} MB, refusing to post")
+
+          try: os.remove(sfx_raw)
+          except Exception: pass
+
+          if dry:
+            print("Dry run: not posting.")
+            sys.exit(0)
+
+          # ── POST ────────────────────────────────────────────
+          description = "\n\n".join(x for x in [info.get("caption"), info.get("tags"), info.get("footer")] if x)
+          print("Posting to Facebook...")
+          with open(final_mp4, "rb") as f:
+            response = requests.post(
+              f"https://graph-video.facebook.com/v18.0/{fb_page_id}/videos",
+              data={"description": description, "access_token": fb_token},
+              files={"source": ("reel.mp4", f, "video/mp4")})
+          print(f"Response: {response.status_code}")
+          if response.status_code != 200:
+            raise RuntimeError(f"Post failed: {response.text}")
+          fb_id = response.json().get("id")
+          print(f"Posted! ID: {fb_id}")
+
+          hist.append({"id": info["id"], "kind": info["kind"], "date": today, "fb_id": fb_id})
+          save_hist(hist)
+          print("Remembered the video id in posted_stories.json. Done!")
+          PYEOF
+        env:
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          FB_PAGE_ID:    ${{ secrets.FB_PAGE_ID }}
+          FORCE_TOPIC:   ${{ inputs.topic }}
+          FORCE_THEME:   ${{ inputs.theme }}
+          FORCE_WORD:    ${{ inputs.word }}
+          FORCE_CTA:     ${{ inputs.cta }}
+          DRY_RUN:       ${{ inputs.dry_run }}
+
+      - name: Remember the posted video (commit posted_stories.json)
+        if: ${{ success() && inputs.dry_run != true }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add posted_stories.json || true
+          if git diff --cached --quiet; then
+            echo "Nothing new to remember."
+          else
+            git commit -m "Remember posted video"
+            git pull --rebase origin "${GITHUB_REF_NAME}" || true
+            git push
+          fi
+
+      - name: Keep the preview video (dry runs only)
+        if: ${{ always() && inputs.dry_run == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-preview
+          path: out/reel.mp4
